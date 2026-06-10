@@ -33,7 +33,7 @@ RUN mkdir -p uploads/delivery-photos /var/lib/mysql /run/mysqld && \
     chown -R mysql:mysql /var/lib/mysql /run/mysqld
 
 # Exponer el puerto
-EXPOSE 4000 3306
+EXPOSE 4100 3306
 
 # Usar script de entrada
 ENTRYPOINT ["docker-entrypoint.sh"]
