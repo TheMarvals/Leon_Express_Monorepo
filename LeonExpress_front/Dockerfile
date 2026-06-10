@@ -23,7 +23,7 @@ ENV VITE_VAPID_PUBLIC_KEY=${VITE_VAPID_PUBLIC_KEY}
 
 # Construir la aplicación para producción
 ENV NODE_OPTIONS="--max-old-space-size=1024"
-RUN npm run build:ci
+RUN NODE_ENV=development npm run build:ci
 
 # Etapa de producción
 FROM nginx:alpine as production-stage
