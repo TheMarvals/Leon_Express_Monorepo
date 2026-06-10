@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Instalar todas las dependencias (incluidas las de desarrollo)
-RUN NODE_ENV=development npm ci --legacy-peer-deps --ignore-scripts
+RUN NODE_ENV=development npm install --legacy-peer-deps --ignore-scripts
 
 # Copiar el código fuente
 COPY . .
