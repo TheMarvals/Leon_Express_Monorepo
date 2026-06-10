@@ -1,0 +1,53 @@
+{
+  "batch_id": "a5618a3a-ed59-4500-bb39-e295e5821d16",
+  "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+  "status": "pending",
+  "total_images": 1,
+  "processed": 1,
+  "auto_approved": 1,
+  "needs_review": 0,
+  "errors": 0,
+  "created_at": "2025-10-23T16:30:22.843Z",
+  "client_price": 2500,
+  "delivery_cost": 2800,
+  "metadata": {},
+  "items": [
+    {
+      "item_id": "a5618a3a-ed59-4500-bb39-e295e5821d16_0",
+      "batch_id": "a5618a3a-ed59-4500-bb39-e295e5821d16",
+      "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/005d54ae-d5c5-4ca2-9aab-edec1a547eca/labels/label_1761237022843_0.jpg",
+      "filename": "label_1761237022843_0.jpg",
+      "index": 0,
+      "status": "auto_approved",
+      "created_at": "2025-10-23T16:30:23.035Z",
+      "processing_started_at": "2025-10-23T16:30:23.036Z",
+      "auto_approved": true,
+      "ocr_text": "Venta ID: 2000013362343452\nRecorto esta parte de la etiqueta para\nque tu paquete viaje seguro.\nMopa A Vapor Limpiadora A Vapor Maquina\nPara Limpieza\nSKU: MOPAAMA-LEON\nUnidad\nLEÓN IMPORT SPA LEÓN IMPO #1513023287\nAndrea Doria 2720\nPedro Aguirre Cerda, Pedro Aguirre Cerda, RM\n(Metropolitana)\nVenta: 2000013362343452\nEnvio: 45660464417\nEnvío Flex\nEntrega:\n11-Oct.\nPUENTE ALTO\nPUENTE ALTO\nRESIDENCIAL\nDireccion: Aníbal Pinto 405\nReferencia: Referencia: llamar antes de entregar\nDestinatario: Viviana leon (LEVI4293499)",
+      "extracted_data": {
+        "recipient_name": "Viviana leon",
+        "destination_address": "Aníbal Pinto 405",
+        "recipient_phone": "+4293499",
+        "external_tracking_code": "2000013362343452",
+        "shipping_code": "45660464417",
+        "reference": "Referencia: llamar antes de entregar",
+        "client_price": 2500,
+        "delivery_cost": 2800
+      },
+      "confidence_scores": {
+        "recipient_name": 100,
+        "destination_address": 100,
+        "recipient_phone": 65,
+        "external_tracking_code": 100,
+        "shipping_code": 100,
+        "reference": 85
+      },
+      "overall_confidence": 92,
+      "parser_used": "Mercado Libre",
+      "fields_extracted": 6,
+      "processed_at": "2025-10-23T16:30:26.202Z",
+      "package_id": "9f8ce53c-4365-4370-9b74-6f3bf1fc4587",
+      "is_duplicate": false
+    }
+  ]
+}

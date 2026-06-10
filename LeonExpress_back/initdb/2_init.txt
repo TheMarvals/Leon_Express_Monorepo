@@ -1,0 +1,410 @@
+-- Crear base de datos
+CREATE DATABASE IF NOT EXISTS leon_express CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE leon_express;
+
+-- Tabla de roles
+CREATE TABLE roles (
+    role_id VARCHAR(36) PRIMARY KEY,
+    role_name VARCHAR(50) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de clientes
+CREATE TABLE clients (
+    client_id VARCHAR(36) PRIMARY KEY,
+    client_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    phone VARCHAR(20),
+    address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Tabla de usuarios
+CREATE TABLE users (
+    user_id VARCHAR(36) PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role_id VARCHAR(36) NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    phone VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_users_roles FOREIGN KEY (role_id) REFERENCES roles(role_id)
+);
+
+-- Tabla de tipos de vehículo (nueva)
+CREATE TABLE vehicle_types (
+    type_id VARCHAR(36) PRIMARY KEY,
+    type_name VARCHAR(50) NOT NULL UNIQUE,
+    delivery_cost DECIMAL(10,2) NOT NULL COMMENT 'Costo que se paga al repartidor',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de vehículos (nueva)
+CREATE TABLE vehicles (
+    vehicle_id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL,
+    type_id VARCHAR(36) NOT NULL,
+    license_plate VARCHAR(20) UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_vehicles_users FOREIGN KEY (user_id) REFERENCES users(user_id),
+    CONSTRAINT fk_vehicles_types FOREIGN KEY (type_id) REFERENCES vehicle_types(type_id)
+);
+
+-- Tabla de paquetes (modificada con campos de precio)
+CREATE TABLE packages (
+    package_id VARCHAR(36) PRIMARY KEY,
+    tracking_code VARCHAR(50) NOT NULL UNIQUE,
+    client_id VARCHAR(36) NOT NULL,
+    status ENUM('RECIBIDO', 'ASIGNADO', 'EN_RUTA', 'ENTREGADO', 'NO_HAY_NADIE', 'REPROGRAMADO') NOT NULL DEFAULT 'RECIBIDO',
+    client_price DECIMAL(10,2) NOT NULL COMMENT 'Precio cobrado al cliente',
+    delivery_cost DECIMAL(10,2) COMMENT 'Costo de entrega (pago al repartidor)',
+    received_date DATE NOT NULL,
+    assigned_date DATE,
+    delivery_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_packages_clients FOREIGN KEY (client_id) REFERENCES clients(client_id)
+);
+
+-- Tabla de precios para clientes (nueva)
+CREATE TABLE client_pricing (
+    price_id VARCHAR(36) PRIMARY KEY,
+    client_id VARCHAR(36) NOT NULL,
+    base_price DECIMAL(10,2) NOT NULL COMMENT 'Precio base por envío',
+    description VARCHAR(255),
+    valid_from DATE NOT NULL,
+    valid_to DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_pricing_clients FOREIGN KEY (client_id) REFERENCES clients(client_id)
+);
+
+-- Tabla de costos adicionales (nueva)
+CREATE TABLE additional_costs (
+    cost_id VARCHAR(36) PRIMARY KEY,
+    cost_name VARCHAR(100) NOT NULL,
+    cost_value DECIMAL(10,2) NOT NULL,
+    applies_to ENUM('CLIENT', 'REPARTIDOR', 'AMBOS') NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de costos aplicados a paquetes (nueva)
+CREATE TABLE package_costs (
+    package_cost_id VARCHAR(36) PRIMARY KEY,
+    package_id VARCHAR(36) NOT NULL,
+    cost_id VARCHAR(36) NOT NULL,
+    applied_value DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_packagecosts_packages FOREIGN KEY (package_id) REFERENCES packages(package_id),
+    CONSTRAINT fk_packagecosts_costs FOREIGN KEY (cost_id) REFERENCES additional_costs(cost_id)
+);
+
+-- Tabla de rutas
+CREATE TABLE routes (
+    route_id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL,
+    start_date DATETIME NOT NULL,
+    end_date DATETIME,
+    status ENUM('PENDIENTE', 'EN_PROGRESO', 'FINALIZADA') NOT NULL DEFAULT 'PENDIENTE',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_routes_users FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- Tabla de paquetes en rutas
+CREATE TABLE route_packages (
+    route_package_id VARCHAR(36) PRIMARY KEY,
+    route_id VARCHAR(36) NOT NULL,
+    package_id VARCHAR(36) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_route_packages_routes FOREIGN KEY (route_id) REFERENCES routes(route_id),
+    CONSTRAINT fk_route_packages_packages FOREIGN KEY (package_id) REFERENCES packages(package_id),
+    UNIQUE KEY uniq_route_package (route_id, package_id)
+);
+
+-- Tabla de entregas (modificada con relación a vehículos)
+CREATE TABLE deliveries (
+    delivery_id VARCHAR(36) PRIMARY KEY,
+    package_id VARCHAR(36) NOT NULL,
+    vehicle_id VARCHAR(36) NOT NULL,
+    receiver_name VARCHAR(100),
+    receiver_rut VARCHAR(20),
+    observation TEXT,
+    photo_urls JSON,
+    gps_latitude DECIMAL(10,8),
+    gps_longitude DECIMAL(11,8),
+    delivered_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_deliveries_packages FOREIGN KEY (package_id) REFERENCES packages(package_id),
+    CONSTRAINT fk_deliveries_vehicles FOREIGN KEY (vehicle_id) REFERENCES vehicles(vehicle_id)
+);
+
+-- Tabla de recolecciones (modificada con relación a vehículos)
+CREATE TABLE pickups (
+    pickup_id VARCHAR(36) PRIMARY KEY,
+    package_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    vehicle_id VARCHAR(36) NOT NULL,
+    pickup_date DATETIME NOT NULL,
+    status ENUM('PENDIENTE', 'COMPLETADO') NOT NULL DEFAULT 'PENDIENTE',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_pickups_packages FOREIGN KEY (package_id) REFERENCES packages(package_id),
+    CONSTRAINT fk_pickups_users FOREIGN KEY (user_id) REFERENCES users(user_id),
+    CONSTRAINT fk_pickups_vehicles FOREIGN KEY (vehicle_id) REFERENCES vehicles(vehicle_id)
+);
+
+-- Tabla de auditoría
+CREATE TABLE audit_log (
+    log_id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36),
+    action VARCHAR(50) NOT NULL,
+    details TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_auditlog_users FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- Índices principales
+CREATE INDEX idx_package_status ON packages(status);
+CREATE INDEX idx_package_tracking ON packages(tracking_code);
+CREATE INDEX idx_route_user ON routes(user_id);
+CREATE INDEX idx_route_status ON routes(status);
+CREATE INDEX idx_delivery_package ON deliveries(package_id);
+CREATE INDEX idx_client_id ON packages(client_id);
+
+-- Nuevos índices para optimización
+CREATE INDEX idx_vehicle_user ON vehicles(user_id);
+CREATE INDEX idx_pricing_client ON client_pricing(client_id);
+CREATE INDEX idx_packagecost_package ON package_costs(package_id);
+
+-- Vistas actualizadas
+CREATE OR REPLACE VIEW vw_packages_with_client AS
+SELECT
+    p.package_id,
+    p.tracking_code,
+    p.status,
+    p.client_price,
+    p.delivery_cost,
+    (p.client_price - p.delivery_cost) AS profit,
+    p.received_date,
+    p.assigned_date,
+    p.delivery_date,
+    c.client_id,
+    c.client_name,
+    c.email AS client_email,
+    c.phone AS client_phone
+FROM packages p
+JOIN clients c ON p.client_id = c.client_id;
+
+CREATE OR REPLACE VIEW vw_routes_with_user AS
+SELECT
+    r.route_id,
+    r.start_date,
+    r.end_date,
+    r.status,
+    u.user_id,
+    u.username,
+    u.full_name,
+    v.license_plate,
+    vt.type_name AS vehicle_type
+FROM routes r
+JOIN users u ON r.user_id = u.user_id
+JOIN vehicles v ON u.user_id = v.user_id
+JOIN vehicle_types vt ON v.type_id = vt.type_id;
+
+-- Datos iniciales
+INSERT INTO roles (role_id, role_name) VALUES 
+(UUID(), 'Administrador'),
+(UUID(), 'Subadministrador'),
+(UUID(), 'Repartidor');
+
+-- Insertar tipos de vehículos iniciales
+INSERT INTO vehicle_types (type_id, type_name, delivery_cost) VALUES 
+(UUID(), 'Moto', 3.50),
+(UUID(), 'Auto', 5.00),
+(UUID(), 'Camioneta', 7.50),
+(UUID(), 'Bicicleta', 2.50);
+
+-- Insertar costos adicionales comunes
+INSERT INTO additional_costs (cost_id, cost_name, cost_value, applies_to) VALUES 
+(UUID(), 'Recargo por peso', 2.00, 'AMBOS'),
+(UUID(), 'Recargo por distancia', 3.50, 'CLIENT'),
+(UUID(), 'Bono entrega rápida', 1.50, 'REPARTIDOR'),
+(UUID(), 'Seguro de paquete', 1.00, 'CLIENT');
+
+-- Insertar usuario admin
+INSERT INTO users (user_id, username, password_hash, role_id, full_name, email) 
+VALUES (
+    UUID(),
+    'admin',
+    '$2b$10$YJ5bZzO6U3p7y8w9v0x1AeBcDeFgHiJkLmNoPqRrStUvWxYz12346',
+    (SELECT role_id FROM roles WHERE role_name = 'Administrador'),
+    'Administrador Principal',
+    'admin@leonexpress.com'
+);
+
+-- -- Crear base de datos
+-- CREATE DATABASE IF NOT EXISTS leon_express CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- USE leon_express;
+
+-- -- Tabla de roles (primera porque otras dependen de ella)
+-- CREATE TABLE roles (
+--     role_id VARCHAR(36) PRIMARY KEY,
+--     role_name VARCHAR(50) NOT NULL UNIQUE,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- );
+
+-- -- Tabla de clientes
+-- CREATE TABLE clients (
+--     client_id VARCHAR(36) PRIMARY KEY,
+--     client_name VARCHAR(100) NOT NULL,
+--     email VARCHAR(100) UNIQUE,
+--     phone VARCHAR(20),
+--     address TEXT,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+-- );
+
+-- -- Tabla de usuarios
+-- CREATE TABLE users (
+--     user_id VARCHAR(36) PRIMARY KEY,
+--     username VARCHAR(50) NOT NULL UNIQUE,
+--     password_hash VARCHAR(255) NOT NULL,
+--     role_id VARCHAR(36) NOT NULL,
+--     full_name VARCHAR(100) NOT NULL,
+--     email VARCHAR(100) UNIQUE,
+--     phone VARCHAR(20),
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--     CONSTRAINT fk_users_roles FOREIGN KEY (role_id) REFERENCES roles(role_id)
+-- );
+
+-- -- Tabla de paquetes
+-- CREATE TABLE packages (
+--     package_id VARCHAR(36) PRIMARY KEY,
+--     tracking_code VARCHAR(50) NOT NULL UNIQUE,
+--     client_id VARCHAR(36) NOT NULL,
+--     status ENUM('RECIBIDO', 'ASIGNADO', 'EN_RUTA', 'ENTREGADO', 'NO_HAY_NADIE', 'REPROGRAMADO') NOT NULL DEFAULT 'RECIBIDO',
+--     received_date DATE NOT NULL,
+--     assigned_date DATE,
+--     delivery_date DATE,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--     CONSTRAINT fk_packages_clients FOREIGN KEY (client_id) REFERENCES clients(client_id)
+-- );
+
+-- -- Tabla de rutas
+-- CREATE TABLE routes (
+--     route_id VARCHAR(36) PRIMARY KEY,
+--     user_id VARCHAR(36) NOT NULL,
+--     start_date DATETIME NOT NULL,
+--     end_date DATETIME,
+--     status ENUM('PENDIENTE', 'EN_PROGRESO', 'FINALIZADA') NOT NULL DEFAULT 'PENDIENTE',
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--     CONSTRAINT fk_routes_users FOREIGN KEY (user_id) REFERENCES users(user_id)
+-- );
+
+-- -- Tabla de paquetes en rutas
+-- CREATE TABLE route_packages (
+--     route_package_id VARCHAR(36) PRIMARY KEY,
+--     route_id VARCHAR(36) NOT NULL,
+--     package_id VARCHAR(36) NOT NULL,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     CONSTRAINT fk_route_packages_routes FOREIGN KEY (route_id) REFERENCES routes(route_id),
+--     CONSTRAINT fk_route_packages_packages FOREIGN KEY (package_id) REFERENCES packages(package_id),
+--     UNIQUE KEY uniq_route_package (route_id, package_id)
+-- );
+
+-- -- Tabla de entregas
+-- CREATE TABLE deliveries (
+--     delivery_id VARCHAR(36) PRIMARY KEY,
+--     package_id VARCHAR(36) NOT NULL,
+--     receiver_name VARCHAR(100),
+--     receiver_rut VARCHAR(20),
+--     observation TEXT,
+--     photo_urls JSON,
+--     gps_latitude DECIMAL(10,8),
+--     gps_longitude DECIMAL(11,8),
+--     delivered_at TIMESTAMP,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     CONSTRAINT fk_deliveries_packages FOREIGN KEY (package_id) REFERENCES packages(package_id)
+-- );
+
+-- -- Tabla de recolecciones
+-- CREATE TABLE pickups (
+--     pickup_id VARCHAR(36) PRIMARY KEY,
+--     package_id VARCHAR(36) NOT NULL,
+--     user_id VARCHAR(36) NOT NULL,
+--     pickup_date DATETIME NOT NULL,
+--     status ENUM('PENDIENTE', 'COMPLETADO') NOT NULL DEFAULT 'PENDIENTE',
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--     CONSTRAINT fk_pickups_packages FOREIGN KEY (package_id) REFERENCES packages(package_id),
+--     CONSTRAINT fk_pickups_users FOREIGN KEY (user_id) REFERENCES users(user_id)
+-- );
+
+-- -- Tabla de auditoría
+-- CREATE TABLE audit_log (
+--     log_id VARCHAR(36) PRIMARY KEY,
+--     user_id VARCHAR(36),
+--     action VARCHAR(50) NOT NULL,
+--     details TEXT,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     CONSTRAINT fk_auditlog_users FOREIGN KEY (user_id) REFERENCES users(user_id)
+-- );
+
+-- -- Índices (se mantienen iguales)
+-- CREATE INDEX idx_package_status ON packages(status);
+-- CREATE INDEX idx_package_tracking ON packages(tracking_code);
+-- CREATE INDEX idx_route_user ON routes(user_id);
+-- CREATE INDEX idx_route_status ON routes(status);
+-- CREATE INDEX idx_delivery_package ON deliveries(package_id);
+-- CREATE INDEX idx_client_id ON packages(client_id);
+
+-- -- Vistas (simplificadas sin conversión binaria)
+-- CREATE VIEW vw_packages_with_client AS
+-- SELECT
+--     p.package_id,
+--     p.tracking_code,
+--     p.status,
+--     p.received_date,
+--     p.assigned_date,
+--     p.delivery_date,
+--     c.client_id,
+--     c.client_name,
+--     c.email AS client_email,
+--     c.phone AS client_phone
+-- FROM packages p
+-- JOIN clients c ON p.client_id = c.client_id;
+
+-- CREATE VIEW vw_routes_with_user AS
+-- SELECT
+--     r.route_id,
+--     r.start_date,
+--     r.end_date,
+--     r.status,
+--     u.user_id,
+--     u.username,
+--     u.full_name
+-- FROM routes r
+-- JOIN users u ON r.user_id = u.user_id;
+
+-- -- Datos iniciales (roles) - Usando UUID() directamente como string
+-- INSERT INTO roles (role_id, role_name) VALUES (UUID(), 'Administrador');
+-- INSERT INTO roles (role_id, role_name) VALUES (UUID(), 'Subadministrador');
+-- INSERT INTO roles (role_id, role_name) VALUES (UUID(), 'Repartidor');
+
+-- -- Insertar usuario admin (con UUID generado como string)
+-- INSERT INTO users (user_id, username, password_hash, role_id, full_name, email) 
+-- VALUES (
+--     UUID(),
+--     'admin',
+--     '$2b$10$YJ5bZzO6U3p7y8w9v0x1AeBcDeFgHiJkLmNoPqRrStUvWxYz12346',
+--     (SELECT role_id FROM roles WHERE role_name = 'Administrador'),
+--     'Administrador Principal',
+--     'admin@leonexpress.com'
+-- );

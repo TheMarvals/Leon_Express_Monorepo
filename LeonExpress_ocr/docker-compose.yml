@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  ocr-engine:
+    build: .
+    container_name: leonexpress_ocr
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    networks:
+      - leon_express_leonexpress_network
+
+networks:
+  leon_express_leonexpress_network:
+    external: true

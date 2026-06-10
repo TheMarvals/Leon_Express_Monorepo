@@ -1,0 +1,17 @@
+/* Cambia color del ítem seleccionado en VaTimePicker */
+.va-time-picker__list-item--selected {
+  background-color: #10b981 !important; /* Tailwind: emerald-500 */
+  color: white !important;
+}
+
+/* Cambia color de los botones AM/PM */
+.va-time-picker__button-group button {
+  background-color: #10b981 !important;
+  color: white !important;
+}
+
+/* Hover en items */
+.va-time-picker__list-item:hover {
+  background-color: #34d399 !important; /* Tailwind: emerald-400 */
+  color: white;
+}

@@ -1,0 +1,45 @@
+{
+  "batch_id": "cea9f037-0150-42b2-ae73-efb35f39e74b",
+  "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+  "status": "pending",
+  "total_images": 1,
+  "processed": 1,
+  "auto_approved": 0,
+  "needs_review": 1,
+  "errors": 0,
+  "created_at": "2025-10-23T13:23:23.145Z",
+  "client_price": 2500,
+  "delivery_cost": 2800,
+  "metadata": {},
+  "items": [
+    {
+      "item_id": "cea9f037-0150-42b2-ae73-efb35f39e74b_0",
+      "batch_id": "cea9f037-0150-42b2-ae73-efb35f39e74b",
+      "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/005d54ae-d5c5-4ca2-9aab-edec1a547eca/labels/label_1761225803145_0.jpg",
+      "filename": "label_1761225803145_0.jpg",
+      "index": 0,
+      "status": "needs_review",
+      "created_at": "2025-10-23T13:23:23.161Z",
+      "processing_started_at": "2025-10-23T13:23:23.161Z",
+      "auto_approved": false,
+      "ocr_text": "LEÓN IMPORT SPA LEON BIPO COSOZDE7\nAria Dona 2120\nMercad\nVerta 2000013363147880 Ende 8000/8516\nEntrega:\nEnvio Turbo\n10-Oct. 14 a 16 hs\nANILLO ESTE\nSAN MIGUEL\nRESIDENCIAL\nDireccion alcalde pedro alarcon 825\nReferencia: entregar en conserjeria\nDestinatario: aLfi orta (ORAU196987)",
+      "extracted_data": {
+        "destination_address": "alcalde pedro alarcon 825\nReferencia: entregar en conserjeria\nDestinatario: aLfi orta (ORAU196987)",
+        "external_tracking_code": "erenciaentregarenconserjeria",
+        "client_price": 2500,
+        "delivery_cost": 2800
+      },
+      "confidence_scores": {
+        "destination_address": 85,
+        "external_tracking_code": 100
+      },
+      "overall_confidence": 93,
+      "parser_used": "Generic",
+      "fields_extracted": 2,
+      "processed_at": "2025-10-23T13:23:25.446Z",
+      "package_id": null,
+      "is_duplicate": false
+    }
+  ]
+}

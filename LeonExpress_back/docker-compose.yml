@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql8
+    environment:
+      MYSQL_ROOT_PASSWORD: ThomasMarval2105..
+      MYSQL_DATABASE: leon_express
+      MYSQL_USER: leon_express_user
+      MYSQL_PASSWORD: naLn8bIE@07(/i3h
+    ports:
+      - "3306:3306"
+    volumes:
+      - /Volumes/backup120/Leon_Express/BACKEND/mysql-data:/var/lib/mysql
+      - /Volumes/backup120/Leon_Express/BACKEND/initdb:/docker-entrypoint-initdb.d

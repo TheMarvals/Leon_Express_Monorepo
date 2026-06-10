@@ -1,0 +1,139 @@
+@use 'tailwind';
+@use 'vuestic';
+@use 'icon-fonts/index';
+
+body {
+  @apply text-regularMedium;
+
+  // TODO Move to some other place so that it's more elegant.
+  --va-checkbox-font-size: 0.875rem;
+  --va-card-box-shadow: none; // TODO Remove after https://github.com/epicmaxco/vuestic-ui/issues/3964
+  --va-card-padding: 1rem;
+  --va-font-family: 'Inter', sans-serif;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: monospace;
+  font-size: 1em;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-title {
+  @apply text-[32px] md:text-5xl font-bold leading-9 md:leading-[56px] max-sm:mt-6 mb-6 md:mb-4;
+}
+
+.h1 {
+  @apply text-[32px] md:text-5xl font-bold leading-9 md:leading-[56px] max-sm:mt-6 mb-6 md:mb-4;
+}
+
+.h3,
+.page-sub-title {
+  @apply text-2xl font-bold leading-[30px];
+}
+
+.h5 {
+  @apply font-bold leading-tight;
+}
+
+.block-title {
+  @apply text-2xl font-bold mb-2;
+}
+
+.pricing-plan-card-title {
+  @apply text-[28px] md:text-[32px] leading-10 font-bold;
+}
+
+.text-regular-small {
+  font-size: 0.8125rem;
+  line-height: 1rem;
+}
+
+/* Estilos globales para los modales */
+.custom-modal {
+  --va-modal-background: #ffffff;
+  --va-modal-header-color: #03323a;
+  --va-modal-content-color: #4a5568;
+  --va-modal-border-radius: 0.75rem;
+  --va-modal-box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  --va-modal-padding: 1.5rem;
+  --va-modal-header-padding: 1rem 1.5rem;
+  --va-modal-footer-padding: 1rem 1.5rem;
+}
+
+.custom-modal {
+  --va-modal-background: #fff;
+  --va-modal-border-radius: 8px;
+  --va-modal-box-shadow: 0 4px 20px rgba(231, 76, 60, 0.15);
+}
+
+/* Estilos para el modal personalizado */
+.custom-modal {
+  --va-modal-background: #ffffff;
+  --va-modal-border-radius: 8px;
+  --va-modal-box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Estilos específicos para los botones */
+.custom-modal .va-button--normal [va-child='okButton'] {
+  background-color: #4caf50 !important;
+  color: white !important;
+  font-weight: 600 !important;
+  border-radius: 4px !important;
+  padding: 0.5rem 1.5rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: background-color 0.3s ease;
+}
+
+.custom-modal .va-button--normal[va-child='okButton']:hover {
+  background-color: #3e8e41 !important;
+}
+
+.custom-modal [va-child='cancelButton'] {
+  background-color: #f44336 !important;
+  color: white !important;
+  border-radius: 4px !important;
+  padding: 0.5rem 1.5rem !important;
+  transition: background-color 0.3s ease;
+}
+
+.custom-modal [va-child='cancelButton']:hover {
+  background-color: #d32f2f !important;
+}
+
+/* Estilos adicionales para el modal */
+.custom-modal .va-modal__header {
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 12px;
+  color: #2c3e50;
+}
+
+.custom-modal .va-modal__footer {
+  border-top: 1px solid #e0e0e0;
+  padding-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.va-time-picker__list-item--selected {
+  background-color: #e63946 !important; /* tu color preferido */
+  color: white !important;
+}
+
+.va-time-picker__button-group button {
+  background-color: #e63946 !important;
+  color: white !important;
+}
+
+.va-time-picker__list-item:hover {
+  background-color: #ff6b6b !important;
+}

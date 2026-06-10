@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2025-06-06T21:46:00.000Z" agent="5.0 (Windows)" etag="abc123" version="20.3.6" type="device">
+  <diagram id="leon_express_uml" name="Modelo UML">
+    <mxGraphModel dx="1076" dy="664" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        
+        <!-- Role -->
+        <mxCell id="role" value="Role&#xa;---------------------&#xa;role_id : VARCHAR(36) [PK]&#xa;role_name : VARCHAR(50) [UNIQUE, NOT NULL]&#xa;created_at : TIMESTAMP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="180" height="110" as="geometry"/>
+        </mxCell>
+        
+        <!-- Client -->
+        <mxCell id="client" value="Client&#xa;---------------------&#xa;client_id : VARCHAR(36) [PK]&#xa;client_name : VARCHAR(100) [NOT NULL]&#xa;email : VARCHAR(100) [UNIQUE]&#xa;phone : VARCHAR(20)&#xa;address : TEXT&#xa;created_at : TIMESTAMP&#xa;updated_at : TIMESTAMP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;" vertex="1" parent="1">
+          <mxGeometry x="240" y="20" width="220" height="150" as="geometry"/>
+        </mxCell>
+        
+        <!-- User -->
+        <mxCell id="user" value="User&#xa;---------------------&#xa;user_id : VARCHAR(36) [PK]&#xa;username : VARCHAR(50) [UNIQUE, NOT NULL]&#xa;password_hash : VARCHAR(255) [NOT NULL]&#xa;role_id : VARCHAR(36) [FK → Role.role_id, NOT NULL]&#xa;full_name : VARCHAR(100) [NOT NULL]&#xa;email : VARCHAR(100) [UNIQUE]&#xa;phone : VARCHAR(20)&#xa;created_at : TIMESTAMP&#xa;updated_at : TIMESTAMP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;" vertex="1" parent="1">
+          <mxGeometry x="500" y="20" width="260" height="180" as="geometry"/>
+        </mxCell>
+        
+        <!-- Package -->
+        <mxCell id="package" value="Package&#xa;---------------------&#xa;package_id : VARCHAR(36) [PK]&#xa;tracking_code : VARCHAR(50) [UNIQUE, NOT NULL]&#xa;client_id : VARCHAR(36) [FK → Client.client_id, NOT NULL]&#xa;status : ENUM [RECIBIDO, ASIGNADO, EN_RUTA, ENTREGADO, NO_HAY_NADIE, REPROGRAMADO]&#xa;received_date : DATE [NOT NULL]&#xa;assigned_date : DATE&#xa;delivery_date : DATE&#xa;created_at : TIMESTAMP&#xa;updated_at : TIMESTAMP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;" vertex="1" parent="1">
+          <mxGeometry x="20" y="200" width="280" height="200" as="geometry"/>
+        </mxCell>
+        
+        <!-- Route -->
+        <mxCell id="route" value="Route&#xa;---------------------&#xa;route_id : VARCHAR(36) [PK]&#xa;user_id : VARCHAR(36) [FK → User.user_id, NOT NULL]&#xa;start_date : DATETIME [NOT NULL]&#xa;end_date : DATETIME&#xa;status : ENUM [PENDIENTE, EN_PROGRESO, FINALIZADA]&#xa;created_at : TIMESTAMP&#xa;updated_at : TIMESTAMP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;" vertex="1" parent="1">
+          <mxGeometry x="340" y="200" width="260" height="180" as="geometry"/>
+        </mxCell>
+        
+        <!-- RoutePackage -->
+        <mxCell id="routepackage" value="RoutePackage&#xa;---------------------&#xa;route_package_id : VARCHAR(36) [PK]&#xa;route_id : VARCHAR(36) [FK → Route.route_id, NOT NULL]&#xa;package_id : VARCHAR(36) [FK → Package.package_id, NOT NULL]&#xa;created_at : TIMESTAMP&#xa;UNIQUE(route_id, package_id)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;" vertex="1" parent="1">
+          <mxGeometry x="620" y="200" width="280" height="140" as="geometry"/>
+        </mxCell>
+        
+        <!-- Delivery -->
+        <mxCell id="delivery" value="Delivery&#xa;---------------------&#xa;delivery_id : VARCHAR(36) [PK]&#xa;package_id : VARCHAR(36) [FK → Package.package_id, NOT NULL]&#xa;receiver_name : VARCHAR(100)&#xa;receiver_rut : VARCHAR(20)&#xa;observation : TEXT&#xa;photo_urls : JSON&#xa;gps_latitude : DECIMAL(10,8)&#xa;gps_longitude : DECIMAL(11,8)&#xa;delivered_at : TIMESTAMP&#xa;created_at : TIMESTAMP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;" vertex="1" parent="1">
+          <mxGeometry x="20" y="430" width="320" height="210" as="geometry"/>
+        </mxCell>
+        
+        <!-- Pickup -->
+        <mxCell id="pickup" value="Pickup&#xa;---------------------&#xa;pickup_id : VARCHAR(36) [PK]&#xa;package_id : VARCHAR(36) [FK → Package.package_id, NOT NULL]&#xa;user_id : VARCHAR(36) [FK → User.user_id, NOT NULL]&#xa;pickup_date : DATETIME [NOT NULL]&#xa;status : ENUM [PENDIENTE, COMPLETADO]&#xa;created_at : TIMESTAMP&#xa;updated_at : TIMESTAMP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;" vertex="1" parent="1">
+          <mxGeometry x="360" y="430" width="300" height="190" as="geometry"/>
+        </mxCell>
+        
+        <!-- AuditLog -->
+        <mxCell id="auditlog" value="AuditLog&#xa;---------------------&#xa;log_id : VARCHAR(36) [PK]&#xa;user_id : VARCHAR(36) [FK → User.user_id]&#xa;action : VARCHAR(50) [NOT NULL]&#xa;details : TEXT&#xa;created_at : TIMESTAMP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;" vertex="1" parent="1">
+          <mxGeometry x="680" y="430" width="260" height="160" as="geometry"/>
+        </mxCell>
+        
+        <!-- Relaciones -->
+        <!-- Role 1..* User -->
+        <mxCell id="rel_role_user" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6C8EBF;" edge="1" parent="1" source="role" target="user">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_role_user" value="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_role_user">
+          <mxGeometry x="-10" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_role_user_many" value="*" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_role_user">
+          <mxGeometry x="90" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        
+        <!-- Client 1..* Package -->
+        <mxCell id="rel_client_package" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#D79B00;" edge="1" parent="1" source="client" target="package">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_client_package_1" value="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_client_package">
+          <mxGeometry x="-10" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_client_package_many" value="*" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_client_package">
+          <mxGeometry x="90" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        
+        <!-- User 1..* Route -->
+        <mxCell id="rel_user_route" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#9673A6;" edge="1" parent="1" source="user" target="route">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_user_route_1" value="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_user_route">
+          <mxGeometry x="-10" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_user_route_many" value="*" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_user_route">
+          <mxGeometry x="90" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        
+        <!-- Route *..* Package (via RoutePackage) -->
+        <mxCell id="rel_route_routepackage" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#D6B656;" edge="1" parent="1" source="route" target="routepackage">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_route_routepackage_1" value="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_route_routepackage">
+          <mxGeometry x="-10" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_route_routepackage_many" value="*" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_route_routepackage">
+          <mxGeometry x="90" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="rel_package_routepackage" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#D6B656;" edge="1" parent="1" source="package" target="routepackage">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_package_routepackage_1" value="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_package_routepackage">
+          <mxGeometry x="-10" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_package_routepackage_many" value="*" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_package_routepackage">
+          <mxGeometry x="90" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        
+        <!-- Package 1..1 Delivery -->
+        <mxCell id="rel_package_delivery" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82B366;" edge="1" parent="1" source="package" target="delivery">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_package_delivery_1" value="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_package_delivery">
+          <mxGeometry x="-10" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_package_delivery_0_1" value="0..1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_package_delivery">
+          <mxGeometry x="90" y="-20" width="30" height="15" as="geometry"/>
+        </mxCell>
+        
+        <!-- Package 1..* Pickup -->
+        <mxCell id="rel_package_pickup" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#9673A6;" edge="1" parent="1" source="package" target="pickup">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_package_pickup_1" value="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_package_pickup">
+          <mxGeometry x="-10" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_package_pickup_many" value="*" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_package_pickup">
+          <mxGeometry x="90" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        
+        <!-- User 1..* Pickup -->
+        <mxCell id="rel_user_pickup" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#9673A6;" edge="1" parent="1" source="user" target="pickup">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_user_pickup_1" value="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_user_pickup">
+          <mxGeometry x="-10" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_user_pickup_many" value="*" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_user_pickup">
+          <mxGeometry x="90" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        
+        <!-- User 1..* AuditLog -->
+        <mxCell id="rel_user_auditlog" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#D79B00;" edge="1" parent="1" source="user" target="auditlog">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_user_auditlog_1" value="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_user_auditlog">
+          <mxGeometry x="-10" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="label_user_auditlog_many" value="*" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="rel_user_auditlog">
+          <mxGeometry x="90" y="-20" width="15" height="15" as="geometry"/>
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

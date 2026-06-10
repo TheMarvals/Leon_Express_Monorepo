@@ -1,0 +1,5 @@
+{
+    "ignore": ["node_modules", "uploads", "*.log"],
+    "watch": ["config", "routes", "app.js","middlewares","models","controllers"]
+  }
+  

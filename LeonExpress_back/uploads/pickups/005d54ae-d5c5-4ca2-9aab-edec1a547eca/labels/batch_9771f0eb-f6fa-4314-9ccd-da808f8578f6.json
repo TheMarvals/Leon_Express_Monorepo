@@ -1,0 +1,43 @@
+{
+  "batch_id": "9771f0eb-f6fa-4314-9ccd-da808f8578f6",
+  "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+  "status": "pending",
+  "total_images": 1,
+  "processed": 1,
+  "auto_approved": 0,
+  "needs_review": 1,
+  "errors": 0,
+  "created_at": "2025-10-23T22:05:57.327Z",
+  "client_price": 2500,
+  "delivery_cost": 2800,
+  "metadata": {},
+  "items": [
+    {
+      "item_id": "9771f0eb-f6fa-4314-9ccd-da808f8578f6_0",
+      "batch_id": "9771f0eb-f6fa-4314-9ccd-da808f8578f6",
+      "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/005d54ae-d5c5-4ca2-9aab-edec1a547eca/labels/label_1761257157327_0.jpg",
+      "filename": "label_1761257157327_0.jpg",
+      "index": 0,
+      "status": "needs_review",
+      "created_at": "2025-10-23T22:05:57.502Z",
+      "processing_started_at": "2025-10-23T22:05:57.503Z",
+      "auto_approved": false,
+      "ocr_text": "DIRECTO\n3014618084\nRemitente:\nN~S de orden:\n3014618084\nDestinatario:\nENVIAME\nSERVICIO\nexpress\nCODIGO SEGUIMIENTO\n3014618084\nREMITENTE\nLEON IMPORT SPA\nSCA1432\nANDREA DORIA 2720.289.753\nThomas Verdugo\nAvenida Espana201.Dpto 64\nSANTIAGO, SANTIAGO\nENVIAME\nMARKETPLACE\nFalabella.com\n134004600\nThomas Verdugo / Tel. 992746745\nIRE COTEN\nAvenida Espans 201, Santiago\nOBSERVACION\nDpto 64\n2025-10-10\n992746745\nQULTO(B):\n001\nde 001\nEtiqueta para pegar en el paquete\nInformacion para el armado del paquete\n*Joystick Mando Control Para Xbox 360 Pc Cable 1,75 Mts\nCant: 1",
+      "extracted_data": {
+        "marketplace": "Falabella.com",
+        "client_price": 2500,
+        "delivery_cost": 2800
+      },
+      "confidence_scores": {
+        "marketplace": 100
+      },
+      "overall_confidence": 100,
+      "parser_used": "ENVIAME",
+      "fields_extracted": 1,
+      "processed_at": "2025-10-23T22:06:00.809Z",
+      "package_id": null,
+      "is_duplicate": false
+    }
+  ]
+}

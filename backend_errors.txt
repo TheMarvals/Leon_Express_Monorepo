@@ -1,0 +1,282 @@
+leonexpress_backend  | 🎯 DEBUG PICKUP: Enviando notificación a driver e72f45c4-8190-4a69-92a7-c33d2367c4df para cliente Leon Import
+leonexpress_backend  | 🎯 DEBUG PICKUP: Transaction ID: SÍ
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user e72f45c4-8190-4a69-92a7-c33d2367c4df, title: "Nueva recolección asignada"
+leonexpress_backend  | 🎯 DEBUG PICKUP: queueNotification llamado correctamente
+leonexpress_backend  |   "title": "Nueva recolección asignada",
+leonexpress_backend  |   "body": "Tienes una nueva recolección para Leon Import programada para 09-03-2026, 7:33:29 p. m..",
+leonexpress_backend  |     "url": "/pickups/97ee37ca-570d-4742-a462-1e58043b2157"
+leonexpress_backend  | 🎯 DEBUG PICKUP: Enviando notificación a driver 130ab480-4892-4a3a-8cee-26dbd093711e para cliente Leon Import
+leonexpress_backend  | 🎯 DEBUG PICKUP: Transaction ID: SÍ
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user 130ab480-4892-4a3a-8cee-26dbd093711e, title: "Nueva recolección asignada"
+leonexpress_backend  | 🎯 DEBUG PICKUP: queueNotification llamado correctamente
+leonexpress_backend  |   "title": "Nueva recolección asignada",
+leonexpress_backend  |   "body": "Tienes una nueva recolección para Leon Import programada para 09-03-2026, 7:34:13 p. m..",
+leonexpress_backend  |     "url": "/pickups/a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059"
+leonexpress_backend  | 🎯 DEBUG PICKUP: Enviando notificación a driver 130ab480-4892-4a3a-8cee-26dbd093711e para cliente Leon Import
+leonexpress_backend  | 🎯 DEBUG PICKUP: Transaction ID: SÍ
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user 130ab480-4892-4a3a-8cee-26dbd093711e, title: "Nueva recolección asignada"
+leonexpress_backend  | 🎯 DEBUG PICKUP: queueNotification llamado correctamente
+leonexpress_backend  |   "title": "Nueva recolección asignada",
+leonexpress_backend  |   "body": "Tienes una nueva recolección para Leon Import programada para 09-03-2026, 7:34:32 p. m..",
+leonexpress_backend  |     "url": "/pickups/336689ed-32c5-4d60-b76a-6dea9c26c12f"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user 1254898d-a104-4b47-a6f7-6445f0586929, title: "Recolección iniciada"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user 2e1bd4a6-af0d-4710-88c0-d27f2dac1f32, title: "Recolección iniciada"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user 550e8400-e29b-41d4-a716-446655440006, title: "Recolección iniciada"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user 596cbc76-00f9-464d-8025-a310f807b81f, title: "Recolección iniciada"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user 9afbec79-9126-4ab5-a455-18e2a3d60be5, title: "Recolección iniciada"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user c94b32ae-0fda-44e0-acd2-aa6811cc8348, title: "Recolección iniciada"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user e608db28-8d38-4025-b27b-6d463cdfb245, title: "Recolección iniciada"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059"
+leonexpress_backend  | 📸 SMART BATCH: Nueva solicitud - 16 imágenes para pickup a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | ⚠️  OCR intento 1/3 fallido (Engine 2): Request failed with status code 500
+leonexpress_backend  | ❌ OCR.space falló tras 3 intentos: Request failed with status code 500
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: Request failed with status code 500
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       error: [Function (anonymous)],
+leonexpress_backend  |       authorizationError: null,
+leonexpress_backend  |       _hadError: false,
+leonexpress_backend  |       _closeAfterHandlingError: false,
+leonexpress_backend  |       statusMessage: 'Internal Server Error',
+leonexpress_backend  |     [Symbol(errored)]: null,
+leonexpress_backend  |     statusText: 'Internal Server Error',
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  |     data: 'Some error occurred at server. Please try again later. Please contact administrator if the problem persists'
+leonexpress_backend  | Stack: AxiosError: Request failed with status code 500
+leonexpress_backend  | ❌ Error procesando label_1773085177312_0.jpg: Request failed with status code 500
+leonexpress_backend  | ⚠️  OCR intento 1/3 fallido (Engine 2): Request failed with status code 500
+leonexpress_backend  | ❌ OCR.space falló tras 3 intentos: Request failed with status code 500
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: Request failed with status code 500
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       error: [Function (anonymous)],
+leonexpress_backend  |       authorizationError: null,
+leonexpress_backend  |       _hadError: false,
+leonexpress_backend  |       _closeAfterHandlingError: false,
+leonexpress_backend  |       statusMessage: 'Internal Server Error',
+leonexpress_backend  |     [Symbol(errored)]: null,
+leonexpress_backend  |     statusText: 'Internal Server Error',
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  |     data: 'Some error occurred at server. Please try again later. Please contact administrator if the problem persists'
+leonexpress_backend  | Stack: AxiosError: Request failed with status code 500
+leonexpress_backend  | ❌ Error procesando label_1773085177326_2.jpg: Request failed with status code 500
+leonexpress_backend  | ⚠️  OCR intento 1/3 fallido (Engine 2): Request failed with status code 500
+leonexpress_backend  | ❌ OCR.space falló tras 3 intentos: Request failed with status code 500
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: Request failed with status code 500
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       error: [Function (anonymous)],
+leonexpress_backend  |       authorizationError: null,
+leonexpress_backend  |       _hadError: false,
+leonexpress_backend  |       _closeAfterHandlingError: false,
+leonexpress_backend  |       statusMessage: 'Internal Server Error',
+leonexpress_backend  |     [Symbol(errored)]: null,
+leonexpress_backend  |     statusText: 'Internal Server Error',
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  |     data: 'Some error occurred at server. Please try again later. Please contact administrator if the problem persists'
+leonexpress_backend  | Stack: AxiosError: Request failed with status code 500
+leonexpress_backend  | ❌ Error procesando label_1773085177322_1.jpg: Request failed with status code 500
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177312_0.jpg
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177326_2.jpg
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177322_1.jpg
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       errorEmitted: false,
+leonexpress_backend  |       errored: null,
+leonexpress_backend  |       error: [Function: handleRequestError],
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  | Stack: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  | ❌ Error procesando label_1773085177346_4.jpg: timeout of 60000ms exceeded
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177346_4.jpg
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       errorEmitted: false,
+leonexpress_backend  |       errored: null,
+leonexpress_backend  |       error: [Function: handleRequestError],
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  | Stack: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  | ❌ Error procesando label_1773085177351_5.jpg: timeout of 60000ms exceeded
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177351_5.jpg
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       errorEmitted: false,
+leonexpress_backend  |       errored: null,
+leonexpress_backend  |       error: [Function: handleRequestError],
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  | Stack: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  | ❌ Error procesando label_1773085177339_3.jpg: timeout of 60000ms exceeded
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177339_3.jpg
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       errorEmitted: false,
+leonexpress_backend  |       errored: null,
+leonexpress_backend  |       error: [Function: handleRequestError],
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  | Stack: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  | ❌ Error procesando label_1773085177360_7.jpg: timeout of 60000ms exceeded
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177360_7.jpg
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       errorEmitted: false,
+leonexpress_backend  |       errored: null,
+leonexpress_backend  |       error: [Function: handleRequestError],
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  | Stack: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  | ❌ Error procesando label_1773085177356_6.jpg: timeout of 60000ms exceeded
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177356_6.jpg
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       errorEmitted: false,
+leonexpress_backend  |       errored: null,
+leonexpress_backend  |       error: [Function: handleRequestError],
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  | Stack: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  | ❌ Error procesando label_1773085177365_8.jpg: timeout of 60000ms exceeded
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177365_8.jpg
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user 1254898d-a104-4b47-a6f7-6445f0586929, title: "Recolección iniciada"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user 2e1bd4a6-af0d-4710-88c0-d27f2dac1f32, title: "Recolección iniciada"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user 550e8400-e29b-41d4-a716-446655440006, title: "Recolección iniciada"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user 596cbc76-00f9-464d-8025-a310f807b81f, title: "Recolección iniciada"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user 9afbec79-9126-4ab5-a455-18e2a3d60be5, title: "Recolección iniciada"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user c94b32ae-0fda-44e0-acd2-aa6811cc8348, title: "Recolección iniciada"
+leonexpress_backend  | 📨 QUEUE: Queuing notification for user e608db28-8d38-4025-b27b-6d463cdfb245, title: "Recolección iniciada"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/336689ed-32c5-4d60-b76a-6dea9c26c12f"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/336689ed-32c5-4d60-b76a-6dea9c26c12f"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/336689ed-32c5-4d60-b76a-6dea9c26c12f"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/336689ed-32c5-4d60-b76a-6dea9c26c12f"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/336689ed-32c5-4d60-b76a-6dea9c26c12f"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/336689ed-32c5-4d60-b76a-6dea9c26c12f"
+leonexpress_backend  |   "title": "Recolección iniciada",
+leonexpress_backend  |   "body": "El driver Ronald Tua inició la recolección del cliente Leon Import.",
+leonexpress_backend  |     "url": "/pickups/details/336689ed-32c5-4d60-b76a-6dea9c26c12f"
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       errorEmitted: false,
+leonexpress_backend  |       errored: null,
+leonexpress_backend  |       error: [Function: handleRequestError],
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  | Stack: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  | ❌ Error procesando label_1773085177371_9.jpg: timeout of 60000ms exceeded
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177371_9.jpg
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       errorEmitted: false,
+leonexpress_backend  |       errored: null,
+leonexpress_backend  |       error: [Function: handleRequestError],
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  | Stack: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  | ❌ Error procesando label_1773085177377_10.jpg: timeout of 60000ms exceeded
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177377_10.jpg
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       errorEmitted: false,
+leonexpress_backend  |       errored: null,
+leonexpress_backend  |       error: [Function: handleRequestError],
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  | Stack: AxiosError: timeout of 60000ms exceeded
+leonexpress_backend  | ❌ Error procesando label_1773085177383_11.jpg: timeout of 60000ms exceeded
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177383_11.jpg
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | ⚠️  OCR intento 2/3 fallido (Engine 1): Request failed with status code 403
+leonexpress_backend  | ❌ OCR.space falló tras 3 intentos: Request failed with status code 403
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: Request failed with status code 403
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       error: [Function (anonymous)],
+leonexpress_backend  |       authorizationError: null,
+leonexpress_backend  |       _hadError: false,
+leonexpress_backend  |       _closeAfterHandlingError: false,
+leonexpress_backend  |     [Symbol(errored)]: null,
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  | Stack: AxiosError: Request failed with status code 403
+leonexpress_backend  | ❌ Error procesando label_1773085177395_13.jpg: Request failed with status code 403
+leonexpress_backend  | ⚠️  OCR intento 2/3 fallido (Engine 1): Request failed with status code 403
+leonexpress_backend  | ❌ OCR.space falló tras 3 intentos: Request failed with status code 403
+leonexpress_backend  | ❌❌❌ ERROR FATAL EN processImage ❌❌❌
+leonexpress_backend  | Error: AxiosError: Request failed with status code 403
+leonexpress_backend  |       clarifyTimeoutError: false
+leonexpress_backend  |       error: [Function (anonymous)],
+leonexpress_backend  |       authorizationError: null,
+leonexpress_backend  |       _hadError: false,
+leonexpress_backend  |       _closeAfterHandlingError: false,
+leonexpress_backend  |     [Symbol(errored)]: null,
+leonexpress_backend  |       [Symbol(errored)]: null,
+leonexpress_backend  | Stack: AxiosError: Request failed with status code 403
+leonexpress_backend  | ❌ Error procesando label_1773085177402_14.jpg: Request failed with status code 403
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177395_13.jpg
+leonexpress_backend  | ⚠️  Imagen con error registrada en BD como needs_review: label_1773085177402_14.jpg
+leonexpress_backend  | │ Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  |    Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | 📋 [1/5] Validando pickup...
+leonexpress_backend  |    Pickup ID: a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059
+leonexpress_backend  | ✓ Pickup encontrado:
+leonexpress_backend  |   "pickup_id": "a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059",
+leonexpress_backend  |    ❌ Errores: 0
+leonexpress_backend  | ℹ️  Pickup c16ee32d-b922-4ed8-b85f-f33ddfc996ed retiene su estado actual (VERIFICADO_EN_ALMACEN), evitando regresión de estado.
+leonexpress_backend  |    ❌ Errores: 0
+leonexpress_backend  | ℹ️  Pickup 5d6eeddd-1d37-43a5-9b8f-1bed25ca46c6 retiene su estado actual (VERIFICADO_EN_ALMACEN), evitando regresión de estado.
+leonexpress_backend  |    ❌ Errores: 0
+leonexpress_backend  | ℹ️  Pickup fd262ae6-5b85-43bf-946e-d369e557d32d retiene su estado actual (VERIFICADO_EN_ALMACEN), evitando regresión de estado.
+leonexpress_backend  |    ❌ Errores: 0
+leonexpress_backend  | ℹ️  Pickup 1f435323-6271-4b68-be58-f8539ecca993 retiene su estado actual (VERIFICADO_EN_ALMACEN), evitando regresión de estado.
+leonexpress_backend  |    ❌ Errores: 0
+leonexpress_backend  | ℹ️  Pickup 37097eff-2321-402d-8779-dbe9c24f0bae retiene su estado actual (VERIFICADO_EN_ALMACEN), evitando regresión de estado.
+leonexpress_backend  |    ❌ Errores: 0
+leonexpress_backend  | ℹ️  Pickup 2b93b145-8457-4f42-a713-d1479559d50c retiene su estado actual (VERIFICADO_EN_ALMACEN), evitando regresión de estado.
+leonexpress_backend  |    ❌ Errores: 0
+leonexpress_backend  | ✅ Pickup a1e194d1-7faa-4a8c-b7e3-cc20cd8d5059 actualizado a RECOLECCION_FINALIZADA_DRIVER

@@ -1,0 +1,90 @@
+PUEDES SACAR LA INFORMACION DE LOS packages [Full texts
+package_id
+tracking_code
+external_tracking_code
+pickup_id
+Recolección a la que pertenece
+client_id
+Redundante por performance, para no hacer JOIN a p…
+status
+is_cod
+Indica si el paquete requiere cobro en destino
+cod_amount
+Monto a cobrar en destino si is_cod es TRUE
+client_price
+Precio que se cobra al cliente por el envío
+delivery_cost
+Costo que se paga al repartidor por la entrega
+scanned_at_origin_datetime
+received_at_warehouse_datetime
+assigned_to_route_datetime
+delivered_datetime
+returned_datetime
+Fecha en que el paquete fue devuelto al cliente
+destination_address
+recipient_name
+recipient_phone
+created_at
+updated_at
+
+Edit Edit
+Copy Copy
+Delete Delete
+17856759-0d41-4213-b359-b70e3e44f6c6
+PKG935169JFF
+123123123
+f73598cf-7c31-438f-a326-7652d147848b
+550e8400-e29b-41d4-a716-446655440009
+RECOLECTADO_EN_ORIGEN
+0
+0.00
+0.00
+0.00
+2025-09-24 21:22:15
+NULL
+NULL
+NULL
+NULL
+El Pedernal 3793, Puente Alto, Santiago Metropolit...
+asdasddd
+1231231223123
+2025-09-24 18:22:40
+2025-09-24 18:22:40
+
+Edit Edit
+Copy Copy
+Delete Delete
+1b22cf30-d1c8-4de2-af86-083844bd9f1b
+PKG658504G9Z
+qwqweee
+81c2f220-2faf-4d9b-8898-2fff5ff422f0
+6fea039b-d97c-4cd7-bc52-882db65505b2
+ENTREGADO
+1
+10000.00
+5000.00
+2500.00
+2025-09-24 22:57:38
+2025-09-24 23:17:48
+NULL
+2025-09-24 23:22:15
+NULL
+El Pedernal 3793, Puente Alto, Santiago Metropolit...
+zdasdasd
+12312312312
+2025-09-24 19:57:52
+2025-09-24 20:22:15] y deliveries [
+Edit Edit
+Copy Copy
+Delete Delete
+7eba4616-c2ad-4feb-a1e3-3147aab91724
+1b22cf30-d1c8-4de2-af86-083844bd9f1b
+NULL
+e43e9107-09c3-476c-9a74-4f150930dc54
+ENTREGADO
+qweqweweq
+1123123123
+asdasdasd
+-33.61410000
+-70.58930000
+2025-09-24 20]

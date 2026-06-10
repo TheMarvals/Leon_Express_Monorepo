@@ -1,0 +1,102 @@
+{
+  "batch_id": "b2f951ef-3071-417e-8262-dd06b97553fe",
+  "pickup_id": "709dc6dd-e303-4659-98e5-e462740a7b17",
+  "status": "pending",
+  "total_images": 2,
+  "processed": 2,
+  "auto_approved": 0,
+  "needs_review": 2,
+  "errors": 0,
+  "created_at": "2025-10-22T20:14:06.963Z",
+  "metadata": {},
+  "items": [
+    {
+      "item_id": "b2f951ef-3071-417e-8262-dd06b97553fe_0",
+      "batch_id": "b2f951ef-3071-417e-8262-dd06b97553fe",
+      "pickup_id": "709dc6dd-e303-4659-98e5-e462740a7b17",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/709dc6dd-e303-4659-98e5-e462740a7b17/labels/label_1761164046963_0.jpg",
+      "filename": "label_1761164046963_0.jpg",
+      "index": 0,
+      "status": "needs_review",
+      "created_at": "2025-10-22T20:14:06.976Z",
+      "processing_started_at": "2025-10-22T20:14:06.987Z",
+      "auto_approved": false,
+      "ocr_text": "CAMBIO #L4414\nNOMBRE: TRINIDAD CELIS\nTELÉFONO : +56 9 4342 6209\nPRODUCTO: AUDIF M10\nDIRECCION: PLAZA DEL RETIRO 3845\nCOMUNA: LO BARNECHEA\nOBSERVACION: DEJAR Y RECIBIR\nANTERIOR\nLEÓN IMPORT\nLeonimport_\nwww.leonimport.cl",
+      "extracted_data": {
+        "recipient_name": "TRINIDAD CELIS",
+        "recipient_phone": "+56 9 4342 6209",
+        "destination_address": "PLAZA DEL RETIRO 3845",
+        "comuna": "LO BARNECHEA",
+        "external_tracking_code": "L4414",
+        "product": "AUDIF M10",
+        "reference": "DEJAR Y RECIBIR"
+      },
+      "confidence_scores": {
+        "recipient_name": 100,
+        "recipient_phone": 100,
+        "destination_address": 100,
+        "comuna": 100,
+        "external_tracking_code": 100,
+        "product": 100,
+        "reference": 100
+      },
+      "overall_confidence": 100,
+      "parser_used": "Leon Import Acuerdo",
+      "fields_extracted": 7,
+      "processed_at": "2025-10-22T20:14:09.050Z",
+      "package_id": null,
+      "is_duplicate": true,
+      "duplicate_package": {
+        "tracking_code": "LE398853",
+        "external_tracking_code": "L4414",
+        "created_at": "2025-10-22T17:11:18.000Z",
+        "status": "RECOLECTADO_EN_ORIGEN"
+      },
+      "error_message": "⚠️ DUPLICADO: Ya existe LE398853. Se requiere confirmación del partner."
+    },
+    {
+      "item_id": "b2f951ef-3071-417e-8262-dd06b97553fe_1",
+      "batch_id": "b2f951ef-3071-417e-8262-dd06b97553fe",
+      "pickup_id": "709dc6dd-e303-4659-98e5-e462740a7b17",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/709dc6dd-e303-4659-98e5-e462740a7b17/labels/label_1761164046976_1.jpg",
+      "filename": "label_1761164046976_1.jpg",
+      "index": 1,
+      "status": "needs_review",
+      "created_at": "2025-10-22T20:14:06.987Z",
+      "processing_started_at": "2025-10-22T20:14:11.358Z",
+      "auto_approved": false,
+      "ocr_text": "CAMBIO #L4414\nNOMBRE: TRINIDAD CELIS\nTELÉFONO : +56 9 4342 6209\nPRODUCTO: AUDIF M10\nDIRECCION: PLAZA DEL RETIRO 3845\nCOMUNA: LO BARNECHEA\nOBSERVACION: DEJAR Y RECIBIR\nANTERIOR\nLEÓN IMPORT\nLeonimport_\nwww.leonimport.c",
+      "extracted_data": {
+        "recipient_name": "TRINIDAD CELIS",
+        "recipient_phone": "+56 9 4342 6209",
+        "destination_address": "PLAZA DEL RETIRO 3845",
+        "comuna": "LO BARNECHEA",
+        "external_tracking_code": "L4414",
+        "product": "AUDIF M10",
+        "reference": "DEJAR Y RECIBIR"
+      },
+      "confidence_scores": {
+        "recipient_name": 100,
+        "recipient_phone": 100,
+        "destination_address": 100,
+        "comuna": 100,
+        "external_tracking_code": 100,
+        "product": 100,
+        "reference": 100
+      },
+      "overall_confidence": 100,
+      "parser_used": "Leon Import Acuerdo",
+      "fields_extracted": 7,
+      "processed_at": "2025-10-22T20:14:13.040Z",
+      "package_id": null,
+      "is_duplicate": true,
+      "duplicate_package": {
+        "tracking_code": "LE398853",
+        "external_tracking_code": "L4414",
+        "created_at": "2025-10-22T17:11:18.000Z",
+        "status": "RECOLECTADO_EN_ORIGEN"
+      },
+      "error_message": "⚠️ DUPLICADO: Ya existe LE398853. Se requiere confirmación del partner."
+    }
+  ]
+}

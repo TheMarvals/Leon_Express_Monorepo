@@ -1,0 +1,1766 @@
+<script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount, watch, computed, PropType, nextTick } from 'vue'
+import { useForm, useToast } from 'vuestic-ui'
+import { validators } from '../../../services/utils'
+import api from '../../../services/api'
+import { Package } from '../types'
+import axios from 'axios'
+import { debounce } from 'lodash'
+import DuplicateConfirmModal from '../../../components/ocr/DuplicateConfirmModal.vue'
+const MAPBOX_API_KEY = import.meta.env.VITE_MAPBOX_API_KEY
+// --- DEFINICIÓN DE PROPS Y EMITS ---
+const props = defineProps({
+  pkg: { type: Object as PropType<Package | null>, default: null },
+  pickupId: { type: String, default: '' },
+  clientId: { type: String, default: '' },
+  clientName: { type: String, default: '' },
+  prefillPickupData: { type: Boolean, default: false },
+})
+const emit = defineEmits<{
+  (event: 'save', payload: PackageFormData): void
+  (event: 'close'): void
+}>()
+// --- INTERFAZ PARA LOS DATOS DEL FORMULARIO ---
+interface PackageFormData {
+  tracking_code: string
+  external_tracking_code: string | null
+  pickup_id: string
+  client_id: string
+  is_cod: boolean
+  cod_amount: number
+  client_price: number
+  delivery_cost: number
+  destination_address: string
+  recipient_name: string
+  recipient_phone: string
+  scanned_at_origin_datetime: string
+}
+type BatchOcrStatus = 'success' | 'not_found' | 'error' | 'invalid'
+interface BatchOcrResult {
+  index: number
+  status: BatchOcrStatus
+  text?: string
+  overlay?: { texto: string; confianza: number }[]
+  message?: string
+}
+// --- CONFIGURACIÓN DE FORMULARIO Y NOTIFICACIONES ---
+const { validate, reset, resetValidation } = useForm('package-form')
+const { init: notify } = useToast()
+// --- ESTADO REACTIVO DEL FORMULARIO ---
+const tracking_code = ref('')
+const external_tracking_code = ref('')
+const pickup_id = ref<string>('')
+const client_id = ref<string>('')
+const is_cod = ref(false)
+const cod_amount = ref<number>(0)
+const client_price = ref<number>(0)
+const delivery_cost = ref<number>(0)
+const destination_address = ref('')
+const recipient_name = ref('')
+const recipient_phone = ref('')
+const scanned_at_origin_datetime = ref(new Date())
+const searchResults = ref<any[]>([])
+const isLoadingSearch = ref(false)
+const mapboxError = ref(false)
+const searchAddress = async () => {
+  if (destination_address.value.length < 4) {
+    searchResults.value = []
+    return
+  }
+  // Verificar si la clave de API está disponible
+  if (!MAPBOX_API_KEY) {
+    console.warn('Clave de API de Mapbox no configurada')
+    mapboxError.value = true
+    return
+  }
+  isLoadingSearch.value = true
+  const searchText = encodeURIComponent(destination_address.value)
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${searchText}.json`
+  try {
+    const response = await axios.get(url, {
+      params: {
+        access_token: MAPBOX_API_KEY,
+        country: 'CL', // Limitar a Chile
+        autocomplete: true, // Habilitar sugerencias
+        // Opcional: Dar prioridad a resultados cerca de una ubicación
+        proximity: '-70.6506,-33.4372', // Coordenadas de Santiago
+      },
+    })
+    // La respuesta de Mapbox está en `response.data.features`
+    searchResults.value = response.data.features
+    mapboxError.value = false // Reset error state on success
+  } catch (error: any) {
+    console.error('Error buscando dirección con Mapbox:', error)
+    // Manejar diferentes tipos de errores
+    if (error.response?.status === 401) {
+      mapboxError.value = true
+      notify({
+        message:
+          'Error de configuración: La clave de API de Mapbox no es válida. Puedes ingresar la dirección manualmente.',
+        color: 'warning',
+      })
+    } else {
+      notify({
+        message: 'Error temporal en la búsqueda de direcciones. Puedes ingresar la dirección manualmente.',
+        color: 'warning',
+      })
+    }
+    searchResults.value = []
+  } finally {
+    isLoadingSearch.value = false
+  }
+}
+const debouncedSearch = debounce(searchAddress, 500)
+const selectAddress = (result: any) => {
+  // `place_name` de Mapbox contiene la dirección completa y formateada
+  destination_address.value = result.place_name
+  searchResults.value = []
+}
+// --- ESTADO PARA LA CÁMARA Y OCR ---
+const video = ref<HTMLVideoElement | null>(null)
+const isCameraActive = ref(false)
+const isProcessing = ref(false)
+let cameraStream: MediaStream | null = null
+// Hardware zoom capabilities and level
+const cameraCapabilities = ref<any>(null)
+const hardwareZoomLevel = ref<number>(1)
+// Indica si el navegador/contexto soporta getUserMedia (evaluado en cliente)
+const supportsMediaDevices = ref<boolean>(false)
+const hardwareFocusLevel = ref<number>(0.5)
+// Lista de dispositivos de cámara y selector visual
+const videoDevicesList = ref<MediaDeviceInfo[]>([])
+const showCameraModal = ref(false)
+const selectedDeviceId = ref<string>('')
+// Hidden native capture input ref and opener for mobile rear camera
+const fileCaptureInput = ref<HTMLInputElement | null>(null)
+const openDeviceCamera = () => {
+  if (fileCaptureInput.value) {
+    // clear to allow same-file reselect
+    try {
+      fileCaptureInput.value.value = ''
+    } catch (e) {}
+    isBatchMode.value = true
+    notify({ message: 'Abriendo cámara nativa del dispositivo...', color: 'info' })
+    fileCaptureInput.value.click()
+  } else {
+    notify({ message: 'No es posible abrir la cámara nativa en este dispositivo.', color: 'warning' })
+  }
+}
+// Multi-capture control (auto re-open native camera after each capture)
+const multiCaptureEnabled = ref<boolean>(false)
+// Current active device and helper list
+const currentDeviceId = ref<string>('')
+const availableVideoDevices = ref<MediaDeviceInfo[]>([])
+const getVideoDevices = async () => {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return [] as MediaDeviceInfo[]
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    availableVideoDevices.value = devices.filter((d) => d.kind === 'videoinput')
+    return availableVideoDevices.value
+  } catch (e) {
+    console.log('Error enumerando dispositivos:', e)
+    return [] as MediaDeviceInfo[]
+  }
+}
+const switchToDevice = async (deviceId: string) => {
+  try {
+    stopCamera()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    await connectToCamera(deviceId)
+    currentDeviceId.value = deviceId
+  } catch (e) {
+    console.error('Error al cambiar de cámara:', e)
+    notify({ message: 'No se pudo cambiar de cámara.', color: 'danger' })
+  }
+}
+// --- ESTADO PARA CAPTURA Y OCR BATCH ---
+const batchImages = ref<string[]>([])
+const batchOcrResults = ref<BatchOcrResult[]>([])
+const isBatchMode = ref(false)
+const isBatchProcessing = ref(false)
+const batchError = ref('')
+// --- ESTADO PARA MODAL DE DUPLICADOS ---
+const showDuplicateModal = ref(false)
+const duplicateModalData = ref<{
+  queueId: string
+  externalCode: string
+  originalPackage: any
+  newScanData: any
+} | null>(null)
+function clearBatch() {
+  batchImages.value = []
+  batchOcrResults.value = []
+  batchError.value = ''
+}
+function getBatchStatusColor(status: BatchOcrStatus) {
+  switch (status) {
+    case 'success':
+      return 'text-green-600'
+    case 'error':
+      return 'text-red-600'
+    default:
+      return 'text-amber-600'
+  }
+}
+async function captureBatchImage() {
+  if (!video.value) return
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d')
+  const videoElement = video.value
+  // Adjust crop percentage based on viewScale to capture more area when zoomed out
+  const effectiveScale = 1
+  const DISPLAY_CROP_WIDTH_PERCENT = Math.min(0.9 / effectiveScale, 1)
+  const DISPLAY_CROP_HEIGHT_PERCENT = Math.min(0.8 / effectiveScale, 1)
+  const displayedVideoWidth = videoElement.clientWidth
+  const displayedVideoHeight = videoElement.clientHeight
+  const displayedCropWidth = displayedVideoWidth * DISPLAY_CROP_WIDTH_PERCENT
+  const displayedCropHeight = displayedVideoHeight * DISPLAY_CROP_HEIGHT_PERCENT
+  const displayedCropX = (displayedVideoWidth - displayedCropWidth) / 2
+  const displayedCropY = (displayedVideoHeight - displayedCropHeight) / 2
+  // Map displayed pixels to the underlying video pixel dimensions
+  const scaleX = videoElement.videoWidth / displayedVideoWidth
+  const scaleY = videoElement.videoHeight / displayedVideoHeight
+  const cropWidth = Math.round(displayedCropWidth * scaleX)
+  const cropHeight = Math.round(displayedCropHeight * scaleY)
+  const cropX = Math.round(displayedCropX * scaleX)
+  const cropY = Math.round(displayedCropY * scaleY)
+  canvas.width = cropWidth
+  canvas.height = cropHeight
+  if (context) {
+    context.drawImage(videoElement, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
+  }
+  const imageBase64 = canvas.toDataURL('image/jpeg', 0.95)
+  batchImages.value.push(imageBase64)
+}
+async function processBatchOcr() {
+  if (batchImages.value.length === 0) {
+    batchError.value = 'No hay imágenes para procesar.'
+    return
+  }
+  if (!props.pickupId) {
+    batchError.value = 'No se ha seleccionado un pickup. Guarda el paquete primero.'
+    notify({ message: 'Debes tener un pickup activo para procesar el batch', color: 'warning' })
+    return
+  }
+  isBatchProcessing.value = true
+  batchError.value = ''
+  try {
+    console.log('🚀 Enviando batch al Smart OCR System...')
+    console.log('📦 Pickup ID:', props.pickupId)
+    console.log('📸 Imágenes:', batchImages.value.length)
+    // Cargar precios antes de enviar el batch (igual que en el formulario)
+    console.log('💰 Cargando precios del cliente y conductor...')
+    await Promise.all([
+      loadClientPrice(props.clientId || client_id.value),
+      loadPickupDriverCost(props.pickupId || pickup_id.value),
+    ])
+    console.log('✅ Precios cargados:', {
+      client_price: client_price.value,
+      delivery_cost: delivery_cost.value,
+    })
+    // Notificación inicial
+    notify({
+      message: `📤 Enviando ${batchImages.value.length} imágenes al servidor...`,
+      color: 'info',
+      duration: 3000,
+    })
+    // Enviar al sistema Smart OCR Batch usando axios directamente con baseURL
+    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4100/api'
+    const response = await axios.post(
+      `${baseURL}/smart-batch/upload`,
+      {
+        pickup_id: props.pickupId,
+        images: batchImages.value,
+        client_price: client_price.value,
+        delivery_cost: delivery_cost.value,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+    const { batch_id, total_images } = response.data
+    console.log('✅ Batch subido exitosamente!')
+    console.log('📦 Batch ID:', batch_id)
+    console.log('📊 Total imágenes:', total_images)
+    // Notificación de éxito más visible
+    notify({
+      message: `✅ ¡Batch enviado exitosamente!
+${total_images} imágenes en cola de procesamiento
+Batch ID: ${batch_id}`,
+      color: 'success',
+      duration: 5000,
+    })
+    // Limpiar las imágenes capturadas
+    batchImages.value = []
+    batchOcrResults.value = []
+    // Cerrar la cámara
+    stopCamera()
+    isBatchMode.value = false
+    // Mensaje informativo adicional
+    setTimeout(() => {
+      notify({
+        message:
+          '⏳ El sistema Smart OCR está procesando las etiquetas en segundo plano. Los paquetes aparecerán automáticamente cuando se complete el análisis.',
+        color: 'info',
+        duration: 6000,
+      })
+    }, 1500)
+  } catch (error: any) {
+    console.error('❌ Error al enviar batch:', error)
+    const message = error?.response?.data?.error || error?.message || 'Error al enviar el batch al servidor.'
+    batchError.value = message
+    notify({ message: `❌ ${message}`, color: 'danger' })
+  } finally {
+    isBatchProcessing.value = false
+  }
+}
+function rellenarDesdeBatch(idx: number) {
+  const result = batchOcrResults.value[idx]
+  if (result && result.status === 'success' && result.text) {
+    rellenarFormulario(result.text)
+  } else {
+    notify({ message: 'No hay texto disponible para esta captura.', color: 'warning' })
+  }
+}
+// --- ESTADO PARA CARGA DE DATOS ASÍNCRONOS ---
+const pickups = ref<{ text: string; value: string }[]>([])
+const clients = ref<{ text: string; value: string }[]>([])
+const isLoading = ref(true)
+const hasError = ref(false)
+// --- CACHÉ PARA OPTIMIZAR LLAMADAS A LA API ---
+const clientPricingCache = ref<Record<string, number>>({})
+const pickupDriverCostCache = ref<Record<string, number>>({})
+// --- PROPIEDADES COMPUTADAS ---
+const isEditing = computed(() => !!props.pkg)
+const isPickupContext = computed(() => props.prefillPickupData && props.pickupId && props.clientId)
+// --- FUNCIONES DE LÓGICA DE NEGOCIO ---
+const generateTrackingCode = () =>
+  `PKG${Date.now().toString().slice(-6)}${Math.random().toString(36).substring(2, 5).toUpperCase()}`
+const loadClientPrice = async (clientId: string) => {
+  if (!clientId) {
+    client_price.value = 0
+    return
+  }
+  try {
+    const cachedPrice = clientPricingCache.value[clientId]
+    if (cachedPrice !== undefined) {
+      client_price.value = cachedPrice
+      return
+    }
+    const { data } = await api.getClientPricing(clientId)
+    const price = parseFloat(data?.base_price) || 0
+    client_price.value = price
+    clientPricingCache.value[clientId] = price
+  } catch (error) {
+    console.error('Error loading client price:', error)
+    client_price.value = 0
+    notify({
+      message: 'No se pudo cargar el precio del cliente. Usando valor por defecto (0).',
+      color: 'warning',
+    })
+  }
+}
+const loadPickupDriverCost = async (pickupId: string) => {
+  if (!pickupId) {
+    delivery_cost.value = 0
+    return
+  }
+  try {
+    const cachedCost = pickupDriverCostCache.value[pickupId]
+    if (cachedCost !== undefined) {
+      delivery_cost.value = cachedCost
+      return
+    }
+    const { data } = await api.getPickupById(pickupId)
+    const cost = parseFloat(data?.user?.vehicles?.[0]?.vehicleType?.base_delivery_cost) || 0
+    delivery_cost.value = cost
+    pickupDriverCostCache.value[pickupId] = cost
+    if (!cost) {
+      notify({
+        message: 'No se encontró costo de entrega. Usando valor por defecto (0).',
+        color: 'warning',
+      })
+    }
+  } catch (error) {
+    console.error('Error loading delivery cost:', error)
+    delivery_cost.value = 0
+    notify({
+      message: 'Error al cargar costo de entrega. Usando valor por defecto (0).',
+      color: 'danger',
+    })
+  }
+}
+const resetFormForPickup = () => {
+  reset()
+  resetValidation()
+  tracking_code.value = generateTrackingCode()
+  external_tracking_code.value = ''
+  pickup_id.value = props.pickupId
+  client_id.value = props.clientId
+  is_cod.value = false
+  cod_amount.value = 0
+  destination_address.value = ''
+  recipient_name.value = ''
+  recipient_phone.value = ''
+  scanned_at_origin_datetime.value = new Date()
+  loadPickupDriverCost(props.pickupId)
+  loadClientPrice(props.clientId)
+}
+// --- LÓGICA DE CÁMARA ---
+const checkCameraPermissions = async (): Promise<boolean> => {
+  try {
+    // Verificar si los permisos están disponibles
+    if (navigator.permissions) {
+      const permission = await navigator.permissions.query({ name: 'camera' as PermissionName })
+      console.log('Estado del permiso de cámara:', permission.state)
+      if (permission.state === 'denied') {
+        notify({
+          message: 'Los permisos de cámara están denegados. Por favor, habilítalos en la configuración del navegador.',
+          color: 'danger',
+        })
+        return false
+      }
+    }
+    // Verificar si getUserMedia está disponible
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      notify({
+        message: 'Tu navegador no soporta acceso a la cámara.',
+        color: 'danger',
+      })
+      return false
+    }
+    return true
+  } catch (error) {
+    console.log('No se pudieron verificar los permisos:', error)
+    return true // Continuar de todos modos
+  }
+}
+const initializeCamera = async () => {
+  if (isCameraActive.value) return
+  if (!navigator.mediaDevices) {
+    notify({
+      message:
+        'navigator.mediaDevices no disponible en este navegador/contexto. En iOS Safari debes usar HTTPS o abrir la app desde el mismo dispositivo. Prueba desde la máquina host o configura HTTPS (ej. ngrok).',
+      color: 'danger',
+    })
+    return
+  }
+  // Verificar permisos primero
+  const hasPermissions = await checkCameraPermissions()
+  if (!hasPermissions) {
+    return
+  }
+  isCameraActive.value = true
+  await nextTick()
+  if (!video.value) {
+    console.error('El elemento de video no se encontró en el DOM.')
+    isCameraActive.value = false
+    return
+  }
+  try {
+    let stream: MediaStream | null = null
+    // Obtener lista de dispositivos para seleccionar Iriun si está disponible
+    let iriunDeviceId: string | undefined
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const videoDevices = devices.filter((device) => device.kind === 'videoinput')
+      // Buscar Iriun Webcam por nombre
+      const iriunDevice = videoDevices.find(
+        (device) =>
+          device.label?.toLowerCase().includes('iriun') ||
+          device.label?.toLowerCase().includes('webcam') ||
+          device.label?.toLowerCase().includes('virtual'),
+      )
+      if (iriunDevice) {
+        iriunDeviceId = iriunDevice.deviceId
+        console.log('🎥 Dispositivo Iriun encontrado:', iriunDevice.label)
+      } else {
+        console.log('📷 No se detectó Iriun, usando cámara por defecto')
+      }
+    } catch (enumError) {
+      console.log('No se pudieron enumerar dispositivos:', enumError)
+    }
+    // Paso 1: Solicitar permisos de cámara con config básica
+    try {
+      await navigator.mediaDevices.getUserMedia({ video: true })
+    } catch (permError) {
+      notify({ message: 'No se pudo obtener permisos de cámara.', color: 'danger' })
+      throw permError
+    }
+    // Paso 2: Enumerar dispositivos de video y buscar la cámara trasera
+    let devices: MediaDeviceInfo[] = []
+    try {
+      devices = await navigator.mediaDevices.enumerateDevices()
+    } catch (e) {
+      console.log('No se pudieron enumerar dispositivos:', e)
+    }
+    const videoDevices = devices.filter((device) => device.kind === 'videoinput')
+    const backCamera = videoDevices.find((device) => {
+      const label = device.label.toLowerCase()
+      return (
+        label.includes('back') ||
+        label.includes('rear') ||
+        label.includes('environment') ||
+        label.includes('principal') ||
+        label.includes('trasera')
+      )
+    })
+    // Paso 3: Mostrar selector visual si hay más de una cámara
+    let selectedDeviceId = ''
+    if (videoDevices.length > 1) {
+      // Simple selector visual (prompt)
+      const cameraOptions = videoDevices.map((d, i) => `${i + 1}: ${d.label || 'Cámara ' + (i + 1)}`).join('
+')
+      const choice = prompt(`Selecciona la cámara a usar:
+${cameraOptions}
+Ingresa el número correspondiente:`)
+      let idx = parseInt(choice || '1', 10) - 1
+      if (isNaN(idx) || idx < 0 || idx >= videoDevices.length) idx = 0
+      selectedDeviceId = videoDevices[idx].deviceId
+      notify({ message: `Cámara seleccionada: ${videoDevices[idx].label || 'Cámara ' + (idx + 1)}`, color: 'info' })
+    } else if (backCamera) {
+      selectedDeviceId = backCamera.deviceId
+      notify({ message: 'Cámara trasera detectada y seleccionada.', color: 'success' })
+    } else if (videoDevices.length > 0) {
+      selectedDeviceId = videoDevices[0].deviceId
+      notify({ message: 'No se detectó cámara trasera. Usando la primera disponible.', color: 'warning' })
+    } else {
+      notify({ message: 'No se detectó ninguna cámara de video.', color: 'danger' })
+      throw new Error('No se detectó ninguna cámara de video.')
+    }
+    // Paso 4: Conectar a la cámara seleccionada
+    const config = {
+      video: {
+        deviceId: { exact: selectedDeviceId },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(config)
+      console.log('✅ Configuración de cámara exitosa')
+    } catch (configError) {
+      console.log('❌ Configuración falló:', configError)
+      notify({ message: 'No se pudo acceder a la cámara seleccionada.', color: 'danger' })
+      throw configError
+    }
+    cameraStream = stream
+    video.value.srcObject = stream
+    await video.value.play()
+    // Intentar reducir zoom si está disponible (usando any para evitar errores de tipos)
+    try {
+      const videoTrack = stream.getVideoTracks()[0]
+      if (videoTrack && videoTrack.getCapabilities) {
+        const capabilities = videoTrack.getCapabilities() as any
+        cameraCapabilities.value = capabilities
+        console.log('Capacidades de la cámara:', capabilities)
+        if (capabilities?.zoom && capabilities.zoom.min !== undefined) {
+          hardwareZoomLevel.value = capabilities.zoom.min
+          await videoTrack.applyConstraints({
+            advanced: [{ zoom: capabilities.zoom.min } as any],
+          })
+          console.log('✅ Zoom ajustado al mínimo')
+        }
+        if (capabilities?.focusMode && capabilities.focusMode.includes('manual')) {
+          hardwareFocusLevel.value = 0.5
+          await videoTrack.applyConstraints({
+            advanced: [{ focusMode: 'manual', focusDistance: 0.5 } as any],
+          })
+          console.log('✅ Focus ajustado a manual')
+        }
+      }
+    } catch (zoomError) {
+      console.log('No se pudo ajustar el zoom:', zoomError)
+    }
+  } catch (err: any) {
+    console.error('Error al acceder a la cámara:', err)
+    let errorMessage = 'No se pudo acceder a la cámara.'
+    let showDiagnostic = false
+    if (err.name === 'NotReadableError' || err.message.includes('Could not start video source')) {
+      errorMessage =
+        '🔒 La cámara está ocupada por otra aplicación. Cierra aplicaciones como Zoom, Teams, OBS, Iriun Webcam, etc. y usa "Reiniciar Cámara".'
+      showDiagnostic = true
+    } else if (err.name === 'NotAllowedError') {
+      errorMessage = '❌ Permisos de cámara denegados. Permite el acceso en la barra de direcciones del navegador.'
+    } else if (err.name === 'NotFoundError') {
+      errorMessage = '📷 No se encontró ninguna cámara en el dispositivo.'
+    } else if (err.name === 'OverconstrainedError') {
+      errorMessage = '⚙️ Las configuraciones de cámara no son compatibles. Intenta con "Diagnóstico".'
+      showDiagnostic = true
+    } else if (err.message.includes('No se pudo obtener acceso a ninguna cámara')) {
+      errorMessage = '🔍 Todas las configuraciones de cámara fallaron. Usa "Diagnóstico" para más información.'
+      showDiagnostic = true
+    }
+    notify({
+      message: errorMessage + (showDiagnostic ? ' Usa el botón "Diagnóstico" para más información.' : ''),
+      color: 'danger',
+    })
+    isCameraActive.value = false
+    cameraStream = null
+  }
+}
+const stopCamera = () => {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach((track) => track.stop())
+    cameraStream = null
+  }
+  if (video.value) {
+    video.value.srcObject = null
+  }
+  isCameraActive.value = false
+}
+const applyHardwareZoom = async (level: number) => {
+  if (!cameraStream || !cameraCapabilities.value?.zoom) return
+  try {
+    const videoTrack = cameraStream.getVideoTracks()[0]
+    if (videoTrack) {
+      const min = cameraCapabilities.value.zoom.min || 1
+      const max = cameraCapabilities.value.zoom.max || 1
+      const clampedLevel = Math.max(min, Math.min(max, level))
+      await videoTrack.applyConstraints({
+        advanced: [{ zoom: clampedLevel } as any],
+      })
+      hardwareZoomLevel.value = clampedLevel
+      console.log('✅ Zoom hardware aplicado:', clampedLevel)
+    }
+  } catch (error) {
+    console.log('No se pudo aplicar zoom hardware:', error)
+  }
+}
+const applyHardwareFocus = async (level: number) => {
+  if (!cameraStream || !cameraCapabilities.value?.focusMode?.includes('manual')) return
+  try {
+    const videoTrack = cameraStream.getVideoTracks()[0]
+    if (videoTrack) {
+      await videoTrack.applyConstraints({
+        advanced: [{ focusMode: 'manual', focusDistance: level } as any],
+      })
+      hardwareFocusLevel.value = level
+      console.log('✅ Focus hardware aplicado:', level)
+    }
+  } catch (error) {
+    console.log('No se pudo aplicar focus hardware:', error)
+  }
+}
+const quickFixCamera = async () => {
+  notify({ message: '🔄 Intentando solución rápida...', color: 'info' })
+  // Parar cualquier stream activo
+  stopCamera()
+  // Pausa más larga
+  await new Promise((resolve) => setTimeout(resolve, 2000))
+  // Intentar con configuración más simple
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      notify({
+        message:
+          'Tu navegador no soporta acceso a la cámara desde esta página. En móviles requiere HTTPS o usar la app desde el mismo dispositivo. Prueba desde un navegador en la máquina host o configura HTTPS (ngrok).',
+        color: 'danger',
+      })
+      return
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: 320,
+        height: 240,
+      },
+    })
+    if (video.value) {
+      cameraStream = stream
+      video.value.srcObject = stream
+      await video.value.play()
+      isCameraActive.value = true
+      notify({ message: '✅ Solución rápida exitosa con resolución baja', color: 'success' })
+    }
+  } catch (error) {
+    console.error('Solución rápida falló:', error)
+    notify({ message: '❌ Solución rápida falló. Verifica que no hay otras apps usando la cámara.', color: 'danger' })
+  }
+}
+// Fallback: subir imagenes desde archivo cuando no hay soporte de cámara
+// Fallback: subir imagenes desde archivo cuando no hay soporte de cámara
+const handleFileSelected = async (e: Event) => {
+  const input = e.target as HTMLInputElement
+  if (!input || !input.files || input.files.length === 0) return
+  // Convertir la(s) imagen(es) a base64 y agregarlas al batch
+  const newImages: string[] = []
+  let processed = 0
+  const totalFiles = input.files.length
+  for (let i = 0; i < totalFiles; i++) {
+    const file = input.files[i]
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      if (result) {
+        newImages.push(result)
+        batchImages.value.push(result)
+        processed++
+        // Efecto de flash visual
+        const flash = document.createElement('div')
+        flash.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background: white;
+          opacity: 0.8;
+          z-index: 9999;
+          pointer-events: none;
+        `
+        document.body.appendChild(flash)
+        setTimeout(() => flash.remove(), 100)
+        // Feedback visual
+        notify({ 
+          message: `✅ Foto ${batchImages.value.length} guardada`, 
+          color: 'success',
+          duration: 1500
+        })
+        // Cuando termina de procesar todas las fotos
+        if (processed === totalFiles) {
+          console.log(`✅ ${processed} foto(s) agregada(s) al batch (Total: ${batchImages.value.length})`)
+          // Si multi-captura está habilitada, reabrir la cámara automáticamente
+          if (multiCaptureEnabled.value && fileCaptureInput.value) {
+            // Notificación que la cámara se va a reabrir
+            notify({
+              message: '📸 Preparando siguiente captura...',
+              color: 'info',
+              duration: 800
+            })
+            setTimeout(() => {
+              try {
+                // Limpiar el input para permitir seleccionar el mismo archivo
+                fileCaptureInput.value!.value = ''
+                // Reabrir la cámara nativa
+                fileCaptureInput.value!.click()
+                console.log('📱 Reabriendo cámara nativa automáticamente...')
+              } catch (e) {
+                console.log('No se pudo reabrir la cámara automáticamente:', e)
+                // Si falla, mostrar botón para reabrir manualmente
+                notify({
+                  message: '📸 Toca "Capturar más fotos" para continuar',
+                  color: 'warning',
+                  duration: 3000
+                })
+              }
+            }, 800) // Delay para que el usuario vea el feedback
+          } else {
+            // Si captura continua está desactivada
+            notify({
+              message: `✅ ${processed} foto(s) lista(s). ${multiCaptureEnabled.value ? '' : 'Activa "Captura Continua" para modo rápido.'}`,
+              color: 'success',
+              duration: 3000
+            })
+          }
+        }
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+  // Asegurar que el modo batch está activo
+  if (!isBatchMode.value) {
+    isBatchMode.value = true
+  }
+}
+const selectIriunCamera = async () => {
+  // Activar modo batch automáticamente
+  isBatchMode.value = true
+  batchImages.value = []
+  batchOcrResults.value = []
+  notify({ message: '🎥 Iniciando modo Batch con Iriun...', color: 'info' })
+  try {
+    stopCamera()
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      notify({
+        message:
+          'No se puede acceder a la lista de dispositivos desde este navegador/contexto. En iOS es necesario usar HTTPS o abrir la app desde el mismo dispositivo. Prueba desde la máquina host o configura un túnel HTTPS (ej. ngrok).',
+        color: 'danger',
+      })
+      return
+    }
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    const videoDevices = devices.filter((device) => device.kind === 'videoinput')
+    // Buscar Iriun específicamente
+    const iriunDevice = videoDevices.find(
+      (device) =>
+        device.label?.toLowerCase().includes('iriun') ||
+        device.label?.toLowerCase().includes('webcam') ||
+        device.label?.toLowerCase().includes('virtual'),
+    )
+    if (!iriunDevice) {
+      notify({ message: '❌ No se encontró cámara Iriun. Verifica que esté conectada y funcionando.', color: 'danger' })
+      return
+    }
+    console.log('🎥 Usando dispositivo Iriun:', iriunDevice.label)
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        deviceId: { exact: iriunDevice.deviceId },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+    })
+    if (video.value) {
+      cameraStream = stream
+      video.value.srcObject = stream
+      await video.value.play()
+      isCameraActive.value = true
+      notify({ message: `✅ Modo Batch activo - Captura todas las etiquetas`, color: 'success' })
+    }
+  } catch (error: any) {
+    console.error('Error al conectar Iriun:', error)
+    notify({ message: '❌ Error al conectar con Iriun. Usa "Diagnóstico" para más información.', color: 'danger' })
+  }
+}
+const startBatchMode = async () => {
+  // Activar modo batch
+  isBatchMode.value = true
+  batchImages.value = []
+  batchOcrResults.value = []
+  try {
+    stopCamera()
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    console.log('🎥 Iniciando modo batch optimizado...')
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      notify({
+        message: 'Tu navegador no soporta acceso a cámara en este contexto. Usa HTTPS o localhost.',
+        color: 'danger',
+      })
+      return
+    }
+    // ESTRATEGIA: Usar facingMode "environment" igual que la cámara nativa
+    // Esto es más confiable que enumerar devices y seleccionar manualmente
+    console.log('📸 Solicitando cámara trasera con facingMode: environment...')
+    // Configuración optimizada (igual que cámara nativa)
+    const constraints: MediaStreamConstraints = {
+      video: {
+        facingMode: { exact: 'environment' }, // Forzar cámara trasera
+        width: { ideal: 1920, min: 1280 },
+        height: { ideal: 1080, min: 720 },
+        aspectRatio: { ideal: 16/9 }
+      }
+    }
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(constraints)
+      console.log('✅ Stream obtenido con facingMode: environment')
+    } catch (exactError: any) {
+      console.warn('⚠️ facingMode exact falló, intentando con ideal...')
+      // Fallback: usar ideal en vez de exact
+      constraints.video = {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+      stream = await navigator.mediaDevices.getUserMedia(constraints)
+    }
+    console.log('🎬 Activando UI de cámara...')
+    isCameraActive.value = true
+    // Esperar a que el DOM esté listo
+    await nextTick()
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    // Buscar elemento video
+    const maxAttempts = 60
+    let attempts = 0
+    while (attempts < maxAttempts) {
+      if (!video.value) {
+        const videoElements = document.querySelectorAll('video')
+        if (videoElements.length > 0) {
+          video.value = videoElements[0] as HTMLVideoElement
+        }
+      }
+      if (video.value) {
+        console.log('✅ Video element listo')
+        break
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      attempts++
+    }
+    if (!video.value) {
+      console.error('❌ Video element no disponible')
+      isCameraActive.value = false
+      stream.getTracks().forEach(track => track.stop())
+      notify({ message: '❌ Error: No se pudo inicializar la cámara', color: 'danger' })
+      return
+    }
+    // Asignar stream y reproducir
+    cameraStream = stream
+    video.value.srcObject = stream
+    await video.value.play()
+    // Obtener info del track
+    const videoTrack = stream.getVideoTracks()[0]
+    const settings = videoTrack.getSettings()
+    const capabilities = videoTrack.getCapabilities() as any
+    console.log('✅ Cámara activa:', videoTrack.label)
+    console.log('📐 Resolución:', settings.width + 'x' + settings.height)
+    console.log('📷 Facing mode:', settings.facingMode)
+    // Guardar capacidades
+    cameraCapabilities.value = capabilities
+    // Aplicar configuraciones avanzadas
+    const advancedConstraints: any = {}
+    // Enfoque continuo
+    if (capabilities.focusMode?.includes('continuous')) {
+      advancedConstraints.focusMode = 'continuous'
+    }
+    // Zoom mínimo
+    if (capabilities.zoom) {
+      advancedConstraints.zoom = capabilities.zoom.min || 1
+      hardwareZoomLevel.value = capabilities.zoom.min || 1
+    }
+    // Exposición automática
+    if (capabilities.exposureMode?.includes('continuous')) {
+      advancedConstraints.exposureMode = 'continuous'
+    }
+    // Balance de blancos automático
+    if (capabilities.whiteBalanceMode?.includes('continuous')) {
+      advancedConstraints.whiteBalanceMode = 'continuous'
+    }
+    // Aplicar configuraciones
+    if (Object.keys(advancedConstraints).length > 0) {
+      try {
+        await videoTrack.applyConstraints({ advanced: [advancedConstraints] })
+        console.log('✅ Configuraciones optimizadas aplicadas:', advancedConstraints)
+      } catch (err) {
+        console.log('⚠️ No se pudieron aplicar todas las configuraciones:', err)
+      }
+    }
+    notify({ 
+      message: `✅ Cámara trasera lista - ${settings.width}x${settings.height}`, 
+      color: 'success',
+      duration: 2000
+    })
+  } catch (error: any) {
+    console.error('❌ Error al iniciar cámara:', error)
+    isCameraActive.value = false
+    let errorMsg = '❌ No se pudo acceder a la cámara'
+    if (error.name === 'NotAllowedError') {
+      errorMsg = '❌ Permiso denegado. Permite el acceso a la cámara en la configuración del navegador'
+    } else if (error.name === 'NotFoundError') {
+      errorMsg = '❌ No se encontró cámara trasera'
+    } else if (error.name === 'OverconstrainedError') {
+      errorMsg = '❌ Tu dispositivo no soporta la configuración solicitada'
+    }
+    notify({ message: errorMsg, color: 'danger' })
+  }
+}
+const showCameraSelector = async (cameras: { label: string; deviceId: string }[]): Promise<string> => {
+  return new Promise((resolve) => {
+    // Crear un diálogo simple con las opciones
+    const cameraList = cameras.map((cam, idx) => `${idx + 1}. ${cam.label}`).join('
+')
+    const message = `Selecciona una cámara:
+${cameraList}
+(Presiona Enter para usar la primera)`
+    // Por ahora, usar la primera automáticamente
+    // TODO: Implementar selector visual con VaModal
+    console.log('📹 Usando cámara:', cameras[0].label)
+    notify({ message: `📹 Usando: ${cameras[0].label}`, color: 'info' })
+    resolve(cameras[0].deviceId)
+  })
+}
+const connectToCamera = async (deviceId: string) => {
+  try {
+    console.log('🎥 Intentando conectar con deviceId:', deviceId)
+    // Intentar primero con deviceId exacto
+    let stream
+    try {
+      console.log('📡 Solicitando permiso de cámara...')
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('getUserMedia no disponible en este contexto')
+      }
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          deviceId: { exact: deviceId },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      })
+      console.log('✅ Stream obtenido con deviceId exacto')
+    } catch (exactError: any) {
+      console.warn('⚠️ Fallo con deviceId exacto:', exactError.name, exactError.message)
+      console.log('🔄 Intentando sin restricción de deviceId...')
+      // Si falla, intentar sin especificar deviceId exacto
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      })
+      console.log('✅ Stream obtenido sin restricción')
+    }
+    console.log('📹 Stream recibido, tracks:', stream.getVideoTracks().length)
+    // Esperar a que el elemento video esté disponible en el DOM (doble verificación)
+    if (!video.value) {
+      console.log('⚠️ Elemento video no disponible inicialmente, esperando...')
+      const maxAttempts = 10
+      let attempts = 0
+      while (attempts < maxAttempts && !video.value) {
+        await new Promise((resolve) => setTimeout(resolve, 50)) // 50ms entre intentos
+        attempts++
+      }
+    }
+    if (!video.value) {
+      console.error('❌ Elemento video no disponible en el DOM después de esperar')
+      throw new Error('Elemento video no encontrado')
+    }
+    console.log('✅ Elemento video disponible, asignando stream...')
+    cameraStream = stream
+    video.value.srcObject = stream
+    console.log('▶️ Iniciando reproducción...')
+    await video.value.play()
+    // Ya no necesitamos activar isCameraActive aquí, se hace antes
+    // Obtener el track activo para mostrar info
+    const videoTrack = stream.getVideoTracks()[0]
+    const settings = videoTrack.getSettings()
+    console.log('✅ Cámara conectada:', videoTrack.label)
+    console.log('📐 Resolución:', settings.width + 'x' + settings.height)
+    notify({ message: `✅ ${videoTrack.label} activa`, color: 'success' })
+  } catch (error: any) {
+    console.error('❌ Error al conectar cámara:', error)
+    console.error('Error name:', error.name)
+    console.error('Error message:', error.message)
+    let errorMsg = '❌ No se pudo conectar a la cámara'
+    if (error.name === 'NotAllowedError') {
+      errorMsg = '❌ Permiso denegado. Permite el acceso a la cámara'
+    } else if (error.name === 'NotFoundError') {
+      errorMsg = '❌ No se encontró ninguna cámara'
+    } else if (error.name === 'NotReadableError') {
+      errorMsg = '❌ Cámara en uso por otra aplicación'
+    }
+    notify({ message: errorMsg, color: 'danger' })
+  }
+}
+const diagnosticCamera = async () => {
+  console.log('=== DIAGNÓSTICO DE CÁMARA ===')
+  try {
+    // Verificar soporte del navegador
+    console.log('Navigator.mediaDevices disponible:', !!navigator.mediaDevices)
+    console.log('getUserMedia disponible:', !!navigator.mediaDevices?.getUserMedia)
+    // Listar dispositivos de media
+    if (navigator.mediaDevices?.enumerateDevices) {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const videoDevices = devices.filter((device) => device.kind === 'videoinput')
+      console.log('Dispositivos de video encontrados:', videoDevices.length)
+      videoDevices.forEach((device, index) => {
+        console.log(`📷 Cámara ${index + 1}:`, device.label || 'Sin etiqueta')
+        console.log(`   Device ID: ${device.deviceId}`)
+        console.log(
+          `   Iriun?: ${
+            device.label?.toLowerCase().includes('iriun') || device.label?.toLowerCase().includes('webcam')
+              ? '✅ Posible'
+              : '❓ No detectado'
+          }`,
+        )
+        console.log('---')
+      })
+    }
+    // Verificar permisos
+    if (navigator.permissions) {
+      const permission = await navigator.permissions.query({ name: 'camera' as PermissionName })
+      console.log('Estado de permisos:', permission.state)
+    }
+    // Intentar acceso simple para detectar conflictos
+    console.log('Probando acceso básico a cámara...')
+    try {
+      const testStream = await navigator.mediaDevices.getUserMedia({ video: true })
+      console.log('✅ Acceso básico exitoso')
+      testStream.getTracks().forEach((track) => track.stop())
+    } catch (testError: any) {
+      console.log('❌ Error en acceso básico:', testError.name, testError.message)
+      if (testError.name === 'NotReadableError') {
+        console.log('🔍 POSIBLE CAUSA: Otra aplicación está usando la cámara')
+        console.log('💡 SOLUCIÓN: Cierra otras apps como Zoom, Teams, OBS, etc.')
+      }
+    }
+    notify({
+      message: 'Información de diagnóstico enviada a la consola. Abre las herramientas de desarrollador (F12).',
+      color: 'info',
+    })
+  } catch (error) {
+    console.error('Error en diagnóstico:', error)
+    notify({ message: 'Error al ejecutar diagnóstico. Ver consola.', color: 'danger' })
+  }
+}
+// --- LÓGICA DE CAPTURA AUTOMÁTICA ---
+const captureAndProcess = async () => {
+  if (!video.value) return
+  isProcessing.value = true
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d')
+  const videoElement = video.value
+  // Use displayed dimensions to compute crop so CSS scaling behaves correctly
+  const CROP_WIDTH_PERCENT = 0.9
+  const CROP_HEIGHT_PERCENT = 0.8
+  const displayedVideoWidth = videoElement.clientWidth
+  const displayedVideoHeight = videoElement.clientHeight
+  const displayedCropWidth = displayedVideoWidth * CROP_WIDTH_PERCENT
+  const displayedCropHeight = displayedVideoHeight * CROP_HEIGHT_PERCENT
+  const displayedCropX = (displayedVideoWidth - displayedCropWidth) / 2
+  const displayedCropY = (displayedVideoHeight - displayedCropHeight) / 2
+  const scaleX = videoElement.videoWidth / displayedVideoWidth
+  const scaleY = videoElement.videoHeight / displayedVideoHeight
+  const cropWidth = Math.round(displayedCropWidth * scaleX)
+  const cropHeight = Math.round(displayedCropHeight * scaleY)
+  const cropX = Math.round(displayedCropX * scaleX)
+  const cropY = Math.round(displayedCropY * scaleY)
+  canvas.width = cropWidth
+  canvas.height = cropHeight
+  if (context) {
+    context.drawImage(videoElement, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
+  }
+  const imageBase64 = canvas.toDataURL('image/jpeg', 0.95)
+  stopCamera() // Cierra la cámara inmediatamente después de tomar la foto
+  try {
+    const response = await api.postOcr(imageBase64)
+    if (response.data.status === 'success' && response.data.text) {
+      rellenarFormulario(response.data.text)
+    } else {
+      notify({ message: response.data.message || 'No se pudo extraer texto.', color: 'warning' })
+    }
+  } catch (error: any) {
+    console.error('Error en OCR:', error)
+    const errorMessage = error.response?.data?.error || 'Error en el servidor OCR'
+    notify({ message: `Error en OCR: ${errorMessage}`, color: 'danger' })
+  } finally {
+    isProcessing.value = false
+  }
+}
+// --- SISTEMA DE ANÁLISIS DE ETIQUETAS SINCRONIZADO CON BACKEND ---
+const parsers = {
+  // Parser para etiquetas de Jumpseller (mejorado)
+  jumpseller: {
+    recipient_name: /DESTINATARIO\s*:\s*([^\n]+)/i,
+    destination_address: /DIRECCION\s*:\s*([^\n]+(?:\n[^\n]+)?)/i,
+    recipient_phone: /FONO\s*:\s*(\+?56\s*\d[\d\s]+?)(?=\d{8,}|\s*$)/i,
+    external_tracking_code: /(?:REF|ORDEN)\s*:\s*(\d+)/i,
+    reference: /OBSERVACION\s*:\s*([^\n]+)/i,
+  },
+
+  // Parser para etiquetas de Acuerdo/Cambio (Leon Import)
+  leonImport: {
+    recipient_name: /NOMBRE\s*:\s*([^\n]+)/i,
+    recipient_phone: /TEL[ÉE]FONO\s*:\s*(\+?56\s*\d[\d\s]+)/i,
+    destination_address: /DIRECCION\s*:\s*([^\n]+(?:\n[^\n]+)?)\s*COMUNA/i,
+    comuna: /COMUNA\s*:\s*([^\n]+)/i,
+    external_tracking_code: /(?:CAMBIO|ACUERDO)\s*#?([A-Z]?\d+)/i,
+    product: /PRODUCTO\s*:\s*([^\n]+)/i,
+    reference: /OBSERVACION\s*:\s*([^\n]+)/i,
+  },
+
+  // Parser para etiquetas de Mercado Libre
+  mercadoLibre: {
+    recipient_name: /Destinatario\s*:\s*([^\n(]+)/i,
+    destination_address: /Direccion\s*:\s*([^\n]+)/i,
+    recipient_phone: /\(([A-Z]+\d+)\)/i, // Usuario de ML
+    alt_phone: /(\+?56\s*\d[\d\s]+)/i, // Teléfono alternativo
+    external_tracking_code: /Venta ID\s*:\s*(\d+)/i,
+    shipping_code: /Envio\s*:\s*(\d+)/i,
+    reference: /Referencia\s*:\s*([^\n]+)/i,
+  },
+
+  // Parser para etiquetas ENVIAME (mejorado)
+  enviame: {
+    recipient_name: /(?:Destinatario|Katherine\s+Salazar)\s*[:\s]*([^\n/]+?)(?:\s*\/\s*Tel|$)/i,
+    alt_recipient_name: /Ketherine\s+Salazar\s+montenegro/i,
+    recipient_phone: /Tel\.?\s*:\s*(\d[\d\s]+)/i,
+    alt_phone: /FONO\s*[:\s]*(\d[\d\s]+)/i,
+    destination_address: /(?:CRECCON|Sen\s+pablo|DIRECCION)\s*[:\s]*([^\n]+(?:\n[^\n]+)?)/i,
+    external_tracking_code: /(?:COSTOO SEGUMIENTO|N-J de orden)\s*[:\s]*(\d+)/i,
+    marketplace: /MARKETPLACE\s*[:\s]*([^\n]+)/i,
+  },
+
+  // Parser genérico (fallback)
+  generic: {
+    recipient_name: /(?:Nombre|Destinatario|Señor\(a\))[:\s]*([A-ZÁÉÍÓÚÑ\s]+?)(?=\s*Fono|\s*Tel|\s*Direcci[oó]n|$)/i,
+    recipient_phone: /(?:Fono|Tel[eé]fono|Numero)[:\s]*(\+?56\s*\d[\d\s-]{7,})/i,
+    destination_address: /(?:Direcci[oó]n|Direccion|Destino)[:\s]*([\s\S]*?)(?=\n\s*(?:Fono|Tel[eé]fono|Observaci[oó]n|Comuna)|$)/i,
+    external_tracking_code: /(?:C[oó]digo|Venta|Despacho|Orden|REF)[:\s]*([^\n]+)/i,
+  },
+}
+// --- FUNCIÓN DE DETECCIÓN SINCRONIZADA CON BACKEND ---
+function getLabelParser(texto: string) {
+  const textoUpper = texto.toUpperCase()
+  
+  // Detectar Jumpseller (incluye "FUMPSELLER" por errores OCR)
+  if (textoUpper.includes('JUMPSELLER') || textoUpper.includes('FUMPSELLER')) {
+    console.log('🎯 Detectado: Jumpseller')
+    return parsers.jumpseller
+  }
+  
+  // Detectar Leon Import Acuerdo
+  if (textoUpper.includes('CAMBIO #') || textoUpper.includes('ACUERDO')) {
+    console.log('🎯 Detectado: Leon Import Acuerdo')
+    return parsers.leonImport
+  }
+  
+  // Detectar Mercado Libre
+  if (textoUpper.includes('VENTA ID') || textoUpper.includes('MERCADOLIBRE')) {
+    console.log('🎯 Detectado: Mercado Libre')
+    return parsers.mercadoLibre
+  }
+  
+  // Detectar ENVIAME
+  if (textoUpper.includes('ENVIAME')) {
+    console.log('🎯 Detectado: ENVIAME')
+    return parsers.enviame
+  }
+  
+  // Fallback a generic
+  console.log('🎯 Usando parser genérico')
+  return parsers.generic
+}
+// --- FUNCIÓN DE RELLENADO MEJORADA ---
+function rellenarFormulario(textoCompleto: string) {
+  const texto = textoCompleto
+    .replace(/(\r
+|\r|
+)/gm, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  console.log('Texto OCR procesado:', texto)
+  const parser = getLabelParser(texto)
+  const parserName =
+    (Object.keys(parsers) as Array<keyof typeof parsers>).find((key) => parsers[key] === parser) || 'unknown'
+  console.log('Parser seleccionado:', parserName)
+  const formatearTelefono = (n: string) => {
+    const d = n.replace(/\D/g, '')
+    if (d.length === 9 && d.startsWith('9')) return `+56 9 ${d.substring(1, 5)} ${d.substring(5)}`
+    return `+ ${d}`
+  }
+  let fieldsFilled = 0
+  recipient_name.value = ''
+  destination_address.value = ''
+  recipient_phone.value = ''
+  external_tracking_code.value = ''
+  Object.entries(parser).forEach(([campoId, regex]) => {
+    const match = texto.match(regex as RegExp)
+    if (match && match[1]) {
+      fieldsFilled++
+      const valorLimpio = match[1].trim()
+      switch (campoId) {
+        case 'recipient_name':
+          recipient_name.value = valorLimpio
+          break
+        case 'destination_address':
+          destination_address.value = valorLimpio.replace(/OBSERVACION/gi, '').trim()
+          break
+        case 'recipient_phone':
+          recipient_phone.value = formatearTelefono(valorLimpio)
+          break
+        case 'alt_phone':
+          if (!recipient_phone.value) {
+            recipient_phone.value = formatearTelefono(valorLimpio)
+          }
+          break
+        case 'alt_recipient_name':
+          if (!recipient_name.value) {
+            recipient_name.value = valorLimpio
+          }
+          break
+        case 'external_tracking_code':
+          external_tracking_code.value = valorLimpio.replace(/\D/g, '')
+          break
+        case 'comuna':
+          // Agregar comuna a la dirección
+          if (valorLimpio) {
+            destination_address.value += `, ${valorLimpio}`
+          }
+          break
+        case 'cod_amount':
+          is_cod.value = true
+          cod_amount.value = parseFloat(valorLimpio.replace(/[.,]/g, '')) || 0
+          break
+      }
+    }
+  })
+  nextTick(() => {
+    validate()
+    if (fieldsFilled < 2) {
+      notify({
+        message: 'No se pudieron extraer suficientes datos. Por favor, verifica la imagen o ingresa manualmente.',
+        color: 'warning',
+      })
+    } else {
+      notify({ message: `Formulario rellenado con ${fieldsFilled} campos. Revisa los datos.`, color: 'success' })
+    }
+  })
+}
+// --- HOOKS DE CICLO DE VIDA ---
+onMounted(async () => {
+  isLoading.value = true
+  // Detectar soporte de getUserMedia en este contexto (https/localhost requerido en algunos navegadores)
+  supportsMediaDevices.value = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+  try {
+    if (!isPickupContext.value) {
+      const [pickupsRes, clientsRes] = await Promise.all([
+        api.getPickups({ perPage: 1000 }),
+        api.getClients({ perPage: 1000 }),
+      ])
+      pickups.value = pickupsRes.data.pickups.map((p: any) => ({
+        text: `${p.client?.client_name} - ${new Date(p.pickup_scheduled_date).toLocaleDateString()}`,
+        value: p.pickup_id,
+      }))
+      clients.value = clientsRes.data.clients.map((c: any) => ({
+        text: c.client_name,
+        value: c.client_id,
+      }))
+    }
+  } catch (err) {
+    hasError.value = true
+    notify({ message: 'Error al cargar datos para el formulario', color: 'danger' })
+  } finally {
+    isLoading.value = false
+  }
+})
+onBeforeUnmount(() => {
+  stopCamera()
+})
+// --- WATCHERS ---
+watch(
+  () => [props.pkg, props.pickupId, props.clientId],
+  ([packageData]) => {
+    if (packageData && typeof packageData === 'object' && 'tracking_code' in packageData) {
+      const pkgData = packageData as Package
+      tracking_code.value = pkgData.tracking_code
+      external_tracking_code.value = pkgData.external_tracking_code || ''
+      pickup_id.value = pkgData.pickup_id
+      client_id.value = pkgData.client_id
+      loadClientPrice(pkgData.client_id)
+      loadPickupDriverCost(pkgData.pickup_id)
+      is_cod.value = pkgData.is_cod
+      cod_amount.value = pkgData.cod_amount || 0
+      client_price.value = pkgData.client_price
+      delivery_cost.value = pkgData.delivery_cost
+      destination_address.value = pkgData.destination_address
+      recipient_name.value = pkgData.recipient_name
+      recipient_phone.value = pkgData.recipient_phone || ''
+      scanned_at_origin_datetime.value = new Date(pkgData.scanned_at_origin_datetime)
+    } else if (isPickupContext.value) {
+      resetFormForPickup()
+    } else {
+      reset()
+      tracking_code.value = generateTrackingCode()
+    }
+  },
+  { immediate: true, deep: true },
+)
+watch(is_cod, (newValue) => {
+  if (!newValue) {
+    cod_amount.value = 0
+  }
+})
+// --- MANEJO DEL ENVÍO DEL FORMULARIO ---
+const handleSubmit = async () => {
+  console.log('Before loading:', {
+    clientPrice: client_price.value,
+    deliveryCost: delivery_cost.value,
+  })
+  await Promise.all([
+    loadClientPrice(props.clientId || client_id.value),
+    loadPickupDriverCost(props.pickupId || pickup_id.value),
+  ])
+  const payload: PackageFormData = {
+    tracking_code: tracking_code.value,
+    external_tracking_code: external_tracking_code.value || null,
+    pickup_id: props.pickupId || pickup_id.value,
+    client_id: props.clientId || client_id.value,
+    is_cod: false, // Siempre false en esta etapa
+    cod_amount: 0,
+    client_price: client_price.value,
+    delivery_cost: delivery_cost.value,
+    destination_address: destination_address.value,
+    recipient_name: recipient_name.value,
+    recipient_phone: recipient_phone.value,
+    scanned_at_origin_datetime: scanned_at_origin_datetime.value.toISOString(),
+  }
+  emit('save', payload)
+  if (isPickupContext.value && !props.pkg) {
+    setTimeout(resetFormForPickup, 100)
+  }
+}
+</script>
+<template>
+  <!-- El resto del template se mantiene exactamente igual -->
+  <div v-if="isLoading" class="flex justify-center items-center h-64">
+    <VaProgressCircle indeterminate />
+  </div>
+  <div v-else-if="hasError" class="p-4 text-red-600 bg-red-50 rounded-lg">
+    Se produjo un error. Revisa la consola para más detalles e inténtalo de nuevo.
+  </div>
+  <VaForm v-else ref="package-form" v-slot="{ isValid }" class="flex flex-col gap-4">
+    <VaInput v-if="isPickupContext" :model-value="clientName" label="Cliente" readonly class="bg-gray-50" />
+    <VaSelect
+      v-else
+      v-model="client_id"
+      label="Cliente"
+      :options="clients"
+      :rules="[validators.required]"
+      text-by="text"
+      value-by="value"
+      :readonly="isEditing"
+    />
+    <VaInput
+      v-if="isPickupContext"
+      :model-value="`Recolección: ${pickupId.slice(0, 8)}...`"
+      label="Recolección"
+      readonly
+      class="bg-gray-50"
+    />
+    <VaSelect
+      v-else
+      v-model="pickup_id"
+      label="Recolección"
+      :options="pickups"
+      :rules="[validators.required]"
+      text-by="text"
+      value-by="value"
+      :readonly="isEditing"
+    />
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <VaInput v-model="tracking_code" label="Código Seguimiento (Interno)" readonly class="bg-gray-50" />
+      <VaInput v-model="external_tracking_code" label="Código Seguimiento (Externo)" placeholder="Opcional" />
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <VaInput v-model="recipient_name" label="Nombre del destinatario" :rules="[validators.required]" />
+      <VaInput v-model="recipient_phone" label="Teléfono del destinatario" placeholder="+56 9 1234 5678" />
+    </div>
+    <div class="relative">
+      <VaInput
+        v-model="destination_address"
+        label="Dirección de Destino *"
+        placeholder="Ej: El Pedernal 3793, Puente Alto"
+        :loading="isLoadingSearch && !mapboxError"
+        @update:modelValue="debouncedSearch"
+      />
+      <!-- Mensaje de error de Mapbox -->
+      <div v-if="mapboxError" class="text-xs text-amber-600 mt-1 flex items-center gap-1">
+        <VaIcon name="warning" size="14px" />
+        Búsqueda de direcciones no disponible. Ingresa la dirección manualmente.
+      </div>
+      <!-- Modal simple para seleccionar cámara cuando hay varias disponibles -->
+      <VaModal v-model:show="showCameraModal" title="Selecciona cámara" size="small">
+        <div class="p-4">
+          <div v-if="videoDevicesList.length === 0">No hay cámaras disponibles.</div>
+          <ul v-else class="space-y-2">
+            <li v-for="(d, i) in videoDevicesList" :key="d.deviceId" class="flex items-center justify-between">
+              <div class="text-sm">{{ d.label || `Cámara ${i + 1}` }}</div>
+              <div>
+                <VaButton
+                  size="small"
+                  @click="
+                    () => {
+                      showCameraModal = false
+                      isCameraActive = true
+                      connectToCamera(d.deviceId)
+                    }
+                  "
+                  >Usar</VaButton
+                >
+              </div>
+            </li>
+          </ul>
+        </div>
+      </VaModal>
+      <ul
+        v-if="searchResults.length > 0 && !mapboxError"
+        class="absolute z-50 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1"
+      >
+        <li
+          v-for="result in searchResults"
+          :key="result.id"
+          class="p-2 hover:bg-gray-100 cursor-pointer"
+          @click="selectAddress(result)"
+        >
+          {{ result.place_name }}
+        </li>
+      </ul>
+    </div>
+    <!-- <div class="flex flex-col gap-3">
+      <VaCheckbox v-model="is_cod" label="Pago contra entrega (COD)" />
+      <VaInput v-if="is_cod" v-model.number="cod_amount" label="Monto a cobrar ($)" type="number" step="0.01"
+        :rules="[validators.required, (v) => (v && v > 0) || 'El monto COD debe ser mayor a 0']" class="ml-6" />
+    </div> -->
+    <VaDateInput v-model="scanned_at_origin_datetime" label="Fecha de Escaneo" with-time />
+    <div class="camera-container mt-4 border-t pt-4">
+      <div v-if="isCameraActive" class="video-wrapper">
+        <video ref="video" autoplay playsinline></video>
+        <div class="camera-overlay">
+          <div class="viewfinder"></div>
+        </div>
+        <div class="camera-controls">
+          <VaButton
+            v-if="isBatchMode"
+            :loading="isBatchProcessing"
+            :disabled="isBatchProcessing"
+            size="large"
+            round
+            icon="fa4-camera"
+            color="success"
+            @click="captureBatchImage"
+          >
+            📸 Capturar ({{ batchImages.length }})
+          </VaButton>
+          <div class="zoom-controls ml-3 flex items-center gap-2">
+            <template v-if="cameraCapabilities?.zoom">
+              <input
+                v-model.number="hardwareZoomLevel"
+                type="range"
+                :min="cameraCapabilities?.zoom?.min || 1"
+                :max="cameraCapabilities?.zoom?.max || 2"
+                step="0.1"
+                aria-label="Zoom Hardware"
+                @input="applyHardwareZoom(Number(($event.target as HTMLInputElement).value))"
+              />
+              <span class="text-xs text-white">Zoom</span>
+            </template>
+            <template v-if="cameraCapabilities?.focusMode?.includes('manual')">
+              <input
+                v-model.number="hardwareFocusLevel"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                aria-label="Focus Hardware"
+                @input="applyHardwareFocus(Number(($event.target as HTMLInputElement).value))"
+              />
+              <span class="text-xs text-white">Focus</span>
+            </template>
+          </div>
+          <VaButton
+            preset="secondary"
+            size="small"
+            round
+            icon="va-close"
+            class="close-button"
+            aria-label="Cerrar cámara"
+            @click="stopCamera"
+          />
+        </div>
+      </div>
+      <div v-else-if="!supportsMediaDevices" class="p-4 bg-yellow-50 rounded border border-yellow-200">
+        <div class="text-sm text-yellow-800 mb-2">
+          No se detectó soporte de cámara en este navegador/contexto. Puedes subir imágenes manualmente:
+        </div>
+        <input type="file" accept="image/*" multiple @change="handleFileSelected" />
+        <!-- Hidden native capture input (rear camera) -->
+        <input
+          ref="fileCaptureInput"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style="display: none"
+          @change="handleFileSelected"
+        />
+      </div>
+      <div v-else class="flex flex-col gap-2">
+        <!-- Botón principal: Escanear Batch -->
+        <VaButton icon-right="fa4-camera" color="primary" class="w-full" size="large" @click="startBatchMode">
+          📸 Escanear Paquetes (Batch)
+        </VaButton>
+        <VaButton color="secondary" class="w-full mt-2" size="small" @click="openDeviceCamera">
+          📱 Abrir cámara del teléfono (trasera)
+        </VaButton>
+        <p class="text-xs text-gray-500 text-center">
+          Captura todas las etiquetas → El sistema procesará automáticamente
+        </p>
+      </div>
+      <!-- UI para batch Smart OCR -->
+      <div v-if="isBatchMode" class="w-full mt-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-sm font-semibold text-blue-900">📦 Batch OCR Inteligente</div>
+          <VaBadge :text="`${batchImages.length} fotos`" color="primary" />
+        </div>
+        <div class="flex gap-2 mb-3">
+          <VaButton
+            :disabled="batchImages.length === 0 || isBatchProcessing"
+            :loading="isBatchProcessing"
+            color="success"
+            class="flex-1"
+            @click="processBatchOcr"
+          >
+            {{ isBatchProcessing ? 'Procesando...' : '🚀 Procesar Todo' }}
+          </VaButton>
+          <VaButton :disabled="batchImages.length === 0" color="danger" icon="fa4-trash" @click="clearBatch" />
+        </div>
+        <div v-if="isBatchProcessing" class="text-blue-700 text-sm text-center mb-2">
+          ⏳ El sistema está analizando las etiquetas...
+        </div>
+        <div v-if="batchError" class="bg-red-100 text-red-700 p-2 rounded text-sm mb-2">❌ {{ batchError }}</div>
+        <!-- Resultados simplificados -->
+        <div v-if="batchImages.length > 0" class="mt-3">
+          <div class="flex items-center gap-2 mb-2">
+            <label class="text-sm">Captura continua</label>
+            <input v-model="multiCaptureEnabled" type="checkbox" />
+            <VaButton size="small" color="primary" @click="openDeviceCamera">Tomar otra foto</VaButton>
+          </div>
+          <!-- <div class="flex gap-2 mb-3 items-center">
+            <VaButton 
+              :disabled="batchImages.length === 0 || isBatchProcessing" 
+              :loading="isBatchProcessing"
+              color="success" 
+              class="flex-1"
+              @click="processBatchOcr"
+            >
+              {{ isBatchProcessing ? 'Procesando...' : '🚀 Procesar Fotos' }}
+            </VaButton>
+            <VaButton 
+              :disabled="batchImages.length === 0" 
+              color="danger" 
+              icon="fa4-trash"
+              @click="clearBatch"
+            />
+          </div> -->
+          <div class="grid grid-cols-3 gap-2 mb-3">
+            <div v-for="(img, idx) in batchImages" :key="idx" class="border rounded overflow-hidden">
+              <img :src="img" alt="preview" class="w-full h-28 object-cover" />
+            </div>
+          </div>
+        </div>
+        <div v-if="batchOcrResults.length > 0" class="mt-3 space-y-2">
+          <div class="text-xs font-semibold text-gray-600 mb-2">
+            Resultados: {{ batchOcrResults.filter((r) => r.status === 'success').length }}/{{ batchOcrResults.length }}
+            exitosos
+          </div>
+          <div v-for="(result, idx) in batchOcrResults" :key="idx" class="bg-white border rounded p-2 text-sm">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-mono text-gray-500">Foto #{{ idx + 1 }}</span>
+              <VaBadge
+                :text="result.status === 'success' ? '✓ Detectado' : '⚠ Error'"
+                :color="result.status === 'success' ? 'success' : 'danger'"
+                size="small"
+              />
+            </div>
+            <div v-if="result.text" class="text-xs text-gray-700 truncate mb-2">
+              {{ result.text.substring(0, 80) }}...
+            </div>
+            <VaButton
+              v-if="result.status === 'success' && result.text"
+              size="small"
+              color="primary"
+              @click="rellenarDesdeBatch(idx)"
+            >
+              📝 Usar estos datos
+            </VaButton>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="flex justify-end gap-2 mt-4">
+      <VaButton v-if="!isPickupContext" preset="secondary" @click="$emit('close')"> Cancelar </VaButton>
+      <VaButton :disabled="!isValid" @click="handleSubmit">
+        {{ isEditing ? 'Guardar Cambios' : isPickupContext ? 'Añadir Paquete' : 'Crear Paquete' }}
+      </VaButton>
+    </div>
+    <!-- Hidden capture input always available to open native rear camera on mobile -->
+    <input
+      ref="fileCaptureInput"
+      type="file"
+      accept="image/*"
+      capture="environment"
+      style="display: none"
+      @change="handleFileSelected"
+    />
+    <div v-if="isPickupContext && !isEditing" class="text-sm text-gray-600 mt-2">
+      <IonIcon name="information-circle-outline" style="font-size: 1.2em"></IonIcon>
+      Añadiendo paquete para la recolección actual. El formulario se limpiará después de guardar.
+    </div>
+  </VaForm>
+</template>
+<style scoped>
+.bg-gray-50 {
+  background-color: #f9fafb;
+}
+.camera-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.video-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 450px; /* Punto medio */
+  overflow: hidden;
+  border-radius: 12px;
+  background-color: #000;
+  aspect-ratio: 2 / 3; /* Más alto para etiquetas verticales */
+}
+.video-wrapper video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.video-wrapper video {
+  transition: transform 180ms ease;
+}
+.zoom-controls input[type='range'] {
+  width: 80px;
+}
+.zoom-controls button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+}
+.camera-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.viewfinder {
+  /* Default size, overridden by :style */
+  width: 90%;
+  height: 80%;
+  border: 3px dashed rgba(0, 255, 0, 0.9); /* Verde brillante */
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+  /* Guía visual para centrar */
+  background: linear-gradient(
+      to bottom,
+      transparent calc(50% - 1px),
+      rgba(0, 255, 0, 0.3) calc(50% - 1px),
+      rgba(0, 255, 0, 0.3) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ),
+    linear-gradient(
+      to right,
+      transparent calc(50% - 1px),
+      rgba(0, 255, 0, 0.3) calc(50% - 1px),
+      rgba(0, 255, 0, 0.3) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    );
+}
+.camera-controls {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.close-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background-color: rgba(0, 0, 0, 0.4);
+  color: white;
+}
+.relative {
+  position: relative;
+}
+.absolute {
+  position: absolute;
+}
+/* z-50 en Tailwind asegura que la lista se muestre por encima de otros elementos */
+.z-50 {
+  z-index: 50;
+}
+</style>

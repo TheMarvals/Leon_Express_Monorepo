@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: ./LeonExpress_back
+      dockerfile: Dockerfile
+    container_name: leonexpress_backend
+    environment:
+      - NODE_ENV=production
+      # Variables de base de datos remota - configurar en .env
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - OCR_SPACE_API_KEY=${OCR_SPACE_API_KEY}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+    ports:
+      - "4100:4100"
+    volumes:
+      - ./LeonExpress_back/uploads:/app/uploads
+    networks:
+      - leonexpress_network
+    restart: unless-stopped
+
+  # Frontend Vue.js
+  frontend:
+    build:
+      context: ./LeonExpress_front
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-/api}
+        - VITE_VAPID_PUBLIC_KEY=${VITE_VAPID_PUBLIC_KEY}
+    container_name: leonexpress_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - leonexpress_network
+    restart: unless-stopped
+
+networks:
+  leonexpress_network:
+    driver: bridge

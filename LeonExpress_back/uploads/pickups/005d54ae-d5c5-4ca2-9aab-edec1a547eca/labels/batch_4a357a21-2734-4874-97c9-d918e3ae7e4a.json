@@ -1,0 +1,115 @@
+{
+  "batch_id": "4a357a21-2734-4874-97c9-d918e3ae7e4a",
+  "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+  "status": "pending",
+  "total_images": 3,
+  "processed": 3,
+  "auto_approved": 0,
+  "needs_review": 3,
+  "errors": 0,
+  "created_at": "2025-10-23T13:10:18.142Z",
+  "client_price": 2500,
+  "delivery_cost": 2800,
+  "metadata": {},
+  "items": [
+    {
+      "item_id": "4a357a21-2734-4874-97c9-d918e3ae7e4a_0",
+      "batch_id": "4a357a21-2734-4874-97c9-d918e3ae7e4a",
+      "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/005d54ae-d5c5-4ca2-9aab-edec1a547eca/labels/label_1761225018142_0.jpg",
+      "filename": "label_1761225018142_0.jpg",
+      "index": 0,
+      "status": "needs_review",
+      "created_at": "2025-10-23T13:10:18.168Z",
+      "processing_started_at": "2025-10-23T13:10:18.196Z",
+      "auto_approved": false,
+      "ocr_text": "Numpseller 2025-10-11\nREF: 11120897\nORDEN: 5307\nREMITENTE Lade leport\nDERICCION: Andrea daria 2729./\nDESTINATARIO. Mitele Varis\nDIRECCION: Leta 2325. Depla 78\nPrevidencia. Regide Metropolitana, CL\nOBSERVACION\nFOND: + 54090758342\n11120897\n48 K6\nPRENSONIS 1 CM X 1 EM K 1 CH",
+      "extracted_data": {
+        "destination_address": "Leta 2325. Depla 78\nPrevidencia. Regide Metropolitana, CL",
+        "external_tracking_code": "11120897",
+        "client_price": 2500,
+        "delivery_cost": 2800
+      },
+      "confidence_scores": {
+        "destination_address": 100,
+        "external_tracking_code": 100
+      },
+      "overall_confidence": 100,
+      "parser_used": "Generic",
+      "fields_extracted": 2,
+      "processed_at": "2025-10-23T13:10:21.113Z",
+      "package_id": null,
+      "is_duplicate": false
+    },
+    {
+      "item_id": "4a357a21-2734-4874-97c9-d918e3ae7e4a_1",
+      "batch_id": "4a357a21-2734-4874-97c9-d918e3ae7e4a",
+      "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/005d54ae-d5c5-4ca2-9aab-edec1a547eca/labels/label_1761225018168_1.jpg",
+      "filename": "label_1761225018168_1.jpg",
+      "index": 1,
+      "status": "needs_review",
+      "created_at": "2025-10-23T13:10:18.182Z",
+      "processing_started_at": "2025-10-23T13:10:22.713Z",
+      "auto_approved": false,
+      "ocr_text": "CAMBIO #L4414\nNOMBRE: TRINIDAD CELIS\nTELÉFONO : +56 9 4342 6209\nPRODUCTO: AUDIF M10\nDIRECCION: PLAZA DEL RETIRO 3845\nCOMUNA: LO BARNECHEA\nOBSERVACION: DEJAR Y RECIBIR\nANTERIOR\nLEÓN IMPORT\nLeonimport_\nwww.leonimport.cl\n+56989168226",
+      "extracted_data": {
+        "recipient_name": "TRINIDAD CELIS",
+        "recipient_phone": "+56 9 4342 6209",
+        "destination_address": "PLAZA DEL RETIRO 3845",
+        "comuna": "LO BARNECHEA",
+        "external_tracking_code": "L4414",
+        "product": "AUDIF M10",
+        "reference": "DEJAR Y RECIBIR",
+        "client_price": 2500,
+        "delivery_cost": 2800
+      },
+      "confidence_scores": {
+        "recipient_name": 100,
+        "recipient_phone": 100,
+        "destination_address": 100,
+        "comuna": 100,
+        "external_tracking_code": 100,
+        "product": 100,
+        "reference": 100
+      },
+      "overall_confidence": 100,
+      "parser_used": "Leon Import Acuerdo",
+      "fields_extracted": 7,
+      "processed_at": "2025-10-23T13:10:24.706Z",
+      "package_id": null,
+      "is_duplicate": true,
+      "duplicate_package": {
+        "tracking_code": "LE17511561",
+        "external_tracking_code": "L4414",
+        "created_at": "2025-10-23T00:20:47.000Z",
+        "status": "RECOLECTADO_EN_ORIGEN"
+      },
+      "error_message": "⚠️ DUPLICADO: Ya existe LE17511561. Se requiere confirmación del partner."
+    },
+    {
+      "item_id": "4a357a21-2734-4874-97c9-d918e3ae7e4a_2",
+      "batch_id": "4a357a21-2734-4874-97c9-d918e3ae7e4a",
+      "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/005d54ae-d5c5-4ca2-9aab-edec1a547eca/labels/label_1761225018182_2.jpg",
+      "filename": "label_1761225018182_2.jpg",
+      "index": 2,
+      "status": "needs_review",
+      "created_at": "2025-10-23T13:10:18.196Z",
+      "processing_started_at": "2025-10-23T13:10:26.288Z",
+      "auto_approved": false,
+      "ocr_text": "LEON IMPORT SPA LEÓN BIPO /(03023/R)\nAndra Dona 2720\nMarspa\nwow. 2000013363147880 Ende e46ce8516\nEntrega:\nErivio Turbo\n10-Oct. 14 a 16 hs\nANILLO ESTE\nSAN MIGUEL\nRESIDENCIAL\nDirecclore alcalde pedro alarcon 825\nRuterenda: entregar en conserjeris\nDestinatario: ault orta (ORAU196987)",
+      "extracted_data": {
+        "client_price": 2500,
+        "delivery_cost": 2800
+      },
+      "confidence_scores": {},
+      "overall_confidence": 0,
+      "parser_used": "Generic",
+      "fields_extracted": 0,
+      "processed_at": "2025-10-23T13:10:27.970Z",
+      "package_id": null,
+      "is_duplicate": false
+    }
+  ]
+}

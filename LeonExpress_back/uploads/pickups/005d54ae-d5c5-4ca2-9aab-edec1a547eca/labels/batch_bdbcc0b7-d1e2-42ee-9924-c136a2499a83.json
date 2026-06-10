@@ -1,0 +1,43 @@
+{
+  "batch_id": "bdbcc0b7-d1e2-42ee-9924-c136a2499a83",
+  "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+  "status": "pending",
+  "total_images": 1,
+  "processed": 1,
+  "auto_approved": 0,
+  "needs_review": 1,
+  "errors": 0,
+  "created_at": "2025-10-23T23:22:23.402Z",
+  "client_price": 2500,
+  "delivery_cost": 2800,
+  "metadata": {},
+  "items": [
+    {
+      "item_id": "bdbcc0b7-d1e2-42ee-9924-c136a2499a83_0",
+      "batch_id": "bdbcc0b7-d1e2-42ee-9924-c136a2499a83",
+      "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/005d54ae-d5c5-4ca2-9aab-edec1a547eca/labels/label_1761261743402_0.jpg",
+      "filename": "label_1761261743402_0.jpg",
+      "index": 0,
+      "status": "needs_review",
+      "created_at": "2025-10-23T23:22:23.483Z",
+      "processing_started_at": "2025-10-23T23:22:23.483Z",
+      "auto_approved": false,
+      "ocr_text": "UI 006\nLEÓN IMPORT SPA LEÓN IMPO #1513023287\nAndrea Doria 2720\nPedro Aguirre Cerda, Pedro Aguine Cerda, RM\n(Metropolitana)\nVenta: 2000013363147880\nEnvio: 45661088516\nEnvío Turbo\nEntrega:\n10-Oct. 14 a 16 hs\nANILLO ESTE\nSAN MIGUEL\nRESIDENCIAL\nreccion: alcalde pedro alarcon 825\nReferenda: entregar en conserjeria\nDestinatario: auri orta (ORAU196987)",
+      "extracted_data": {
+        "external_tracking_code": "2000013363147880",
+        "client_price": 2500,
+        "delivery_cost": 2800
+      },
+      "confidence_scores": {
+        "external_tracking_code": 100
+      },
+      "overall_confidence": 100,
+      "parser_used": "Generic",
+      "fields_extracted": 1,
+      "processed_at": "2025-10-23T23:23:12.625Z",
+      "package_id": null,
+      "is_duplicate": false
+    }
+  ]
+}

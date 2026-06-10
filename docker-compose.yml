@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./LeonExpress_back
+      dockerfile: Dockerfile
+    container_name: leonexpress_backend
+    environment:
+      - NODE_ENV=production
+      # Base de Datos administrada por Coolify (Configurar en UI de Coolify)
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      # Secretos
+      - JWT_SECRET=${JWT_SECRET}
+      - OCR_SPACE_API_KEY=${OCR_SPACE_API_KEY}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+      - VAPID_SUBJECT=${VAPID_SUBJECT}
+      - ML_GATEWAY_URL=${ML_GATEWAY_URL:-https://gateway.themarvals.com}
+      - ML_GATEWAY_API_KEY=${ML_GATEWAY_API_KEY}
+    volumes:
+      - /opt/leon_express/data/uploads:/app/uploads
+    networks:
+      - leonexpress_network
+    restart: unless-stopped
+
+  leonexpress_ocr:
+    build:
+      context: ./LeonExpress_ocr
+      dockerfile: Dockerfile
+    container_name: leonexpress_ocr
+    networks:
+      - leonexpress_network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./LeonExpress_front
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-/api}
+        - VITE_VAPID_PUBLIC_KEY=${VITE_VAPID_PUBLIC_KEY}
+    container_name: leonexpress_frontend
+    depends_on:
+      - backend
+    networks:
+      - leonexpress_network
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: leonexpress_nginx
+    # Coolify detectará este puerto automáticamente o puedes asignarlo en la UI
+    expose:
+      - "80"
+    volumes:
+      - ./nginx/coolify.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - leonexpress_network
+    restart: unless-stopped
+
+networks:
+  leonexpress_network:
+    driver: bridge
+

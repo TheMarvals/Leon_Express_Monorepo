@@ -1,0 +1,45 @@
+{
+  "batch_id": "fa69f0f1-d61a-4b23-83e6-32f227bfbacc",
+  "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+  "status": "pending",
+  "total_images": 1,
+  "processed": 1,
+  "auto_approved": 0,
+  "needs_review": 1,
+  "errors": 0,
+  "created_at": "2025-10-23T13:44:48.255Z",
+  "client_price": 2500,
+  "delivery_cost": 2800,
+  "metadata": {},
+  "items": [
+    {
+      "item_id": "fa69f0f1-d61a-4b23-83e6-32f227bfbacc_0",
+      "batch_id": "fa69f0f1-d61a-4b23-83e6-32f227bfbacc",
+      "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/005d54ae-d5c5-4ca2-9aab-edec1a547eca/labels/label_1761227088255_0.jpg",
+      "filename": "label_1761227088255_0.jpg",
+      "index": 0,
+      "status": "needs_review",
+      "created_at": "2025-10-23T13:44:48.275Z",
+      "processing_started_at": "2025-10-23T13:44:48.276Z",
+      "auto_approved": false,
+      "ocr_text": "LEON IMPORT SPA LEON IMPO 113023287\nAndrea Dons 2120\nPedro Aguirre Cento, Pedro Aguiro Cerda, RM\n(Metopolilana)\nVenta: 2000013362343452 Envio: 45660164417\nEnvío Flex\nEntrega:\n11-Oct.\nPUENTE ALTO\nPUENTE ALTO\nRESIDENCIAL\nDireccion: Anibal Pinto 405\nReferencia: Referencia: Llamar antes de entregar\nDestinatario: Viviana leon (LEV14293499)",
+      "extracted_data": {
+        "destination_address": "Anibal Pinto 405\nReferencia: Referencia: Llamar antes de entregar\nDestinatario: Viviana leon (LEV14293499)",
+        "external_tracking_code": "2000013362343452Envio45660164417",
+        "client_price": 2500,
+        "delivery_cost": 2800
+      },
+      "confidence_scores": {
+        "destination_address": 85,
+        "external_tracking_code": 100
+      },
+      "overall_confidence": 93,
+      "parser_used": "Generic",
+      "fields_extracted": 2,
+      "processed_at": "2025-10-23T13:44:50.169Z",
+      "package_id": null,
+      "is_duplicate": false
+    }
+  ]
+}

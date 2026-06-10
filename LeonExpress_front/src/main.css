@@ -1,0 +1,29 @@
+/* Tailwind + custom styles for LeonExpress */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --va-leon-color: #03323a;
+}
+
+body {
+  /* Add any custom body styles here */
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: monospace;
+  font-size: 1em;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Add Tailwind utility classes directly in your Vue templates for headings, etc. */

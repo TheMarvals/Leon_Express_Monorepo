@@ -1,0 +1,45 @@
+{
+  "batch_id": "b340b764-4d67-4b48-9233-23e1aefc8cc6",
+  "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+  "status": "pending",
+  "total_images": 1,
+  "processed": 1,
+  "auto_approved": 0,
+  "needs_review": 1,
+  "errors": 0,
+  "created_at": "2025-10-23T13:41:25.189Z",
+  "client_price": 2500,
+  "delivery_cost": 2800,
+  "metadata": {},
+  "items": [
+    {
+      "item_id": "b340b764-4d67-4b48-9233-23e1aefc8cc6_0",
+      "batch_id": "b340b764-4d67-4b48-9233-23e1aefc8cc6",
+      "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/005d54ae-d5c5-4ca2-9aab-edec1a547eca/labels/label_1761226885189_0.jpg",
+      "filename": "label_1761226885189_0.jpg",
+      "index": 0,
+      "status": "needs_review",
+      "created_at": "2025-10-23T13:41:25.204Z",
+      "processing_started_at": "2025-10-23T13:41:25.205Z",
+      "auto_approved": false,
+      "ocr_text": "Venta: 2000013302343424\nEnvío Flex\nEntrega:\n11-Oct.\nPUENTE ALTO\nPUENTE ALTO\nRESIDENCIAL\nDireccion: Aníbal Pinto 405\nDotaranda: Referencia. lamar antoe do antrana.",
+      "extracted_data": {
+        "destination_address": "Aníbal Pinto 405\nDotaranda: Referencia. lamar antoe do antrana.",
+        "external_tracking_code": "2000013302343424",
+        "client_price": 2500,
+        "delivery_cost": 2800
+      },
+      "confidence_scores": {
+        "destination_address": 85,
+        "external_tracking_code": 100
+      },
+      "overall_confidence": 93,
+      "parser_used": "Generic",
+      "fields_extracted": 2,
+      "processed_at": "2025-10-23T13:41:28.077Z",
+      "package_id": null,
+      "is_duplicate": false
+    }
+  ]
+}

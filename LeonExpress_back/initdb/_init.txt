@@ -1,0 +1,176 @@
+-- Crear la base de datos
+CREATE DATABASE IF NOT EXISTS leon_express CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE leon_express;
+
+-- Tabla de clientes
+CREATE TABLE clients (
+    client_id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID())),
+    client_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    phone VARCHAR(20),
+    address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Tabla de roles
+CREATE TABLE roles (
+    role_id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID())),
+    role_name VARCHAR(50) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de usuarios
+CREATE TABLE users (
+    user_id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID())),
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role_id BINARY(16) NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    phone VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_users_roles FOREIGN KEY (role_id) REFERENCES roles(role_id)
+);
+
+-- Tabla de paquetes
+CREATE TABLE packages (
+    package_id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID())),
+    tracking_code VARCHAR(50) NOT NULL UNIQUE,
+    client_id BINARY(16) NOT NULL,
+    status ENUM('RECIBIDO', 'ASIGNADO', 'EN_RUTA', 'ENTREGADO', 'NO_HAY_NADIE', 'REPROGRAMADO') NOT NULL DEFAULT 'RECIBIDO',
+    received_date DATE NOT NULL,
+    assigned_date DATE,
+    delivery_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_packages_clients FOREIGN KEY (client_id) REFERENCES clients(client_id)
+);
+
+-- Tabla de rutas
+CREATE TABLE routes (
+    route_id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID())),
+    user_id BINARY(16) NOT NULL,
+    start_date DATETIME NOT NULL,
+    end_date DATETIME,
+    status ENUM('PENDIENTE', 'EN_PROGRESO', 'FINALIZADA') NOT NULL DEFAULT 'PENDIENTE',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_routes_users FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- Tabla de paquetes en rutas
+CREATE TABLE route_packages (
+    route_package_id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID())),
+    route_id BINARY(16) NOT NULL,
+    package_id BINARY(16) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_route_packages_routes FOREIGN KEY (route_id) REFERENCES routes(route_id),
+    CONSTRAINT fk_route_packages_packages FOREIGN KEY (package_id) REFERENCES packages(package_id),
+    UNIQUE KEY uniq_route_package (route_id, package_id)
+);
+
+-- Tabla de entregas
+CREATE TABLE deliveries (
+    delivery_id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID())),
+    package_id BINARY(16) NOT NULL,
+    receiver_name VARCHAR(100),
+    receiver_rut VARCHAR(20),
+    observation TEXT,
+    photo_urls JSON,
+    gps_latitude DECIMAL(10,8),
+    gps_longitude DECIMAL(11,8),
+    delivered_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_deliveries_packages FOREIGN KEY (package_id) REFERENCES packages(package_id)
+);
+
+-- Tabla de recolecciones
+CREATE TABLE pickups (
+    pickup_id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID())),
+    package_id BINARY(16) NOT NULL,
+    user_id BINARY(16) NOT NULL,
+    pickup_date DATETIME NOT NULL,
+    status ENUM('PENDIENTE', 'COMPLETADO') NOT NULL DEFAULT 'PENDIENTE',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_pickups_packages FOREIGN KEY (package_id) REFERENCES packages(package_id),
+    CONSTRAINT fk_pickups_users FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- Tabla de auditoría
+CREATE TABLE audit_log (
+    log_id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID())),
+    user_id BINARY(16),
+    action VARCHAR(50) NOT NULL,
+    details TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_auditlog_users FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- Crear índices
+CREATE INDEX idx_package_status ON packages(status);
+CREATE INDEX idx_package_tracking ON packages(tracking_code);
+CREATE INDEX idx_route_user ON routes(user_id);
+CREATE INDEX idx_route_status ON routes(status);
+CREATE INDEX idx_delivery_package ON deliveries(package_id);
+CREATE INDEX idx_client_id ON packages(client_id);
+
+-- Crear vistas
+CREATE VIEW vw_packages_with_client AS
+SELECT
+    BIN_TO_UUID(p.package_id) AS package_id,
+    p.tracking_code,
+    p.status,
+    p.received_date,
+    p.assigned_date,
+    p.delivery_date,
+    BIN_TO_UUID(c.client_id) AS client_id,
+    c.client_name,
+    c.email AS client_email,
+    c.phone AS client_phone
+FROM packages p
+JOIN clients c ON p.client_id = c.client_id;
+
+CREATE VIEW vw_routes_with_user AS
+SELECT
+    BIN_TO_UUID(r.route_id) AS route_id,
+    r.start_date,
+    r.end_date,
+    r.status,
+    BIN_TO_UUID(u.user_id) AS user_id,
+    u.username,
+    u.full_name
+FROM routes r
+JOIN users u ON r.user_id = u.user_id;
+
+-- =============================================
+-- DATOS INICIALES CORREGIDOS (EVITANDO UUIDs DUPLICADOS)
+-- =============================================
+
+-- Insertar roles (inserciones separadas para evitar UUIDs duplicados)
+INSERT INTO roles (role_name) VALUES ('Administrador');
+INSERT INTO roles (role_name) VALUES ('Subadministrador');
+INSERT INTO roles (role_name) VALUES ('Repartidor');
+
+-- Insertar usuario admin con UUID generado explícitamente
+INSERT INTO users (user_id, username, password_hash, role_id, full_name, email) 
+VALUES (
+    UUID_TO_BIN(UUID()),
+    'admin',
+    -- Contraseña: admin (hash bcrypt válido)
+    '$2y$10$E301ImM5jGK5PZ9ch6XrUu662BMhCLVQ8kK@VM',
+    (SELECT role_id FROM roles WHERE role_name = 'Administrador'),
+    'Administrador Principal',
+    'admin@leonexpress.com'
+);
+
+-- =============================================
+-- VERIFICACIÓN DE DATOS INICIALES
+-- =============================================
+-- SELECT 'Roles insertados:' AS message;
+-- SELECT BIN_TO_UUID(role_id) AS role_id, role_name FROM roles;
+
+-- SELECT '\nUsuario admin:' AS message;
+-- SELECT BIN_TO_UUID(user_id) AS user_id, username, full_name, email FROM users;

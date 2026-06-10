@@ -1,0 +1,23 @@
+# Directorio de datos persistentes
+data/
+
+# Archivos de entorno
+.env
+.env.local
+.env.*.local
+
+# Archivos Docker
+*.tar
+leon_express-*.tar
+
+# Logs
+*.log
+logs/
+
+# Node modules (si hay alguno en la raíz)
+node_modules/
+*.sql
+ssl/
+ssh_key/
+*.pem
+*.tar.gz

@@ -1,0 +1,51 @@
+{
+  "batch_id": "65d710d1-fb2d-4715-abd3-4eb0134a6256",
+  "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+  "status": "pending",
+  "total_images": 1,
+  "processed": 1,
+  "auto_approved": 1,
+  "needs_review": 0,
+  "errors": 0,
+  "created_at": "2025-10-23T16:36:32.730Z",
+  "client_price": 2500,
+  "delivery_cost": 2800,
+  "metadata": {},
+  "items": [
+    {
+      "item_id": "65d710d1-fb2d-4715-abd3-4eb0134a6256_0",
+      "batch_id": "65d710d1-fb2d-4715-abd3-4eb0134a6256",
+      "pickup_id": "005d54ae-d5c5-4ca2-9aab-edec1a547eca",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/005d54ae-d5c5-4ca2-9aab-edec1a547eca/labels/label_1761237392730_0.jpg",
+      "filename": "label_1761237392730_0.jpg",
+      "index": 0,
+      "status": "auto_approved",
+      "created_at": "2025-10-23T16:36:32.896Z",
+      "processing_started_at": "2025-10-23T16:36:32.897Z",
+      "auto_approved": true,
+      "ocr_text": "Proci\nkey=\"¡dx\"\n+-\n... 1:3 x\nSAMSUNG\nApp.vue\nv pages/packages\nEditPackageForm.vue\nCameraUpload.vue\ncomponents\nCameraLauncher.vue\nImagePreview.vue\nVenta ID: 2000013363147880\nRecorto esa parte de to atiquato poro\nque tu poguete viaje sagiro\nPreidora De Aire 6 Litros Digital 2400w 220v\nNegra Dorada Canasto Unico\nSKU: 3656-NL\nUnidad\nAdd c\nLEON IMPORT SPA LEÓN IMPO 81513023287\nAndrea Doria 2720\nPedro Aguire Cerda, Pedro Aguire Cerda, RM\n(Metropolitana)\nVenta: 2000013363147880\nEnvio: 45661088516\nEntrega:\nEnvío Turbo\n10-Oct. 14 a 16 hs\nANILLO ESTE\nSAN MIGUEL\nRESIDENCIAL\nDireccion: alcalde pedro alarcon 825\nReferenda: entregar en conserjeria\nDestinatario: auri orta (ORAU196987)\nFelia dia,\nрарь\nTraio - 2024",
+      "extracted_data": {
+        "recipient_name": "auri orta",
+        "destination_address": "alcalde pedro alarcon 825",
+        "recipient_phone": "+196987",
+        "external_tracking_code": "2000013363147880",
+        "shipping_code": "45661088516",
+        "client_price": 2500,
+        "delivery_cost": 2800
+      },
+      "confidence_scores": {
+        "recipient_name": 100,
+        "destination_address": 100,
+        "recipient_phone": 65,
+        "external_tracking_code": 100,
+        "shipping_code": 100
+      },
+      "overall_confidence": 93,
+      "parser_used": "Mercado Libre",
+      "fields_extracted": 5,
+      "processed_at": "2025-10-23T16:36:36.735Z",
+      "package_id": "6eea442b-ac25-4b39-8665-ff1b18e801b4",
+      "is_duplicate": false
+    }
+  ]
+}

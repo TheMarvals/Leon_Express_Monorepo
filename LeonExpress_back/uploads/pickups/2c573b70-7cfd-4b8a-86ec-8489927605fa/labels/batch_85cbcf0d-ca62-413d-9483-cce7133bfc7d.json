@@ -1,0 +1,44 @@
+{
+  "batch_id": "85cbcf0d-ca62-413d-9483-cce7133bfc7d",
+  "pickup_id": "2c573b70-7cfd-4b8a-86ec-8489927605fa",
+  "status": "pending",
+  "total_images": 1,
+  "processed": 1,
+  "auto_approved": 0,
+  "needs_review": 1,
+  "errors": 0,
+  "created_at": "2025-10-22T16:18:21.679Z",
+  "metadata": {},
+  "items": [
+    {
+      "item_id": "85cbcf0d-ca62-413d-9483-cce7133bfc7d_0",
+      "batch_id": "85cbcf0d-ca62-413d-9483-cce7133bfc7d",
+      "pickup_id": "2c573b70-7cfd-4b8a-86ec-8489927605fa",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/2c573b70-7cfd-4b8a-86ec-8489927605fa/labels/label_1761149901679_0.jpg",
+      "filename": "label_1761149901679_0.jpg",
+      "index": 0,
+      "status": "needs_review",
+      "created_at": "2025-10-22T16:18:21.730Z",
+      "processing_started_at": "2025-10-22T16:18:21.734Z",
+      "auto_approved": false,
+      "ocr_text": "NOMBRE: TRINIDAD CELIS\nTELÉFONO : +56 9 4342 6209\nPRODUCTO: AUDIF M10\nDIRECCION: PLAZA DEL RETIRO 3845\nCOMUNA: LO BARNECHEA\nOBSERVACION: DEJAR Y RECIBIR\nANTERIOR\nLEÓN IMPORT\nLeonimport\nwww.leonimport.cl\n+56989168226",
+      "extracted_data": {
+        "recipient_name": "TRINIDAD CELIS",
+        "recipient_phone": "+56 9 4342 6209",
+        "destination_address": "PLAZA DEL RETIRO 3845"
+      },
+      "confidence_scores": {
+        "recipient_name": 100,
+        "recipient_phone": 100,
+        "destination_address": 100
+      },
+      "overall_confidence": 100,
+      "parser_used": "Generic",
+      "fields_extracted": 3,
+      "processed_at": "2025-10-22T16:18:24.448Z",
+      "package_id": null,
+      "is_duplicate": false,
+      "error_message": "Error al crear paquete: Unknown column 'duplicate_handling' in 'field list'"
+    }
+  ]
+}

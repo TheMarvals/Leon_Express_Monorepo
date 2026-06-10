@@ -1,0 +1,42 @@
+{
+  "batch_id": "ef8e3ef4-d1ec-4749-b606-8da8d5c2e3d3",
+  "pickup_id": "2c573b70-7cfd-4b8a-86ec-8489927605fa",
+  "status": "pending",
+  "total_images": 1,
+  "processed": 1,
+  "auto_approved": 1,
+  "needs_review": 0,
+  "errors": 0,
+  "created_at": "2025-10-22T15:37:22.161Z",
+  "metadata": {},
+  "items": [
+    {
+      "item_id": "ef8e3ef4-d1ec-4749-b606-8da8d5c2e3d3_0",
+      "batch_id": "ef8e3ef4-d1ec-4749-b606-8da8d5c2e3d3",
+      "pickup_id": "2c573b70-7cfd-4b8a-86ec-8489927605fa",
+      "image_path": "/home/marval/Proyects/Leon_Express/LeonExpress_back/uploads/pickups/2c573b70-7cfd-4b8a-86ec-8489927605fa/labels/label_1761147442161_0.jpg",
+      "filename": "label_1761147442161_0.jpg",
+      "index": 0,
+      "status": "auto_approved",
+      "created_at": "2025-10-22T15:37:22.237Z",
+      "processing_started_at": "2025-10-22T15:37:22.244Z",
+      "auto_approved": true,
+      "ocr_text": "fumpseller\nREF: 11120897\nORDEN: 5307\nREMITENTE Lade leport\nDIRECCION: Andrea doria 2728.\nDESTINATARIO: Michele Vares\nDIRECCION: Lota 2325. Depis 76\nPrevidencia, Regide Metropolitana, CL\nORSERVACION:\n2025- 10- 11\nFOND: +58790758342\n11128897\nBETO\nPESO\n11\nOMERSON 1 CM X 1 CM X 1 CH",
+      "extracted_data": {
+        "recipient_name": "Michele Vares",
+        "destination_address": "Andrea doria 2728.\nDESTINATARIO: Michele Vares\nDIRECCION: Lota 2325. Depis 76\nPrevidencia, Regide Metropolitana, CL\nORSERVACION:\n2025- 10- 11\nFOND: +58790758342\n11128897\nBETO\nPESO\n11\nOMERSON 1 CM X 1 CM X 1 CH",
+        "external_tracking_code": "11120897"
+      },
+      "confidence_scores": {
+        "recipient_name": 100,
+        "destination_address": 85,
+        "external_tracking_code": 100
+      },
+      "overall_confidence": 95,
+      "parser_used": "Generic",
+      "fields_extracted": 3,
+      "processed_at": "2025-10-22T15:37:24.160Z",
+      "package_id": "7e1662b7-12fc-4d92-86c0-3ed0eef9dfac"
+    }
+  ]
+}
