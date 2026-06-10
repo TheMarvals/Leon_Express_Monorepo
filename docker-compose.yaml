@@ -52,13 +52,13 @@ services:
     restart: unless-stopped
 
   nginx:
-    image: nginx:alpine
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
     container_name: leonexpress_nginx
     # Coolify detectará este puerto automáticamente o puedes asignarlo en la UI
     expose:
       - "80"
-    volumes:
-      - ./nginx/coolify.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - frontend
       - backend
