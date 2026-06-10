@@ -1,5 +1,5 @@
 # Directorio de datos persistentes
-data/
+/data/
 
 # Archivos de entorno
 .env
