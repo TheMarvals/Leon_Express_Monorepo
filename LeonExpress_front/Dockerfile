@@ -8,7 +8,9 @@ WORKDIR /app
 COPY package*.json ./
 
 # Instalar todas las dependencias (incluidas las de desarrollo)
-RUN npm install --legacy-peer-deps --ignore-scripts
+# Es crucial forzar NODE_ENV=development para que npm instale las devDependencies
+# (vite, vue-tsc, typescript, etc.) necesarias para el build
+RUN NODE_ENV=development npm install --legacy-peer-deps --ignore-scripts
 
 # Copiar el código fuente
 COPY . .
