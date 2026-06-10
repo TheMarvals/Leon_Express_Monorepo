@@ -4,11 +4,11 @@ FROM node:20-alpine as build-stage
 # Establecer el directorio de trabajo
 WORKDIR /app
 
-# Copiar archivos de dependencias
+# Copiar archivos de dependencias (incluye package-lock.json)
 COPY package*.json ./
 
 # Instalar todas las dependencias (incluidas las de desarrollo)
-RUN NODE_ENV=development npm install --legacy-peer-deps --ignore-scripts
+RUN npm install --legacy-peer-deps --ignore-scripts
 
 # Copiar el código fuente
 COPY . .
@@ -22,8 +22,8 @@ ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 ENV VITE_VAPID_PUBLIC_KEY=${VITE_VAPID_PUBLIC_KEY}
 
 # Construir la aplicación para producción
-ENV NODE_OPTIONS="--max-old-space-size=2048"
-RUN NODE_ENV=development npm run build:ci
+ENV NODE_OPTIONS="--max-old-space-size=1024"
+RUN npm run build:ci
 
 # Etapa de producción
 FROM nginx:alpine as production-stage
