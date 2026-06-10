@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Instalar todas las dependencias (incluidas las de desarrollo)
-RUN npm ci --include=dev --legacy-peer-deps --ignore-scripts
+RUN NODE_ENV=development npm ci --legacy-peer-deps --ignore-scripts
 
 # Copiar el código fuente
 COPY . .
@@ -23,7 +23,7 @@ ENV VITE_VAPID_PUBLIC_KEY=${VITE_VAPID_PUBLIC_KEY}
 
 # Construir la aplicación para producción
 ENV NODE_OPTIONS="--max-old-space-size=4096"
-RUN npm run build:ci
+RUN NODE_ENV=development npm run build:ci
 
 # Etapa de producción
 FROM nginx:alpine as production-stage
