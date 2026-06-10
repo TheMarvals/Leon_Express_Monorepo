@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Chile" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-75.644395, -55.61183],
+            [-75.644395, -17.498399],
+            [-66.95992, -17.498399],
+            [-66.95992, -55.61183],
+            [-75.644395, -55.61183]
+          ]
+        ]
+      }
+    }
+  ]
+}
