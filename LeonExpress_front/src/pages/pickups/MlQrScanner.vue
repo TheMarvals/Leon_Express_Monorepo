@@ -63,7 +63,13 @@ const handleRawScan = async (code: string) => {
     notify({ message: `Confirmado: ${res.data.package.address}`, color: 'success' })
     await fetchProgress()
   } catch (e: any) {
-    notify({ message: e.response?.data?.error || 'Error escaneando el paquete de ML', color: 'danger' })
+    const errMsg = e.response?.data?.error || ''
+    if (/ya fue.*escaneado|ya.*escaneo|already.*scanned|RECOLECTADO_EN_ORIGEN/i.test(errMsg)) {
+      notify({ message: 'El envío ya fue escaneado previamente', color: 'success' })
+      await fetchProgress()
+    } else {
+      notify({ message: errMsg || 'Error escaneando el paquete de ML', color: 'danger' })
+    }
   } finally {
     isLoading.value = false
     pendingRawQrData = null

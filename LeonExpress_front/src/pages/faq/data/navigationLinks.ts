@@ -13,25 +13,25 @@ const navigation: NavSection = {
     { name: 'Navigating the dashboard' },
     { name: 'Understanding permissions' },
   ],
-  'Deliveries': [
+  Deliveries: [
     { name: 'Creating a new delivery' },
     { name: 'Assigning packages to routes' },
     { name: 'Tracking delivery status' },
     { name: 'Managing delivery notes' },
   ],
-  'Routes': [
+  Routes: [
     { name: 'Planning a route' },
     { name: 'Assigning drivers' },
     { name: 'Optimizing route order' },
     { name: 'Viewing route history' },
   ],
-  'Payments': [
+  Payments: [
     { name: 'Processing payments' },
     { name: 'Generating invoices' },
     { name: 'Driver payout calculations' },
     { name: 'Viewing payment history' },
   ],
-  'Account': [
+  Account: [
     { name: 'Changing your password' },
     { name: 'Updating email preferences' },
     { name: 'Managing API keys' },

@@ -638,6 +638,15 @@ async function tryConfirmML(code: string) {
         timestamp: new Date(),
       })
       showFeedback('success', 'check_circle', '#4caf50', 'Ya confirmado', code)
+    } else if (/ya fue.*escaneado|ya.*escaneo|already.*scanned|RECOLECTADO_EN_ORIGEN/i.test(errMsg)) {
+      if (!confirmedML.value.some((c) => c.tracking === code)) {
+        confirmedML.value.push({
+          tracking: code,
+          recipient: 'Ya escaneado',
+          timestamp: new Date(),
+        })
+      }
+      showFeedback('success', 'check_circle', '#4caf50', 'Ya escaneado', 'El envío ya fue escaneado previamente')
     } else {
       showFeedback('warning', 'warning', '#ff9800', 'Error', errMsg || 'Intenta con foto')
       notify({ message: errMsg || 'Error al confirmar ML. Toma una foto.', color: 'danger', duration: 3000 })
