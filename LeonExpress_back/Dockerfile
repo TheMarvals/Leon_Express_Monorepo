@@ -5,6 +5,7 @@ FROM node:18-alpine
 RUN apk add --no-cache \
     mariadb \
     mariadb-client \
+    mariadb-connector-c \
     bash \
     tzdata \
     python3 \
