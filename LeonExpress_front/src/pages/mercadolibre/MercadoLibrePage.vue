@@ -11,6 +11,7 @@ const { confirm } = useModal()
 
 // Data states
 const accounts = ref<MlAccount[]>([])
+const availableAccounts = ref<MlAccount[]>([])
 const pendingShipments = ref<MlPendingShipment[]>([])
 const totalShipments = ref(0)
 const isLoading = ref(false)
@@ -70,6 +71,7 @@ const showLinkModal = ref(false)
 const { clients: localClients } = useClients({ filters: ref({ search: '' }) })
 const selectedClientForLink = ref<string>('')
 const generatedLink = ref<string>('')
+const selectedAvailableAccount = ref<string>('')
 
 // === Helper: resolve client name from account ===
 const getClientName = (mlAccountId: string): string => {
@@ -204,9 +206,9 @@ const syncSpecificAccount = async (account: MlAccount) => {
 
 const unlinkAccount = async (account: MlAccount) => {
   const ok = await confirm({
-    title: 'Desvincular Cuenta',
-    message: `¿Estás seguro de que deseas desvincular la cuenta "${account.ml_nickname}"? Esta acción revocará los tokens de acceso y desactivará la sincronización.`,
-    okText: 'Sí, Desvincular',
+    title: 'Quitar de Leon Express',
+    message: `¿Quitar la cuenta "${account.ml_nickname}" solo de Leon Express? La autorización del gateway y el acceso de otras aplicaciones se conservarán.`,
+    okText: 'Sí, quitar',
     cancelText: 'Cancelar',
   })
   if (!ok) return
@@ -224,7 +226,21 @@ const unlinkAccount = async (account: MlAccount) => {
 const openLinkModal = () => {
   selectedClientForLink.value = ''
   generatedLink.value = ''
+  selectedAvailableAccount.value = ''
+  mercadolibreService.getAvailableAccounts().then((items) => (availableAccounts.value = items))
   showLinkModal.value = true
+}
+
+const linkExistingAccount = async () => {
+  if (!selectedAvailableAccount.value || !selectedClientForLink.value) return
+  try {
+    await mercadolibreService.linkExistingAccount(selectedAvailableAccount.value, selectedClientForLink.value)
+    notify({ message: 'Cuenta vinculada a Leon Express sin afectar otras aplicaciones', color: 'success' })
+    showLinkModal.value = false
+    await fetchData()
+  } catch (e: any) {
+    notify({ message: e.response?.data?.error || 'No se pudo vincular la cuenta', color: 'danger' })
+  }
 }
 
 const generateLink = async () => {
@@ -504,6 +520,23 @@ onUnmounted(() => {
         label="Cliente destino"
         searchable
       />
+
+      <VaSelect
+        v-if="availableAccounts.length"
+        v-model="selectedAvailableAccount"
+        :options="availableAccounts"
+        value-by="ml_account_id"
+        text-by="ml_nickname"
+        label="Cuenta ya disponible en el gateway"
+        searchable
+      />
+      <VaButton
+        v-if="selectedAvailableAccount"
+        :disabled="!selectedClientForLink"
+        color="success"
+        @click="linkExistingAccount"
+      >Vincular cuenta disponible</VaButton>
+      <div v-if="availableAccounts.length" class="text-center text-sm text-secondary">o autoriza una cuenta nueva</div>
 
       <VaButton v-if="!generatedLink" :disabled="!selectedClientForLink" @click="generateLink">Generar</VaButton>
 

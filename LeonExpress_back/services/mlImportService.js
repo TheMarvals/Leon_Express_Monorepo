@@ -7,6 +7,7 @@ const QRCode = require('qrcode');
 const { Pickup, Package, Client, ClientPricing, OcrProcessingQueue, sequelize } = require('../models');
 const { generateUniqueTrackingCode } = require('../utils/uuidUtils');
 const mlGatewayClient = require('./mlGatewayClient');
+const mlAccountAccess = require('./mlAccountAccessService');
 
 /**
  * Importa envíos específicos y los inserta como paquetes (Packages) dentro de
@@ -27,7 +28,7 @@ async function importShipments(shipmentIds, targetPickupId, adminUserId) {
     }
 
     // 2. Obtener la data de los shipments desde el Gateway
-    const { shipments } = await mlGatewayClient.getPendingShipments({ limit: 1000 });
+    const { shipments } = await mlAccountAccess.getPendingShipments({ limit: 200 });
     
     // Filtrar los shipments que nos pidieron importar
     const targetShipments = shipments.filter(s => shipmentIds.includes(s.ml_shipment_id));
@@ -38,6 +39,14 @@ async function importShipments(shipmentIds, targetPickupId, adminUserId) {
 
     // El cliente de LE asociado al Pickup
     const clientId = targetPickup.client_id;
+    const accessibleAccounts = await mlAccountAccess.getAccounts();
+    const accountById = new Map(accessibleAccounts.map(account => [String(account.ml_account_id), account]));
+    const invalidShipment = targetShipments.find(ship =>
+      String(accountById.get(String(ship.ml_account_id))?.client_id) !== String(clientId),
+    );
+    if (invalidShipment) {
+      throw new Error('Uno o más envíos no pertenecen a la cuenta de Mercado Libre del cliente seleccionado');
+    }
     
     // Obtener el precio base definido para este cliente
     const pricing = await ClientPricing.findOne({ 

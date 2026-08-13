@@ -32,6 +32,16 @@ const mercadolibreService = {
     return response.data.accounts || response.data
   },
 
+  async getAvailableAccounts(): Promise<MlAccount[]> {
+    const response = await apiClient.get('/mercadolibre/accounts/available')
+    return response.data.accounts || []
+  },
+
+  async linkExistingAccount(accountId: string, clientId: string): Promise<any> {
+    const response = await apiClient.post(`/mercadolibre/accounts/${accountId}/link`, { client_id: clientId })
+    return response.data
+  },
+
   /**
    * Obtiene los envíos pendientes del Gateway con soporte para paginación y búsqueda.
    */
@@ -99,9 +109,7 @@ const mercadolibreService = {
     return response.data
   },
 
-  /**
-   * Desvincula (soft-delete) una cuenta de ML del gateway
-   */
+  /** Quita una cuenta de Leon Express sin revocarla en el gateway compartido. */
   async deleteAccount(accountId: string): Promise<{ message: string }> {
     const response = await apiClient.delete(`/mercadolibre/accounts/${accountId}`)
     return response.data

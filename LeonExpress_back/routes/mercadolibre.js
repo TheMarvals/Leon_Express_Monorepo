@@ -6,6 +6,7 @@ const authMiddleware = require('../middlewares/authenticateToken');
 const hasRole = require('../middlewares/roleValidator');
 const mlGatewayClient = require('../services/mlGatewayClient');
 const mlImportService = require('../services/mlImportService');
+const mlAccountAccess = require('../services/mlAccountAccessService');
 
 /**
  * RUTAS DE ADMIN: Solo usuarios ADMIN pueden gestionar la integración
@@ -15,10 +16,29 @@ const mlImportService = require('../services/mlImportService');
 // Retorna las cuentas de ML vinculadas
 router.get('/accounts', authMiddleware, hasRole(['ADMIN']), async (req, res) => {
   try {
-    const data = await mlGatewayClient.getAccounts();
-    res.json(data);
+    const accounts = await mlAccountAccess.getAccounts();
+    res.json({ accounts });
   } catch (error) {
     res.status(500).json({ error: 'Error al consultar las cuentas vinculadas', details: error.message });
+  }
+});
+
+router.get('/accounts/available', authMiddleware, hasRole(['ADMIN']), async (req, res) => {
+  try {
+    const accounts = await mlAccountAccess.getAvailableAccounts();
+    res.json({ accounts });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al consultar cuentas disponibles', details: error.message });
+  }
+});
+
+router.post('/accounts/:id/link', authMiddleware, hasRole(['ADMIN']), async (req, res) => {
+  try {
+    if (!req.body.client_id) return res.status(400).json({ error: 'Debe seleccionar un cliente' });
+    const account = await mlAccountAccess.linkAccount(req.params.id, req.body.client_id);
+    res.json({ message: 'Cuenta vinculada únicamente a Leon Express.', account });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
 
@@ -26,7 +46,7 @@ router.get('/accounts', authMiddleware, hasRole(['ADMIN']), async (req, res) => 
 // Retorna los envíos que están pendientes de importar a LE
 router.get('/shipments/pending', authMiddleware, hasRole(['ADMIN']), async (req, res) => {
   try {
-    const data = await mlGatewayClient.getPendingShipments(req.query);
+    const data = await mlAccountAccess.getPendingShipments(req.query);
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: 'Error al consultar envíos pendientes', details: error.message });
@@ -37,7 +57,7 @@ router.get('/shipments/pending', authMiddleware, hasRole(['ADMIN']), async (req,
 // Retorna la cantidad de envíos pendientes (útil para badges en UI)
 router.get('/shipments/pending/count', authMiddleware, hasRole(['ADMIN']), async (req, res) => {
   try {
-    const count = await mlGatewayClient.getPendingShipmentsCount(req.query.ml_account_id);
+    const count = await mlAccountAccess.getPendingCount(req.query.ml_account_id);
     res.json({ count });
   } catch (error) {
     res.status(500).json({ error: 'Error al contar envíos pendientes', details: error.message });
@@ -83,7 +103,7 @@ router.post('/generate-link/:clientId', authMiddleware, hasRole(['ADMIN']), asyn
 // Forza la sincronización de todas las cuentas con MercadoLibre
 router.post('/sync', authMiddleware, hasRole(['ADMIN']), async (req, res) => {
   try {
-    const data = await mlGatewayClient.syncAll();
+    const data = await mlAccountAccess.syncAccessibleAccounts();
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: 'No se pudo forzar la sincronización', details: error.message });
@@ -91,11 +111,12 @@ router.post('/sync', authMiddleware, hasRole(['ADMIN']), async (req, res) => {
 });
 
 // DELETE /api/mercadolibre/accounts/:id
-// Desvincula (soft-delete) una cuenta de ML del gateway
+// Quita la cuenta solo de Leon Express; no revoca el OAuth global del gateway.
 router.delete('/accounts/:id', authMiddleware, hasRole(['ADMIN']), async (req, res) => {
   try {
-    const data = await mlGatewayClient.deleteAccount(req.params.id);
-    res.json(data);
+    await mlAccountAccess.assertAccessible(req.params.id);
+    await mlAccountAccess.excludeAccount(req.params.id);
+    res.json({ message: 'Cuenta quitada de Leon Express. El gateway y otras aplicaciones no fueron modificados.' });
   } catch (error) {
     res.status(500).json({ error: 'No se pudo desvincular la cuenta', details: error.message });
   }
@@ -105,6 +126,7 @@ router.delete('/accounts/:id', authMiddleware, hasRole(['ADMIN']), async (req, r
 // Fuerza la sincronización de una cuenta específica
 router.post('/accounts/:id/sync', authMiddleware, hasRole(['ADMIN']), async (req, res) => {
   try {
+    await mlAccountAccess.assertAccessible(req.params.id);
     const data = await mlGatewayClient.forceSyncNow(req.params.id);
     res.json(data);
   } catch (error) {

@@ -396,17 +396,18 @@ class OcrProcessingQueue {
         try {
           console.log(`\n🔄 [ML-GATEWAY-PRECHECK] Verificando tracking ML: ${trackingCodeToVerify}`);
           const mlGatewayClient = require('../services/mlGatewayClient');
+          const mlAccountAccess = require('../services/mlAccountAccessService');
           const { Pickup } = require('../models');
           const pickup = await Pickup.findByPk(item.pickup_id);
           
           if (pickup) {
-            const pendingData = await mlGatewayClient.getPendingShipments({ search: trackingCodeToVerify });
+            const pendingData = await mlAccountAccess.getPendingShipments({ search: trackingCodeToVerify });
             if (pendingData && pendingData.shipments && pendingData.shipments.length > 0) {
               const shipment = pendingData.shipments.find(s => String(s.ml_shipment_external_id) === String(trackingCodeToVerify));
               if (shipment) {
                 // Validar vinculación con la cuenta de ML dueña del paquete y el cliente del Pickup
-                const accountsData = await mlGatewayClient.getAccounts();
-                const clientAccounts = (accountsData.accounts || [])
+                const accessibleAccounts = await mlAccountAccess.getAccounts();
+                const clientAccounts = accessibleAccounts
                   .filter(a => a.client_id === pickup.client_id)
                   .map(a => a.ml_account_id);
                 
@@ -899,9 +900,10 @@ class OcrProcessingQueue {
         
         try {
           const mlGatewayClient = require('../services/mlGatewayClient');
+          const mlAccountAccess = require('../services/mlAccountAccessService');
           
           // Buscar el envío en el gateway
-          const pendingData = await mlGatewayClient.getPendingShipments({ search: extCode });
+          const pendingData = await mlAccountAccess.getPendingShipments({ search: extCode });
           
           if (pendingData && pendingData.shipments && pendingData.shipments.length > 0) {
             // Buscar coincidencia exacta
@@ -911,8 +913,8 @@ class OcrProcessingQueue {
             
             if (shipment) {
               // Validar que la cuenta ML pertenezca al cliente del pickup
-              const accountsData = await mlGatewayClient.getAccounts();
-              const clientAccounts = (accountsData.accounts || [])
+              const accessibleAccounts = await mlAccountAccess.getAccounts();
+              const clientAccounts = accessibleAccounts
                 .filter(a => a.client_id === pickup.client_id)
                 .map(a => a.ml_account_id);
               

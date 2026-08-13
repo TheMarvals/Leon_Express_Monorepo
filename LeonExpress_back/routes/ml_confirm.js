@@ -55,6 +55,7 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
       if (!pickup) return res.status(404).json({ error: 'Recolección no encontrada.' });
 
       const mlGatewayClient = require('../services/mlGatewayClient');
+      const mlAccountAccess = require('../services/mlAccountAccessService');
       
       // Consultamos el banco de ML buscando este tracking
       const pendingData = await mlGatewayClient.getPendingShipments({ search: ml_code });
@@ -70,8 +71,8 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
       }
 
       // Validar que la cuenta de ML dueña del paquete le pertenezca al cliente del Pickup
-      const accountsData = await mlGatewayClient.getAccounts();
-      const clientAccounts = (accountsData.accounts || [])
+      const accessibleAccounts = await mlAccountAccess.getAccounts();
+      const clientAccounts = accessibleAccounts
         .filter(a => a.client_id === pickup.client_id)
         .map(a => a.ml_account_id);
 
