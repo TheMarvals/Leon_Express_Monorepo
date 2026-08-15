@@ -7,6 +7,7 @@ export interface MlAccount {
   is_active: boolean
   sync_enabled: boolean
   last_sync_at: string | null
+  last_sync_error: string | null
   sync_errors: number
 }
 

@@ -336,7 +336,7 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
   fetchData()
   pollTimer = setInterval(() => {
-    fetchShipments() // Solo recarga la tabla, no las cuentas
+    fetchData()
   }, POLL_INTERVAL_MS)
 })
 
@@ -360,11 +360,15 @@ onUnmounted(() => {
       <VaCardContent>
         <VaDataTable
           :items="accounts"
-          :columns="['ml_nickname', 'client_id', 'sync_enabled', 'last_sync_at', 'actions']"
+          :columns="['ml_nickname', 'client_id', 'auth_status', 'last_sync_at', 'actions']"
           striped
         >
-          <template #cell(sync_enabled)="{ value }">
-            <VaBadge :text="value ? 'ON' : 'OFF'" :color="value ? 'success' : 'danger'" />
+          <template #cell(auth_status)="{ rowData }">
+            <VaBadge
+              :text="(rowData as MlAccount).last_sync_error ? 'ALERTA' : 'OK'"
+              :color="(rowData as MlAccount).last_sync_error ? 'danger' : 'success'"
+              :title="(rowData as MlAccount).last_sync_error || 'Autorización operativa'"
+            />
           </template>
           <template #cell(last_sync_at)="{ value }">
             {{ value ? new Date(value).toLocaleString() : 'Nunca' }}
