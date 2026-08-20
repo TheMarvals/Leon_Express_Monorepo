@@ -422,11 +422,34 @@
       </template>
     </div>
   </div>
+
+  <VaModal
+    v-model="showExitConfirmation"
+    title="¿Deseas salir de la recolección?"
+    size="small"
+    hide-default-actions
+    no-dismiss
+    no-outside-click
+    no-esc
+  >
+    <p class="text-sm text-gray-600">
+      Tienes fotos o códigos pendientes de guardar. Si sales ahora, perderás estos cambios.
+    </p>
+
+    <template #footer>
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 w-full">
+        <VaButton preset="secondary" color="secondary" @click="resolveExitConfirmation(false)">
+          Continuar recolección
+        </VaButton>
+        <VaButton color="danger" @click="resolveExitConfirmation(true)"> Salir y perder cambios </VaButton>
+      </div>
+    </template>
+  </VaModal>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vuestic-ui'
 import api, { axiosInstance } from '../../services/api'
 import { uploadBatchChunked } from '../../composables/useChunkedUpload'
@@ -524,6 +547,14 @@ const isProcessing = ref(false)
 const isUploading = ref(false)
 const uploadProgress = ref(0)
 const uploadComplete = ref(false)
+const showExitConfirmation = ref(false)
+let exitConfirmationResolver: ((shouldLeave: boolean) => void) | null = null
+
+const hasUnsavedChanges = computed(
+  () =>
+    !uploadComplete.value &&
+    (capturedPhotos.value.length > 0 || pendingPhotoCodes.value.length > 0 || pendingNonMLCode.value !== null),
+)
 // Pricing
 const clientPrice = ref(0)
 const deliveryCost = ref(0)
@@ -531,6 +562,8 @@ const deliveryCost = ref(0)
 // ─── Lifecycle ──────────────────────────────────────────────
 
 onMounted(async () => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
+
   try {
     const { data } = await api.getPickupById(pickupId)
     pickup.value = data
@@ -562,6 +595,38 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopPhotoCamera()
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+
+  if (exitConfirmationResolver) {
+    exitConfirmationResolver(false)
+    exitConfirmationResolver = null
+  }
+})
+
+function handleBeforeUnload(event: BeforeUnloadEvent) {
+  if (!hasUnsavedChanges.value) return
+
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+function requestExitConfirmation(): Promise<boolean> {
+  showExitConfirmation.value = true
+
+  return new Promise((resolve) => {
+    exitConfirmationResolver = resolve
+  })
+}
+
+function resolveExitConfirmation(shouldLeave: boolean) {
+  showExitConfirmation.value = false
+  exitConfirmationResolver?.(shouldLeave)
+  exitConfirmationResolver = null
+}
+
+onBeforeRouteLeave(async () => {
+  if (!hasUnsavedChanges.value) return true
+  return requestExitConfirmation()
 })
 
 // ─── QR detectado ──────────────────────────────────────────

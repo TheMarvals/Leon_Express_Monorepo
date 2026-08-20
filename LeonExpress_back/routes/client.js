@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require("uuid");
 const { Client, ClientPricing, sequelize } = require("../models"); // Importa sequelize para transacciones
 const { logAudit } = require("../utils/audit");
 const authenticateToken = require("../middlewares/authenticateToken");
+const roleValidator = require("../middlewares/roleValidator");
 const { Op } = require("sequelize");
 const { isAfter } = require("date-fns");
 
@@ -580,7 +581,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
 
 // POST /clients - Creación de cliente y precio inicial dentro de una transacción
-router.post("/", authenticateToken, validateClient, async (req, res) => {
+router.post("/", authenticateToken, roleValidator(['ADMIN']), validateClient, async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const errors = validationResult(req);
@@ -661,7 +662,7 @@ router.post("/verify", authenticateToken, async (req, res) => {
 
 
 // PUT /clients/:id - Actualización de cliente dentro de una transacción
-router.put("/:id", authenticateToken, validateClientUpdate, async (req, res) => {
+router.put("/:id", authenticateToken, roleValidator(['ADMIN']), validateClientUpdate, async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const errors = validationResult(req);
@@ -699,7 +700,7 @@ router.put("/:id", authenticateToken, validateClientUpdate, async (req, res) => 
 });
 
 // DELETE /clients/:id - Borrado en cascada gracias a las reglas del modelo
-router.delete("/:id", authenticateToken, async (req, res) => {
+router.delete("/:id", authenticateToken, roleValidator(['ADMIN']), async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const clientId = req.params.id;
@@ -724,7 +725,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
 });
 
 // POST /clients/:id/pricing - Crear nueva política de precios (cierra la anterior)
-router.post("/:id/pricing", authenticateToken, validatePricingPolicy, async (req, res) => {
+router.post("/:id/pricing", authenticateToken, roleValidator(['ADMIN']), validatePricingPolicy, async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const errors = validationResult(req);
@@ -872,7 +873,7 @@ router.get('/:id/pricing/history', authenticateToken, async (req, res) => {
 
 
 // PUT /clients/:id/pricing/:pricingId - Actualizar una política de precios específica
-router.put('/:id/pricing/:pricingId', authenticateToken, validatePricingPolicy, async (req, res) => {
+router.put('/:id/pricing/:pricingId', authenticateToken, roleValidator(['ADMIN']), validatePricingPolicy, async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 

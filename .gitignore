@@ -17,6 +17,7 @@ logs/
 # Node modules (si hay alguno en la raíz)
 node_modules/
 *.sql
+!LeonExpress_back/migrations/20260820_add_customer_service_role.sql
 ssl/
 ssh_key/
 *.pem

@@ -33,6 +33,8 @@ const receiver_rut = ref('')
 const observation = ref('')
 const payment_type = ref('EFECTIVO')
 const collected_amount = ref<number | undefined>(props.pkg.cod_amount || 0)
+const showChangeDeliveryConfirm = ref(false)
+const pendingDeliveryData = ref<FormData | null>(null)
 
 // --- Estado de la Cámara y Fotos ---
 const isCameraOpen = ref(false)
@@ -349,7 +351,27 @@ const onSave = async () => {
     formData.append('photos', file)
   })
 
+  if (props.pkg.is_change && isSuccess.value) {
+    pendingDeliveryData.value = formData
+    showChangeDeliveryConfirm.value = true
+    return
+  }
+
   emit('save', formData)
+}
+
+const confirmChangeDelivery = () => {
+  if (!pendingDeliveryData.value) return
+
+  const formData = pendingDeliveryData.value
+  pendingDeliveryData.value = null
+  showChangeDeliveryConfirm.value = false
+  emit('save', formData)
+}
+
+const cancelChangeDelivery = () => {
+  pendingDeliveryData.value = null
+  showChangeDeliveryConfirm.value = false
 }
 
 onUnmounted(closeCamera)
@@ -365,6 +387,16 @@ onUnmounted(closeCamera)
     />
 
     <template v-if="isSuccess">
+      <VaAlert v-if="pkg.is_change" color="warning" icon="warning" class="mb-1">
+        <div class="font-semibold">Este paquete es un cambio</div>
+        <div>Antes de entregarlo, debes recibir del cliente el producto anterior.</div>
+      </VaAlert>
+
+      <VaAlert v-if="pkg.is_cod" color="info" icon="payments" class="mb-1">
+        <div class="font-semibold">Este paquete requiere cobro</div>
+        <div>Debes cobrar ${{ Number(pkg.cod_amount || 0).toLocaleString('es-CL') }} antes de entregarlo.</div>
+      </VaAlert>
+
       <VaInput v-model="receiver_name" label="Nombre del receptor *" :rules="receiverNameRules" />
       <VaInput
         v-model="receiver_rut_computed"
@@ -378,7 +410,6 @@ onUnmounted(closeCamera)
           <VaIcon name="fa4-id-card" color="secondary" size="small" />
         </template>
       </VaInput>
-      <template v-if="pkg.is_cod"> </template>
     </template>
 
     <VaInput v-model="observation" label="Observaciones (opcional)" type="textarea" autosize :max-length="500" />
@@ -468,5 +499,29 @@ onUnmounted(closeCamera)
         Guardar Registro
       </VaButton>
     </div>
+
+    <VaModal
+      v-model="showChangeDeliveryConfirm"
+      title="Confirmar entrega de cambio"
+      size="small"
+      hide-default-actions
+      no-dismiss
+      no-outside-click
+      no-esc
+    >
+      <VaAlert color="warning" icon="warning" class="mb-4">
+        Este paquete es un cambio. Debes recibir el producto anterior del cliente antes de completar la entrega.
+      </VaAlert>
+      <p class="text-gray-700">¿Confirmas que recibiste el producto anterior?</p>
+
+      <template #footer>
+        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 w-full">
+          <VaButton preset="secondary" @click="cancelChangeDelivery"> Volver y verificar </VaButton>
+          <VaButton color="warning" :loading="loading" @click="confirmChangeDelivery">
+            Sí, recibí el producto anterior
+          </VaButton>
+        </div>
+      </template>
+    </VaModal>
   </VaForm>
 </template>

@@ -257,7 +257,14 @@ const canFinishRoute = computed(() => {
     return true
   }
   // Estados que se consideran "finalizados" para una ruta
-  const finalStates = ['ENTREGADO', 'INCIDENCIA_ENTREGA', 'REPROGRAMADO', 'DEVUELTO_ALMACEN']
+  const finalStates = [
+    'ENTREGADO',
+    'INCIDENCIA_ENTREGA',
+    'REPROGRAMADO',
+    'DEVUELTO_ALMACEN',
+    'DEVUELTO_A_CLIENTE',
+    'CANCELADO',
+  ]
   return packagesInRoute.value.every((pkg) => finalStates.includes(pkg.status))
 })
 

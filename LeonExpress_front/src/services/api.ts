@@ -203,6 +203,8 @@ const api = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+  returnPackageToClient: (packageId: string, notes?: string) =>
+    axiosInstance.put(`/packages/${packageId}/return-to-client`, { notes }),
 
   // --- Métodos de Liquidaciones (Payouts) ---
   getDriverPayouts: (params: any) => axiosInstance.get('/driver-payouts', { params }),

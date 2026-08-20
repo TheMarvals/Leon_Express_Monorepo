@@ -33,13 +33,13 @@ const routes: Array<RouteRecordRaw> = [
         name: 'wharehouses',
         path: 'wharehouses',
         component: () => import('../pages/warehouses/WarehousesPage.vue'),
-        meta: { roles: ['ADMIN', 'WAREHOUSE_STAFF'] },
+        meta: { roles: ['ADMIN'] },
       },
       {
         name: 'ocr-review',
         path: 'ocr-review',
         component: () => import('../pages/ocr-review/OcrReviewDashboard.vue'),
-        meta: { roles: ['ADMIN', 'WAREHOUSE_STAFF'] },
+        meta: { roles: ['ADMIN'] },
       },
       {
         path: '/routes',
@@ -61,13 +61,13 @@ const routes: Array<RouteRecordRaw> = [
         name: 'clients',
         path: 'clients',
         component: () => import('../pages/clients/ClientsPage.vue'),
-        meta: { roles: ['ADMIN', 'WAREHOUSE_STAFF'] },
+        meta: { roles: ['ADMIN'] },
       },
       {
         path: '/client-pricing/:id',
         name: 'client-pricing',
         component: () => import('../pages/clients/ClientPricingPage.vue'),
-        meta: { requiresAuth: true },
+        meta: { requiresAuth: true, roles: ['ADMIN'] },
       },
       {
         name: 'vehicles-type',
@@ -115,7 +115,7 @@ const routes: Array<RouteRecordRaw> = [
         name: 'packages',
         path: 'packages',
         component: () => import('../pages/packages/PackagesPage.vue'),
-        meta: { roles: ['ADMIN', 'WAREHOUSE_STAFF'] },
+        meta: { roles: ['ADMIN', 'WAREHOUSE_STAFF', 'CUSTOMER_SERVICE'] },
       },
       {
         name: 'package-verification',
@@ -130,7 +130,7 @@ const routes: Array<RouteRecordRaw> = [
         name: 'deliveries',
         path: 'deliveries',
         component: () => import('../pages/deliveries/DeliveriesPage.vue'),
-        meta: { requiresAuth: true },
+        meta: { requiresAuth: true, roles: ['ADMIN', 'WAREHOUSE_STAFF', 'DRIVER', 'FINANCE', 'CUSTOMER_SERVICE'] },
       },
       {
         name: 'package-details',
@@ -138,6 +138,7 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('../pages/packages/PackageDetailPage.vue'),
         meta: {
           requiresAuth: true,
+          roles: ['ADMIN', 'WAREHOUSE_STAFF', 'DRIVER', 'FINANCE', 'CUSTOMER_SERVICE'],
         },
       },
       {
@@ -310,6 +311,12 @@ router.beforeEach(async (to, from, next) => {
   const isLoggedIn = userStore.isLoggedIn
   const userRole = userStore.user?.role
   const requiredRoles = to.meta.roles as string[] | undefined
+
+  const customerServiceRoutes = ['deliveries', 'packages', 'package-details']
+
+  if (userRole === 'CUSTOMER_SERVICE' && !customerServiceRoutes.includes(String(to.name))) {
+    return next({ name: 'deliveries' })
+  }
 
   if (to.meta.requiresAuth && !isLoggedIn) {
     return next({ name: 'login', query: { message: 'Por favor, inicia sesión.' } })

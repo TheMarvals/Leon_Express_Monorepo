@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authenticateToken = require('../middlewares/authenticateToken');
+const roleValidator = require('../middlewares/roleValidator');
 const { Package, OcrProcessingQueue, Pickup } = require('../models');
 const { v4: uuidv4 } = require('uuid');
 
@@ -35,7 +36,7 @@ async function generateUniqueTrackingCode() {
  *   notes: "opcional"
  * }
  */
-router.post('/confirm', authenticateToken, async (req, res) => {
+router.post('/confirm', authenticateToken, roleValidator(['ADMIN']), async (req, res) => {
   try {
     const { queue_id, action, notes } = req.body;
     const user_id = req.user.user_id;

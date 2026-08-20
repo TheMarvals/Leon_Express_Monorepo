@@ -1,7 +1,7 @@
 export interface INavigationRoute {
   name: string
   displayName: string
-  meta: { icon: string }
+  meta: { icon: string; roles?: string[] }
   children?: INavigationRoute[]
 }
 
@@ -30,6 +30,7 @@ export default {
       displayName: 'Partners',
       meta: {
         icon: 'handshake',
+        roles: ['ADMIN'],
       },
     },
     {
@@ -37,6 +38,7 @@ export default {
       displayName: 'Almacenes',
       meta: {
         icon: 'fa4-warehouse',
+        roles: ['ADMIN'],
       },
     },
     {
@@ -97,6 +99,7 @@ export default {
       displayName: 'Revisión OCR',
       meta: {
         icon: 'fa4-camera',
+        roles: ['ADMIN'],
       },
     },
     {

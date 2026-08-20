@@ -1169,7 +1169,15 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
       const packages = await Package.findAll({ where: { package_id: { [Op.in]: packageIds } }, transaction: t });
 
       // - ASIGNADO_A_RUTA: El paquete ya fue reasignado a otra ruta nueva
-      const finalStates = ['ENTREGADO', 'INCIDENCIA_ENTREGA', 'REPROGRAMADO', 'DEVUELTO_ALMACEN', 'ASIGNADO_A_RUTA'];
+      const finalStates = [
+        'ENTREGADO',
+        'INCIDENCIA_ENTREGA',
+        'REPROGRAMADO',
+        'DEVUELTO_ALMACEN',
+        'DEVUELTO_A_CLIENTE',
+        'CANCELADO',
+        'ASIGNADO_A_RUTA'
+      ];
 
       const allPackagesHandled = packages.every(pkg => finalStates.includes(pkg.status));
 

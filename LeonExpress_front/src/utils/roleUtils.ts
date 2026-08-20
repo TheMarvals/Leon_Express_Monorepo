@@ -42,6 +42,11 @@ const ROLE_NORMALIZATION_MAP: Record<string, string> = {
   ACCOUNTANT: 'FINANCE',
   TESORERIA: 'FINANCE',
   TESORERÍA: 'FINANCE',
+
+  CUSTOMER_SERVICE: 'CUSTOMER_SERVICE',
+  'CUSTOMER SERVICE': 'CUSTOMER_SERVICE',
+  SERVICIO_AL_CLIENTE: 'CUSTOMER_SERVICE',
+  'SERVICIO AL CLIENTE': 'CUSTOMER_SERVICE',
 }
 
 const ROLE_DISPLAY_NAME_MAP: Record<string, string> = {
@@ -49,6 +54,7 @@ const ROLE_DISPLAY_NAME_MAP: Record<string, string> = {
   DRIVER: 'Conductor',
   WAREHOUSE_STAFF: 'Personal de almacén',
   FINANCE: 'Finanzas',
+  CUSTOMER_SERVICE: 'Servicio al cliente',
 }
 
 export const normalizeRoleName = (role?: string | null): string => {

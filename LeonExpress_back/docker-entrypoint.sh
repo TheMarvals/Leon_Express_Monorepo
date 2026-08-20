@@ -122,6 +122,20 @@ run_pending_migrations() {
             echo "Error al agregar PENDIENTE_RECOLECCION"
         }
     fi
+
+    # --- Migración: Rol de Servicio al Cliente ---
+    CUSTOMER_SERVICE_EXISTS=$(mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl -D "$DB_NAME" -sN -e "
+        SELECT COUNT(*) FROM roles WHERE role_name = 'CUSTOMER_SERVICE';
+    " 2>/dev/null || echo "0")
+
+    if [ "$CUSTOMER_SERVICE_EXISTS" = "0" ] && [ -f "/app/migrations/20260820_add_customer_service_role.sql" ]; then
+        echo "Agregando rol CUSTOMER_SERVICE..."
+        mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" < "/app/migrations/20260820_add_customer_service_role.sql" 2>&1 && {
+            echo "Rol CUSTOMER_SERVICE agregado exitosamente"
+        } || {
+            echo "Error al agregar el rol CUSTOMER_SERVICE"
+        }
+    fi
 }
 
 # Flujo principal

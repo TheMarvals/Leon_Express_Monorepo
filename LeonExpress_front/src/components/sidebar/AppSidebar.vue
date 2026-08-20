@@ -1,7 +1,7 @@
 <template>
   <VaSidebar v-model="writableVisible" :width="sidebarWidth" :color="color" minimized-width="0">
     <VaAccordion v-model="value" multiple>
-      <VaCollapse v-for="(route, index) in navigationRoutes.routes" :key="index">
+      <VaCollapse v-for="(route, index) in visibleNavigationRoutes" :key="index">
         <template #header="{ value: isCollapsed }">
           <VaSidebarItem
             :to="route.children ? undefined : { name: route.name }"
@@ -74,6 +74,7 @@ import {
   faStore,
 } from '@fortawesome/free-solid-svg-icons'
 import navigationRoutes, { type INavigationRoute } from './NavigationRoutes'
+import { useUserStore } from '../../stores/user-store'
 
 export default defineComponent({
   name: 'Sidebar',
@@ -87,6 +88,30 @@ export default defineComponent({
     const { getColor, colorToRgba } = useColors()
     const route = useRoute()
     const { t } = useI18n()
+    const userStore = useUserStore()
+
+    const visibleNavigationRoutes = computed(() => {
+      const userRole = userStore.user?.role
+
+      if (userRole === 'CUSTOMER_SERVICE') {
+        return navigationRoutes.routes.flatMap((navigationRoute) => {
+          if (navigationRoute.name === 'deliveries') return [navigationRoute]
+          if (navigationRoute.name !== 'Paquetes') return []
+
+          return [
+            {
+              ...navigationRoute,
+              children: navigationRoute.children?.filter((childRoute) => childRoute.name === 'packages'),
+            },
+          ]
+        })
+      }
+
+      return navigationRoutes.routes.filter(
+        (navigationRoute: INavigationRoute) =>
+          !navigationRoute.meta.roles || (userRole ? navigationRoute.meta.roles.includes(userRole) : false),
+      )
+    })
 
     const value = ref<boolean[]>([])
 
@@ -106,7 +131,7 @@ export default defineComponent({
     }
 
     const setActiveExpand = () =>
-      (value.value = navigationRoutes.routes.map((route: INavigationRoute) => routeHasActiveChild(route)))
+      (value.value = visibleNavigationRoutes.value.map((route: INavigationRoute) => routeHasActiveChild(route)))
 
     const sidebarWidth = computed(() => (props.mobile ? '100vw' : '280px'))
     const color = computed(() => getColor('background-secondary'))
@@ -172,6 +197,7 @@ export default defineComponent({
       color,
       activeColor,
       navigationRoutes,
+      visibleNavigationRoutes,
       routeHasActiveChild,
       isActiveChildRoute,
       t,

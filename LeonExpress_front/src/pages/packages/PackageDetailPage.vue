@@ -80,10 +80,46 @@ const isLoading = ref(true)
 const doShowDeliveryModal = ref(false)
 const isSavingDelivery = ref(false)
 const showCloseDeliveryConfirm = ref(false)
+const showReturnToClientConfirm = ref(false)
+const isReturningToClient = ref(false)
+const returnToClientNotes = ref('')
+
+const canReturnToClient = computed(() => {
+  if (!pkg.value || !userStore.isDriver) return false
+
+  const wasRejected = pkg.value.deliveries?.some((delivery) => delivery.status_at_delivery === 'RECHAZADO_POR_CLIENTE')
+
+  return (
+    pkg.value.status === 'CANCELADO' ||
+    pkg.value.status === 'EN_RUTA_DEVOLUCION' ||
+    (pkg.value.status === 'INCIDENCIA_ENTREGA' && wasRejected)
+  )
+})
 
 const handleCloseDeliveryConfirm = () => {
   showCloseDeliveryConfirm.value = false
   doShowDeliveryModal.value = false
+}
+
+const confirmReturnToClient = async () => {
+  if (!pkg.value) return
+
+  isReturningToClient.value = true
+  try {
+    await api.returnPackageToClient(pkg.value.package_id, returnToClientNotes.value)
+    notify({ message: 'Paquete marcado como devuelto al cliente.', color: 'success' })
+    showReturnToClientConfirm.value = false
+    returnToClientNotes.value = ''
+    await fetchData()
+  } catch (error: any) {
+    notify({
+      message: error.response?.data?.error || 'No se pudo registrar la devolución al cliente.',
+      color: 'danger',
+      duration: 5000,
+    })
+  } finally {
+    isReturningToClient.value = false
+  }
 }
 
 const doShowMapModal = ref(false)
@@ -605,18 +641,28 @@ const formatCurrency = (value: number | string | undefined) => {
     <VaCard class="mb-6">
       <VaCardTitle class="flex justify-between items-center">
         <span>Gestión de Entregas</span>
-        <VaButton
-          :disabled="!['EN_RUTA_ENTREGA', 'REPROGRAMADO', 'INCIDENCIA_ENTREGA'].includes(pkg.status)"
-          :title="
-            !['EN_RUTA_ENTREGA', 'REPROGRAMADO', 'INCIDENCIA_ENTREGA'].includes(pkg.status)
-              ? `No se puede registrar entrega. Estado actual: ${pkg.status}.`
-              : 'Registrar intento de entrega'
-          "
-          icon="fa4-truck"
-          @click="doShowDeliveryModal = true"
-        >
-          Registrar Intento de Entrega
-        </VaButton>
+        <div class="flex flex-wrap justify-end gap-2">
+          <VaButton
+            v-if="canReturnToClient"
+            color="warning"
+            icon="fa4-rotate-left"
+            @click="showReturnToClientConfirm = true"
+          >
+            Devuelto al cliente
+          </VaButton>
+          <VaButton
+            :disabled="!['EN_RUTA_ENTREGA', 'REPROGRAMADO', 'INCIDENCIA_ENTREGA'].includes(pkg.status)"
+            :title="
+              !['EN_RUTA_ENTREGA', 'REPROGRAMADO', 'INCIDENCIA_ENTREGA'].includes(pkg.status)
+                ? `No se puede registrar entrega. Estado actual: ${pkg.status}.`
+                : 'Registrar intento de entrega'
+            "
+            icon="fa4-truck"
+            @click="doShowDeliveryModal = true"
+          >
+            Registrar Intento de Entrega
+          </VaButton>
+        </div>
       </VaCardTitle>
 
       <VaCardContent>
@@ -737,6 +783,39 @@ const formatCurrency = (value: number | string | undefined) => {
       <VaButton preset="secondary" @click="showCloseDeliveryConfirm = false"> Volver al formulario </VaButton>
       <VaButton color="danger" @click="handleCloseDeliveryConfirm"> Cerrar sin guardar </VaButton>
     </div>
+  </VaModal>
+
+  <VaModal
+    v-model="showReturnToClientConfirm"
+    title="Confirmar devolución al cliente"
+    size="small"
+    hide-default-actions
+    :no-dismiss="isReturningToClient"
+  >
+    <VaAlert color="warning" icon="warning" class="mb-4">
+      <div>Confirma esta acción únicamente cuando hayas entregado físicamente el paquete al cliente de origen:</div>
+      <strong>{{ pkg?.client?.client_name || 'León' }}</strong>
+    </VaAlert>
+    <VaInput
+      v-model="returnToClientNotes"
+      label="Observación (opcional)"
+      placeholder="Ej.: Recibido por el encargado de León"
+      type="textarea"
+      autosize
+      :max-length="500"
+      :disabled="isReturningToClient"
+    />
+
+    <template #footer>
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 w-full">
+        <VaButton preset="secondary" :disabled="isReturningToClient" @click="showReturnToClientConfirm = false">
+          Cancelar
+        </VaButton>
+        <VaButton color="warning" :loading="isReturningToClient" @click="confirmReturnToClient">
+          Confirmar devolución
+        </VaButton>
+      </div>
+    </template>
   </VaModal>
 
   <VaModal v-model="doShowMapModal" size="large" close-button hide-default-actions :max-width="800">

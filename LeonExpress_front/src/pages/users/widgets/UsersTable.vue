@@ -43,7 +43,11 @@ const sortingOrderVModel = useVModel(props, 'sortingOrder', emit)
 const pageVModel = useVModel(props, 'pagination', emit, { key: 'page' })
 const perPageVModel = useVModel(props, 'pagination', emit, { key: 'perPage' })
 
-const roleColors: Record<string, string> = { ADMIN: 'danger', DRIVER: 'info' }
+const roleColors: Record<string, string> = {
+  ADMIN: 'danger',
+  DRIVER: 'info',
+  CUSTOMER_SERVICE: 'primary',
+}
 const totalPages = computed(() => Math.ceil(props.pagination.total / props.pagination.perPage))
 
 const { confirm } = useModal()

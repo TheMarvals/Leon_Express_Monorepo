@@ -9,6 +9,7 @@ const { Op } = require("sequelize");
 const { logAudit } = require("../utils/audit");
 const { generateUniqueTrackingCode } = require("../utils/uuidUtils");
 const roleValidator = require('../middlewares/roleValidator');
+const { queueNotificationForRole } = require('../utils/notificationService');
 
 const router = express.Router();
 
@@ -1002,6 +1003,96 @@ router.get('/by-code/:trackingCode', authenticateToken, async (req, res) => {
   }
 });
 
+
+// PUT /api/packages/:id/return-to-client - Confirmar devolución física al cliente de origen
+router.put('/:id/return-to-client', authenticateToken, roleValidator(['DRIVER']), async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const packageId = req.params.id;
+    const driverId = req.user.user_id;
+    const notes = typeof req.body.notes === 'string' ? req.body.notes.trim().slice(0, 500) : '';
+
+    const pkg = await Package.findByPk(packageId, {
+      include: [{
+        model: Delivery,
+        as: 'deliveries',
+        attributes: ['status_at_delivery', 'attempted_at'],
+        separate: true,
+        limit: 1,
+        order: [['attempted_at', 'DESC']]
+      }],
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
+
+    if (!pkg) {
+      await t.rollback();
+      return res.status(404).json({ error: 'Paquete no encontrado.' });
+    }
+
+    const lastDeliveryWasRejected = pkg.deliveries?.[0]?.status_at_delivery === 'RECHAZADO_POR_CLIENTE';
+    const canBeReturned = ['CANCELADO', 'EN_RUTA_DEVOLUCION'].includes(pkg.status)
+      || (pkg.status === 'INCIDENCIA_ENTREGA' && lastDeliveryWasRejected);
+
+    if (!canBeReturned) {
+      await t.rollback();
+      return res.status(409).json({
+        error: 'Solo se pueden devolver al cliente paquetes cancelados, rechazados o en ruta de devolución.'
+      });
+    }
+
+    const assignedRoutePackage = await RoutePackage.findOne({
+      where: { package_id: packageId },
+      include: [{
+        model: Route,
+        as: 'route',
+        where: {
+          user_id: driverId,
+          status: { [Op.in]: ['PENDIENTE', 'EN_PROGRESO'] }
+        },
+        attributes: ['route_id', 'user_id']
+      }],
+      order: [['created_at', 'DESC']],
+      transaction: t
+    });
+
+    if (pkg.pending_return_user_id !== driverId && !assignedRoutePackage) {
+      await t.rollback();
+      return res.status(403).json({ error: 'Este paquete no está asignado a tu ruta ni pendiente de tu devolución.' });
+    }
+
+    const previousStatus = pkg.status;
+    await pkg.update({
+      status: 'DEVUELTO_A_CLIENTE',
+      returned_datetime: new Date(),
+      pending_return_user_id: null
+    }, { transaction: t });
+
+    await logAudit(driverId, 'RETURN_PACKAGE_TO_CLIENT', {
+      package_id: packageId,
+      tracking_code: pkg.tracking_code,
+      previous_status: previousStatus,
+      new_status: 'DEVUELTO_A_CLIENTE',
+      notes: notes || null
+    });
+
+    const message = `El conductor devolvió el paquete ${pkg.tracking_code} al cliente de origen${notes ? `: ${notes}` : '.'}`;
+    await Promise.all(['ADMIN', 'WAREHOUSE_STAFF'].map((roleName) =>
+      queueNotificationForRole(roleName, {
+        title: 'Paquete devuelto al cliente',
+        message,
+        link: `/packages/${packageId}`
+      }, { transaction: t })
+    ));
+
+    await t.commit();
+    res.json({ message: 'Paquete marcado como devuelto al cliente.', package: pkg });
+  } catch (error) {
+    await t.rollback();
+    console.error('Error al confirmar devolución al cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+});
 
 // PUT /api/packages/:id/receive-at-warehouse - Confirmar que el paquete volvió físicamente al almacén
 router.put('/:id/receive-at-warehouse', authenticateToken, roleValidator(['ADMIN', 'WAREHOUSE_STAFF']), async (req, res) => {

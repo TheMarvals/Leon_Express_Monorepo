@@ -55,7 +55,7 @@ const validateWarehouse = [
     body('address').trim().notEmpty().withMessage('La dirección es requerida.')
 ];
 
-// Proteger todas las rutas de este archivo para administradores
+// La gestión de almacenes es exclusiva de administradores.
 router.use(authenticateToken, roleValidator(['ADMIN']));
 
 /**

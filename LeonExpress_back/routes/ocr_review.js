@@ -6,15 +6,15 @@ const { Op } = require('sequelize');
 const learningEngine = require('../utils/ocrLearningEngine');
 
 /**
- * Middleware para verificar que el usuario sea ADMIN o WAREHOUSE_STAFF
+ * Middleware para verificar que el usuario sea ADMIN
  */
 const authorizeReview = (req, res, next) => {
   const userRole = req.user.role;
 
-  if (!['ADMIN', 'WAREHOUSE_STAFF'].includes(userRole)) {
+  if (userRole !== 'ADMIN') {
     return res.status(403).json({
       error: 'Acceso denegado',
-      message: 'Solo ADMIN y WAREHOUSE_STAFF pueden revisar paquetes OCR'
+      message: 'Solo ADMIN puede revisar paquetes OCR'
     });
   }
 
