@@ -22,6 +22,12 @@ export interface Route {
   user?: User
   vehicle?: Vehicle
   warehouse?: Warehouse
-  routePackages?: { package: Package }[]
+  routePackages?: {
+    package: Package
+    released_at?: string | null
+    release_reason?: string | null
+    status_at_release?: string | null
+    transferred_to_route_id?: string | null
+  }[]
   pending_returns_count?: number
 }

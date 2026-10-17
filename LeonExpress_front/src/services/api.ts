@@ -175,11 +175,22 @@ const api = {
   deleteRoute: (id: string) => axiosInstance.delete(`/routes/${id}`),
   assignPackagesToRoute: (routeId: string, packageIds: string[]) =>
     axiosInstance.post(`/routes/${routeId}/packages`, { package_ids: packageIds }),
+  transferRoutePackages: (sourceId: string, targetId: string, packageIds: string[]) =>
+    axiosInstance.post(`/routes/${sourceId}/transfer-packages`, {
+      target_route_id: targetId,
+      package_ids: packageIds,
+      confirm_physical_handoff: true,
+    }),
   removePackageFromRoute: (routeId: string, packageId: string) =>
     axiosInstance.delete(`/routes/${routeId}/packages/${packageId}`),
   updateRouteStatus: (routeId: string, status: string) => axiosInstance.put(`/routes/${routeId}/status`, { status }),
-  scanPackageToRoute: (routeId: string, imageBase64: string | null, externalTrackingCode?: string) => {
-    const payload: any = {}
+  scanPackageToRoute: (
+    routeId: string,
+    imageBase64: string | null,
+    externalTrackingCode?: string,
+    confirmTransfer = false,
+  ) => {
+    const payload: any = { confirm_transfer: confirmTransfer }
     if (imageBase64) {
       payload.image = imageBase64
     }

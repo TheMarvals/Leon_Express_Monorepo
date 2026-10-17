@@ -309,11 +309,11 @@ async function generateDriverPayouts(startDate, endDate) {
 
       // 3. Procesar Entregas
       const deliveries = await sequelize.query(`
-        SELECT p.package_id, p.tracking_code, p.delivery_cost
+        SELECT DISTINCT p.package_id, p.tracking_code, p.delivery_cost
         FROM packages p JOIN deliveries d ON p.package_id = d.package_id
         WHERE d.user_id = :userId AND d.status_at_delivery = 'ENTREGADO'
           AND DATE(d.attempted_at) BETWEEN :startDate AND :endDate
-          AND NOT EXISTS (SELECT 1 FROM payout_items pi WHERE pi.package_id = p.package_id AND pi.payout_id = :payoutId)
+          AND NOT EXISTS (SELECT 1 FROM payout_items pi WHERE pi.package_id = p.package_id AND pi.item_description LIKE 'Entrega - %')
       `, {
         replacements: { userId, startDate, endDate, payoutId },
         type: sequelize.QueryTypes.SELECT,

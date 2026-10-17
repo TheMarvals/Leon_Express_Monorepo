@@ -22,3 +22,5 @@ ssl/
 ssh_key/
 *.pem
 *.tar.gz
+
+!LeonExpress_back/migrations/20261016_route_package_transfers.sql

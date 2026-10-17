@@ -15,6 +15,11 @@ const userStore = useUserStore()
 
 // --- Estado del componente ---
 const routeData = ref<Route | null>(null)
+const targetRoutes = ref<Route[]>([])
+const selectedPending = ref<Package[]>([])
+const targetRouteId = ref('')
+const isTransferring = ref(false)
+const showFinishModal = ref(false)
 const availablePackages = ref<Package[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
@@ -50,7 +55,10 @@ const columns = defineVaDataTableColumns([
 const routePackageColumns = computed(() => {
   const cols = [...(columns as any[])]
   // Solo permitir eliminar si la ruta está pendiente y no ha sido aprobada
-  if (routeData.value?.status === 'PENDIENTE' && loadingStatus.value !== 'APPROVED') {
+  if (
+    (routeData.value?.status === 'PENDIENTE' && loadingStatus.value !== 'APPROVED') ||
+    ((isAdmin.value || userStore.isWarehouseStaff) && pendingPackages.value.length > 0)
+  ) {
     cols.push({ label: ' ', key: 'actions', align: 'right' })
   }
   return cols
@@ -76,15 +84,26 @@ const fetchData = async (showLoading = true) => {
   if (showLoading) isLoading.value = true
   const routeId = route.params.id as string
   try {
-    const [routeRes, packagesRes] = await Promise.all([
+    const [routeRes, packagesRes, routesRes] = await Promise.all([
       api.getRouteById(routeId),
       // Mostrar paquetes disponibles en almacén (Recibidos, Devueltos o Recolectados)
       api.getPackages({
         status: 'RECIBIDO_EN_ALMACEN,DEVUELTO_ALMACEN,RECOLECTADO_EN_ORIGEN,INCIDENCIA_ENTREGA,REPROGRAMADO',
         perPage: 1000,
       }),
+      api.getRoutes({}),
     ])
+    if (route.params.id !== routeId) return
     routeData.value = routeRes.data
+    targetRoutes.value = (routesRes.data.routes || []).filter(
+      (item: Route) =>
+        item.route_id !== routeId &&
+        ['PENDIENTE', 'EN_PROGRESO'].includes(item.status) &&
+        (userStore.isAdmin || item.user_id === userStore.user?.user_id) &&
+        item.route_type === 'ENTREGA' &&
+        item.warehouse_id === routeData.value?.warehouse_id,
+    )
+    selectedPending.value = []
     availablePackages.value = packagesRes.data.packages || []
   } catch (error) {
     notify({ message: 'Error al cargar los datos de la ruta', color: 'danger' })
@@ -97,6 +116,15 @@ onMounted(async () => {
   await loadAvailableComunas()
   await updateFilteredPackages()
 })
+
+watch(
+  () => route.params.id,
+  async () => {
+    targetRouteId.value = ''
+    showFinishModal.value = false
+    await fetchData()
+  },
+)
 
 // Watchers para actualizar filtros automáticamente
 watch(
@@ -118,7 +146,11 @@ watch(addressSearch, () => {
 
 // --- Propiedades Computadas ---
 const packagesInRoute = computed(() => {
-  const packages = routeData.value?.routePackages?.map((rp) => rp.package).filter(Boolean) || []
+  const packages =
+    routeData.value?.routePackages
+      ?.filter((rp) => !rp.released_at)
+      .map((rp) => rp.package)
+      .filter(Boolean) || []
 
   // Crear una copia del array para no mutar el original
   const sortedPackages = [...packages]
@@ -146,6 +178,47 @@ const packagesInRoute = computed(() => {
     return 0
   })
 })
+
+const releasedPackages = computed(() => routeData.value?.routePackages?.filter((item) => item.released_at) || [])
+const pendingPackages = computed(() =>
+  packagesInRoute.value.filter((pkg) => ['ASIGNADO_A_RUTA', 'EN_RUTA_ENTREGA'].includes(pkg.status)),
+)
+const canManageRoute = computed(
+  () => isAdmin.value || (isDriver.value && routeData.value?.user_id === userStore.user?.user_id),
+)
+const targetRouteOptions = computed(() =>
+  targetRoutes.value.map((item) => ({
+    value: item.route_id,
+    text: `${item.route_name || 'Ruta sin nombre'} · ${item.user?.full_name || 'Conductor'} · ${item.status.replace(
+      /_/g,
+      ' ',
+    )}`,
+  })),
+)
+const handleTransferPending = async () => {
+  if (!targetRouteId.value || !selectedPending.value.length) return
+  if (
+    !window.confirm(
+      `¿Confirmas el traspaso físico de ${selectedPending.value.length} paquete(s) a la ruta seleccionada?`,
+    )
+  )
+    return
+  isTransferring.value = true
+  try {
+    await api.transferRoutePackages(
+      route.params.id as string,
+      targetRouteId.value,
+      selectedPending.value.map((pkg) => pkg.package_id),
+    )
+    notify({ message: 'Paquetes transferidos. Ya no están pendientes en esta ruta.', color: 'success' })
+    targetRouteId.value = ''
+    await fetchData(false)
+  } catch (error: any) {
+    notify({ message: error.response?.data?.error || 'No se pudieron transferir los paquetes.', color: 'danger' })
+  } finally {
+    isTransferring.value = false
+  }
+}
 
 // Lista única de comunas disponibles
 const availableComunas = ref<string[]>([])
@@ -295,6 +368,7 @@ const handleStatusUpdate = async (newStatus: 'EN_PROGRESO' | 'FINALIZADA') => {
   const routeId = route.params.id as string
   try {
     await api.updateRouteStatus(routeId, newStatus)
+    showFinishModal.value = false
     notify({ message: `Ruta marcada como ${newStatus.replace('_', ' ')}.`, color: 'success' })
     await fetchData()
   } catch (error: any) {
@@ -365,7 +439,7 @@ const handlePackageScanned = async (pkg: Package) => {
 
     // Verificar si ya existe para evitar duplicados visuales
     const alreadyExists = routeData.value.routePackages.some(
-      (rp) => rp.package && rp.package.package_id === pkg.package_id,
+      (rp) => !rp.released_at && rp.package && rp.package.package_id === pkg.package_id,
     )
     if (!alreadyExists) {
       routeData.value.routePackages.push({ package: pkg })
@@ -441,8 +515,9 @@ const canStartRoute = computed(() => {
 const showScanner = computed(() => {
   return (
     isDriver.value &&
-    routeData.value?.status === 'PENDIENTE' &&
-    (loadingStatus.value === 'NOT_STARTED' || loadingStatus.value === 'LOADING')
+    (routeData.value?.status === 'EN_PROGRESO' ||
+      (routeData.value?.status === 'PENDIENTE' &&
+        (loadingStatus.value === 'NOT_STARTED' || loadingStatus.value === 'LOADING')))
   )
 })
 const showFinishLoading = computed(() => {
@@ -505,21 +580,19 @@ const showApproveButton = computed(() => {
           <p>La carga ha sido finalizada. Esperando aprobación del administrador.</p>
         </VaAlert>
         <VaButton
-          v-if="routeData.status === 'EN_PROGRESO'"
+          v-if="routeData.status === 'EN_PROGRESO' && canManageRoute"
           size="large"
           icon="fa4-check-circle"
           color="success"
           :loading="isUpdatingStatus"
-          :disabled="!canFinishRoute"
           class="route-action-button route-finish-button"
-          @click="handleStatusUpdate('FINALIZADA')"
+          @click="showFinishModal = true"
         >
           Finalizar Ruta
         </VaButton>
         <VaAlert v-if="routeData.status === 'EN_PROGRESO' && !canFinishRoute" color="warning" class="route-alert">
           <p>
-            Debes registrar el estado de todos los paquetes (Entregado, Incidencia, Reprogramado o Devuelto) antes de
-            poder finalizar la ruta.
+            Transfiere los paquetes pendientes a otra ruta o registra su recepción física en bodega antes de finalizar.
           </p>
         </VaAlert>
         <VaAlert v-if="routeData.status === 'FINALIZADA'" color="success" class="route-alert">
@@ -566,11 +639,100 @@ const showApproveButton = computed(() => {
       </VaCardContent>
     </VaCard>
 
+    <VaModal v-model="showFinishModal" title="Finalizar ruta" hide-default-actions>
+      <p class="mb-3">
+        Entregados: {{ packagesInRoute.filter((pkg) => pkg.status === 'ENTREGADO').length }}. Transferidos:
+        {{ releasedPackages.filter((item) => item.release_reason === 'TRANSFERIDO').length }}. Recibidos en bodega:
+        {{ releasedPackages.filter((item) => item.release_reason === 'RECIBIDO_EN_ALMACEN').length }}. Pendientes sin
+        gestionar: {{ pendingPackages.length }}.
+      </p>
+      <VaAlert v-if="!canFinishRoute" color="warning" class="mb-3">
+        Transfiere los pendientes o confirma su recepción física en bodega para cerrar esta ruta.
+      </VaAlert>
+      <p v-else class="mb-3">
+        Las incidencias pendientes de devolución seguirán a cargo del conductor hasta su recepción o reintento.
+      </p>
+      <div class="flex gap-3">
+        <VaButton preset="secondary" @click="showFinishModal = false">Volver</VaButton>
+        <VaButton :disabled="!canFinishRoute" :loading="isUpdatingStatus" @click="handleStatusUpdate('FINALIZADA')">
+          Confirmar cierre
+        </VaButton>
+      </div>
+    </VaModal>
+
+    <VaCard
+      v-if="
+        canManageRoute &&
+        routeData.route_type === 'ENTREGA' &&
+        ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status) &&
+        pendingPackages.length
+      "
+      class="mb-6"
+    >
+      <VaCardTitle>Transferir pendientes</VaCardTitle>
+      <VaCardContent>
+        <p class="mb-3">
+          Selecciona los paquetes que pasan a la siguiente ruta. Confirma que fueron entregados físicamente al conductor
+          de destino.
+        </p>
+        <VaDataTable
+          v-model="selectedPending"
+          :items="pendingPackages"
+          :columns="columns"
+          selectable
+          select-mode="multiple"
+          :per-page="20"
+        />
+        <VaSelect
+          v-model="targetRouteId"
+          :options="targetRouteOptions"
+          text-by="text"
+          value-by="value"
+          label="Ruta de destino"
+          class="my-3"
+          no-options-text="No hay otras rutas de entrega abiertas en esta bodega"
+        />
+        <VaButton
+          :disabled="!targetRouteId || !selectedPending.length"
+          :loading="isTransferring"
+          @click="handleTransferPending"
+        >
+          Transferir {{ selectedPending.length }} paquetes
+        </VaButton>
+      </VaCardContent>
+    </VaCard>
+
+    <VaCard v-if="releasedPackages.length" class="mb-6">
+      <VaCardTitle>Historial de salida de paquetes ({{ releasedPackages.length }})</VaCardTitle>
+      <VaCardContent>
+        <ul class="space-y-2">
+          <li v-for="(item, index) in releasedPackages" :key="index">
+            {{ item.package.tracking_code }} ·
+            {{
+              item.release_reason === 'TRANSFERIDO'
+                ? 'Transferido'
+                : item.release_reason === 'ASIGNACION_ANTERIOR'
+                  ? 'Asignación anterior'
+                  : 'Recibido en bodega'
+            }}
+            <RouterLink
+              v-if="item.transferred_to_route_id"
+              :to="{ name: 'route-details', params: { id: item.transferred_to_route_id } }"
+              class="text-primary underline"
+              >Ver ruta de destino</RouterLink
+            >
+            · {{ new Date(item.released_at!).toLocaleString('es-CL') }}
+          </li>
+        </ul>
+      </VaCardContent>
+    </VaCard>
+
     <!-- Escáner de paquetes para conductor -->
     <VaCard v-if="showScanner" class="mb-6">
       <VaCardTitle>Escanear Paquetes para Cargar</VaCardTitle>
       <VaCardContent>
         <RoutePackageScanner
+          :key="route.params.id as string"
           ref="scannerRef"
           :route-id="route.params.id as string"
           @packageScanned="handlePackageScanned"
@@ -636,7 +798,7 @@ const showApproveButton = computed(() => {
     </VaCard>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <VaCard v-if="routeData.status === 'PENDIENTE' && !showScanner">
+      <VaCard v-if="isAdmin && ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status) && !showScanner">
         <VaCardTitle>Paquetes Disponibles en Almacén</VaCardTitle>
         <VaCardContent>
           <div class="flex flex-col sm:flex-row gap-4 mb-4">
@@ -791,6 +953,7 @@ const showApproveButton = computed(() => {
               </template>
               <template #cell(actions)="{ rowData }">
                 <VaButton
+                  v-if="routeData.status === 'PENDIENTE' && loadingStatus !== 'APPROVED'"
                   preset="primary"
                   size="small"
                   icon="fa4-trash"
@@ -798,6 +961,17 @@ const showApproveButton = computed(() => {
                   title="Quitar de la ruta"
                   @click="handleRemovePackage(rowData as Package)"
                 />
+                <VaButton
+                  v-if="
+                    (isAdmin || userStore.isWarehouseStaff) &&
+                    ['ASIGNADO_A_RUTA', 'EN_RUTA_ENTREGA'].includes(rowData.status)
+                  "
+                  size="small"
+                  preset="secondary"
+                  @click="handleConfirmReception(rowData.package_id)"
+                >
+                  Recibido en bodega
+                </VaButton>
               </template>
             </VaDataTable>
           </div>
@@ -805,7 +979,7 @@ const showApproveButton = computed(() => {
       </VaCard>
     </div>
 
-    <div v-if="routeData.status === 'PENDIENTE'" class="flex justify-center mt-6">
+    <div v-if="isAdmin && ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status)" class="flex justify-center mt-6">
       <VaButton
         size="large"
         :loading="isSaving"

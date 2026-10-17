@@ -429,7 +429,7 @@ router.post(
     authenticateToken,
     roleValidator(['DRIVER']), // <-- CORRECCIÓN 1: Middleware de rol añadido
     upload.array('photos', 7), // Permitir hasta 7 fotos
-    body('status_at_delivery').notEmpty().withMessage('El estado de la entrega es obligatorio.'),
+    body('status_at_delivery').isIn(['ENTREGADO', 'NO_HAY_NADIE', 'DIRECCION_INCORRECTA', 'RECHAZADO_POR_CLIENTE', 'REPROGRAMADO_POR_CLIENTE', 'OTRA_INCIDENCIA']).withMessage('Estado de entrega inválido.'),
     body('receiver_name')
         .if(body('status_at_delivery').equals(DELIVERY_STATUS.SUCCESS))
         .notEmpty().withMessage('El nombre del receptor es obligatorio para entregas exitosas.'),
@@ -493,6 +493,21 @@ router.post(
                 return res.status(409).json({ error: `El paquete no puede ser procesado porque su estado actual es '${pkg.status}'. Debe estar en ruta o tener una incidencia previa.` });
             }
 
+            const routePackage = await RoutePackage.findOne({
+                where: { package_id: packageId, released_at: null },
+                include: [{ model: Route, as: 'route', required: true,
+                    where: { user_id: driverId, status: 'EN_PROGRESO' } }],
+                order: [['created_at', 'DESC']], transaction: t
+            });
+            if (!routePackage) {
+                await t.rollback();
+                return res.status(403).json({ error: 'El paquete ya no está a tu cargo en una ruta en progreso. Actualiza tu ruta.' });
+            }
+            if (await Delivery.findOne({ where: { package_id: packageId, status_at_delivery: 'ENTREGADO' }, transaction: t })) {
+                await t.rollback();
+                return res.status(409).json({ error: 'Este paquete ya tiene una entrega registrada.' });
+            }
+
             // Convertir coordenadas a números si vienen como strings
             let parsedLatitude = null;
             let parsedLongitude = null;
@@ -520,6 +535,7 @@ router.post(
             const deliveryPayload = {
                 delivery_id: uuidv4(),
                 package_id: packageId,
+                route_package_id: routePackage.route_package_id,
                 user_id: driverId,
                 status_at_delivery: status_at_delivery,
                 observation: observation || null,
@@ -625,18 +641,6 @@ router.post(
                 has_photo: !!req.file
             });
 
-            // Obtener el route_id del paquete para redirigir en el frontend
-            const routePackage = await RoutePackage.findOne({
-                where: { package_id: packageId },
-                include: [{
-                    model: Route,
-                    as: 'route'
-                    // Quitamos el filtro de estado para que encuentre la ruta aunque esté FINALIZADA
-                }],
-                order: [['created_at', 'DESC']],
-                transaction: t
-            });
-
             const route_id = routePackage?.route_id || null;
 
             await t.commit();
@@ -648,6 +652,7 @@ router.post(
 
         } catch (error) {
             await t.rollback();
+            if (error.name === 'SequelizeUniqueConstraintError') return res.status(409).json({ error: 'Este paquete ya tiene una entrega registrada.' });
             console.error('Error al registrar intento de entrega:', error);
             res.status(500).json({ error: 'Error interno del servidor.' });
         }

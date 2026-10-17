@@ -70,6 +70,8 @@ router.get('/:id', authenticateToken, roleValidator(['ADMIN', 'DRIVER']), async 
                             include: [{
                                 model: require('../models').RoutePackage,
                                 as: 'routePackages',
+                                where: { released_at: null },
+                                required: false,
                                 include: [{
                                     model: require('../models').Route,
                                     as: 'route',

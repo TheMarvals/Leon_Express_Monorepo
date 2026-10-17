@@ -6,6 +6,23 @@ import { Package } from '../../packages/types'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import jsQR from 'jsqr'
 
+// Re-scan only after the driver confirms physical custody of a package from another route.
+const scanWithTransferConfirmation = async (trackingCode: string) => {
+  try {
+    return await api.scanPackageToRoute(props.routeId!, null, trackingCode)
+  } catch (error: any) {
+    if (error.response?.data?.code !== 'TRANSFER_CONFIRMATION_REQUIRED') throw error
+    if (
+      !window.confirm(
+        'Este paquete está en otra ruta. ¿Confirmas que lo tienes físicamente y deseas transferirlo a esta ruta?',
+      )
+    ) {
+      throw new Error('Traspaso cancelado. El paquete continúa en su ruta anterior.')
+    }
+    return api.scanPackageToRoute(props.routeId!, null, trackingCode, true)
+  }
+}
+
 const props = withDefaults(
   defineProps<{
     routeId?: string
@@ -668,7 +685,7 @@ const handleQRDetected = async (qrData: string) => {
   }
 
   try {
-    const response = await api.scanPackageToRoute(props.routeId!, null, trackingCode)
+    const response = await scanWithTransferConfirmation(trackingCode)
 
     if (response.data && response.data.package) {
       const scannedPackage = response.data.package
@@ -740,7 +757,7 @@ const searchByManualCode = async () => {
   }
 
   try {
-    const response = await api.scanPackageToRoute(props.routeId!, null, manualTrackingCode.value.trim())
+    const response = await scanWithTransferConfirmation(manualTrackingCode.value.trim())
 
     if (response.data && response.data.package) {
       const scannedPackage = response.data.package

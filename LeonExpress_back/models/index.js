@@ -188,6 +188,11 @@ const RoutePackage = sequelize.define('RoutePackage', {
   route_id: { type: DataTypes.STRING(36), allowNull: false },
   package_id: { type: DataTypes.STRING(36), allowNull: false },
   sequence_in_route: { type: DataTypes.INTEGER },
+  released_at: { type: DataTypes.DATE },
+  release_reason: { type: DataTypes.STRING(32) },
+  released_by_user_id: { type: DataTypes.STRING(36) },
+  status_at_release: { type: DataTypes.STRING(40) },
+  transferred_to_route_id: { type: DataTypes.STRING(36) },
 }, { tableName: 'route_packages', timestamps: true, createdAt: 'created_at', updatedAt: false });
 
 const Delivery = sequelize.define('Delivery', {

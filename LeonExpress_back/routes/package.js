@@ -1042,7 +1042,7 @@ router.put('/:id/return-to-client', authenticateToken, roleValidator(['DRIVER'])
     }
 
     const assignedRoutePackage = await RoutePackage.findOne({
-      where: { package_id: packageId },
+      where: { package_id: packageId, released_at: null },
       include: [{
         model: Route,
         as: 'route',
@@ -1099,11 +1099,20 @@ router.put('/:id/receive-at-warehouse', authenticateToken, roleValidator(['ADMIN
   const t = await sequelize.transaction();
   try {
     const packageId = req.params.id;
-    const pkg = await Package.findByPk(packageId, { transaction: t });
+    const pkg = await Package.findByPk(packageId, { transaction: t, lock: t.LOCK.UPDATE });
     if (!pkg) {
       await t.rollback();
       return res.status(404).json({ error: 'Paquete no encontrado.' });
     }
+
+    if (!['ASIGNADO_A_RUTA', 'EN_RUTA_ENTREGA', 'INCIDENCIA_ENTREGA', 'REPROGRAMADO', 'DEVUELTO_ALMACEN'].includes(pkg.status)) {
+      await t.rollback();
+      return res.status(409).json({ error: 'Este paquete no puede recibirse como retorno de ruta en su estado actual.' });
+    }
+    await RoutePackage.update({ released_at: new Date(), release_reason: 'RECIBIDO_EN_ALMACEN',
+      released_by_user_id: req.user.user_id, status_at_release: pkg.status }, {
+      where: { package_id: packageId, released_at: null }, transaction: t
+    });
 
     // 1. Limpiar marca de pendiente por devolver y actualizar estado
     await pkg.update({
