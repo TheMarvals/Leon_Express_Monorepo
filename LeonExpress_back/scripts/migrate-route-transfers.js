@@ -3,12 +3,28 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+async function allowRepeatedRouteHistory(connection, apply) {
+  const [indexes] = await connection.query(`SELECT INDEX_NAME FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='route_packages' AND INDEX_NAME='uniq_route_package' AND NON_UNIQUE=0`);
+  if (!indexes.length) return true;
+  if (!apply) return false;
+  const [supporting] = await connection.query(`SELECT INDEX_NAME FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='route_packages' AND INDEX_NAME='idx_route_packages_route_history'`);
+  await connection.query('ALTER TABLE route_packages ' +
+    (supporting.length ? '' : 'ADD INDEX idx_route_packages_route_history (route_id), ') +
+    'DROP INDEX uniq_route_package');
+  return true;
+}
+
 async function migrate(connection, apply = false) {
   const [columns] = await connection.query(`SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE() AND ((TABLE_NAME = 'route_packages' AND COLUMN_NAME IN ('released_at', 'active_assignment_marker'))
     OR (TABLE_NAME = 'deliveries' AND COLUMN_NAME = 'successful_delivery_marker')
     OR (TABLE_NAME = 'payout_items' AND COLUMN_NAME = 'base_delivery_payment_marker'))`);
-  if (columns.length === 4) return 'La migración ya está aplicada.';
+  if (columns.length === 4) {
+    if (!await allowRepeatedRouteHistory(connection, apply)) return 'Falta actualizar el índice histórico de rutas. Ejecutar con --apply.';
+    return 'La migración ya está aplicada.';
+  }
   if (columns.length) throw new Error('Se detectó una migración parcial. Completar o revertir sus ALTER TABLE antes de reintentar.');
   const checks = [
     ['entregas exitosas duplicadas', `SELECT package_id FROM deliveries WHERE status_at_delivery = 'ENTREGADO' GROUP BY package_id HAVING COUNT(*) > 1`],
@@ -27,6 +43,7 @@ async function migrate(connection, apply = false) {
   for (const statement of sql.replace(/--[^\n]*/g, '').split(';').filter((item) => item.trim())) {
     await connection.query(statement);
   }
+  await allowRepeatedRouteHistory(connection, true);
   return 'Migración aplicada. Se conservaron las asignaciones anteriores.';
 }
 

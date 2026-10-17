@@ -47,3 +47,6 @@ ALTER TABLE payout_items
   ADD COLUMN base_delivery_payment_marker TINYINT
     GENERATED ALWAYS AS (CASE WHEN item_description LIKE 'Entrega - %' THEN 1 ELSE NULL END) STORED,
   ADD UNIQUE INDEX uq_payout_items_delivery_package (package_id, base_delivery_payment_marker);
+
+-- The migration runner also replaces the legacy uniq_route_package index when present.
+-- A package may revisit a route; the active-assignment index enforces one current owner.

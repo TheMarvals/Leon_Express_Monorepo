@@ -37,6 +37,8 @@ test('route transfers with real SQL, HTTP handlers and concurrency', { skip: !pr
   await sequelize.sync({ force: true });
   // Recreate the pre-migration route_packages schema, then execute the real migration.
   await sequelize.query('ALTER TABLE route_packages DROP COLUMN released_at, DROP COLUMN release_reason, DROP COLUMN released_by_user_id, DROP COLUMN status_at_release, DROP COLUMN transferred_to_route_id');
+  // The production schema also has a legacy unique index absent from the model.
+  await sequelize.query('ALTER TABLE route_packages ADD UNIQUE INDEX uniq_route_package (route_id, package_id)');
   const assignments = load('services/routeAssignments.js', { '../models': models });
   const authenticate = (req, res, next) => {
     req.user = { user_id: req.headers['x-user'], role: req.headers['x-role'] || 'DRIVER' };
@@ -202,6 +204,17 @@ test('route transfers with real SQL, HTTP handlers and concurrency', { skip: !pr
     ]);
     assert.deepEqual(results.map((r) => r.status), [200, 200]);
     assert.equal(await RoutePackage.count({ where: { package_id: f.pkg.package_id, released_at: null } }), 1);
+  });
+  await t.test('a package can return to a route it previously visited without losing history', async () => {
+    const f = await fixture();
+    assert.equal((await transfer(f)).status, 200);
+    const result = await request('POST', `/routes/${f.source.route_id}/scan-package`, {
+      external_tracking_code: f.pkg.tracking_code, confirm_transfer: true
+    }, f.user_id);
+    assert.equal(result.status, 200, JSON.stringify(result));
+    assert.equal(await RoutePackage.count({ where: { package_id: f.pkg.package_id } }), 3);
+    assert.equal(await RoutePackage.count({ where: { package_id: f.pkg.package_id, released_at: null } }), 1);
+    assert.equal((await f.rp.reload()).release_reason, 'TRANSFERIDO');
   });
   await t.test('concurrent deliveries yield a single successful record', async () => {
     const f = await fixture();

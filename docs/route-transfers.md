@@ -14,14 +14,14 @@ Un conductor puede tener varias rutas pendientes o en progreso. Cada paquete tie
 
 ## Puesta en marcha
 
-La migración debe ejecutarse **antes de arrancar este backend**: los modelos y las consultas requieren sus nuevas columnas. No se ha aplicado a la base operativa desde esta tarea.
+La migración debe ejecutarse **antes de arrancar este backend**: los modelos y las consultas requieren sus nuevas columnas. Aplicada en producción el 16 de octubre de 2026, con respaldo previo y verificación de cantidades y totales de pago.
 
 1. Respaldar la base de datos y detener las escrituras del backend y los procesos de facturación.
 2. Desde `LeonExpress_back`, ejecutar `node scripts/migrate-route-transfers.js --check`. Usa las variables `DB_*` del entorno o de `LeonExpress_back/.env`.
 3. Resolver los casos que reporte: varias entregas exitosas, varios pagos base de entrega o asignaciones cuya fecha más reciente no permite determinar una única ruta. El verificador se detiene antes de modificar registros. No elimina ni decide sobre pagos históricos.
 4. Ejecutar `node scripts/migrate-route-transfers.js --apply` y desplegar backend y frontend juntos.
 
-La migración conserva las asociaciones antiguas y marca como vigentes las más recientes. Para registros previos no deduce resultados de entrega: muestra «Asignación anterior». También libera paquetes que ya figuran recibidos o devueltos en bodega. Crea restricciones para una asignación vigente, una entrega exitosa y un pago base de entrega por paquete. Los costos adicionales y deducciones conservan su funcionamiento.
+La migración conserva las asociaciones antiguas y marca como vigentes las más recientes. Para registros previos no deduce resultados de entrega: muestra «Asignación anterior». También libera paquetes que ya figuran recibidos o devueltos en bodega. Crea restricciones para una asignación vigente, una entrega exitosa y un pago base de entrega por paquete. Los costos adicionales y deducciones conservan su funcionamiento. El script también reemplaza el índice antiguo que impedía registrar varias visitas de un paquete a la misma ruta; mantiene un único responsable vigente.
 
 MySQL hace commits implícitos en los cambios de esquema. Si falla una ejecución parcial, el verificador la detecta; revisar los `ALTER TABLE` aplicados antes de reiniciar o reintentar. El archivo SQL es `LeonExpress_back/migrations/20261016_route_package_transfers.sql`; usar el script para ejecutar primero las verificaciones.
 
