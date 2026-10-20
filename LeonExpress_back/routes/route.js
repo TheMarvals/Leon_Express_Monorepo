@@ -270,6 +270,35 @@ router.get('/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Only expose destinations for a route the caller is allowed to hand off.
+router.get('/:id/transfer-destinations', authenticateToken, roleValidator(['ADMIN', 'DRIVER']), async (req, res) => {
+  try {
+    const source = await Route.findByPk(req.params.id);
+    if (!source) return res.status(404).json({ error: 'Ruta no encontrada.' });
+    if (req.user.role !== 'ADMIN' && source.user_id !== req.user.user_id) {
+      return res.status(403).json({ error: 'Solo puedes transferir paquetes desde una ruta a tu cargo.' });
+    }
+    if (source.route_type !== 'ENTREGA' || !OPEN_ROUTE_STATUSES.includes(source.status)) {
+      return res.json({ routes: [] });
+    }
+    const routes = await Route.findAll({
+      where: {
+        route_id: { [Op.ne]: source.route_id },
+        warehouse_id: source.warehouse_id,
+        route_type: 'ENTREGA',
+        status: { [Op.in]: OPEN_ROUTE_STATUSES },
+      },
+      attributes: ['route_id', 'route_name', 'user_id', 'warehouse_id', 'route_type', 'status', 'start_date'],
+      include: [{ model: User, as: 'user', attributes: ['user_id', 'full_name'] }],
+      order: [['created_at', 'DESC']],
+    });
+    res.json({ routes });
+  } catch (error) {
+    console.error('Error al obtener rutas de destino:', error);
+    res.status(500).json({ error: 'No se pudieron cargar las rutas de destino.' });
+  }
+});
+
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const whereClause = {};
@@ -461,8 +490,8 @@ router.post('/:id/transfer-packages', authenticateToken, roleValidator(['ADMIN',
     const source = routes.find((item) => item.route_id === sourceId);
     const target = routes.find((item) => item.route_id === targetId);
     if (!source || !target) throw Object.assign(new Error('Ruta no encontrada.'), { status: 404 });
-    if (req.user.role !== 'ADMIN' && (source.user_id !== req.user.user_id || target.user_id !== req.user.user_id)) {
-      throw Object.assign(new Error('Solo un administrador puede transferir paquetes entre conductores distintos.'), { status: 403 });
+    if (req.user.role !== 'ADMIN' && source.user_id !== req.user.user_id) {
+      throw Object.assign(new Error('Solo puedes transferir paquetes desde una ruta a tu cargo.'), { status: 403 });
     }
     if (!OPEN_ROUTE_STATUSES.includes(source.status) || !OPEN_ROUTE_STATUSES.includes(target.status)) {
       throw Object.assign(new Error('Ambas rutas deben estar abiertas.'), { status: 409 });

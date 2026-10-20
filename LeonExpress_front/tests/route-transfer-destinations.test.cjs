@@ -32,7 +32,7 @@ function fixture({ admin = false, destinations = [] } = {}) {
       if (id.endsWith('/services/api')) return { default: {
         getRouteById: async () => ({ data: route('source', { status: 'EN_PROGRESO', routePackages: [] }) }),
         getPackages: async () => ({ data: { packages: [] } }),
-        getRoutes: async () => {
+        getRouteTransferDestinations: async () => {
           listRequests++
           if (routes instanceof Error) throw routes
           return { data: { routes } }
@@ -64,7 +64,7 @@ test('drivers can choose their other pending or in-progress delivery routes in t
     route('other-driver', { user_id: 'driver-2' }),
   ] })
   await f.component.fetchData()
-  assert.deepEqual(ids(f.component), ['pending', 'progress'])
+  assert.deepEqual(ids(f.component), ['pending', 'progress', 'other-driver'])
 })
 
 test('administrators can also choose routes assigned to other drivers', async () => {
@@ -73,12 +73,11 @@ test('administrators can also choose routes assigned to other drivers', async ()
   assert.deepEqual(ids(f.component), ['other-driver'])
 })
 
-test('an empty driver list explains the restriction to their own routes', async () => {
+test('an empty list explains the requirement for another open delivery route', async () => {
   const f = fixture({ destinations: [route('source')] })
   await f.component.fetchData()
   assert.deepEqual(ids(f.component), [])
-  assert.match(f.component.emptyTargetRoutesText.value, /No tienes otra ruta/)
-  assert.match(f.component.emptyTargetRoutesText.value, /administrador/)
+  assert.match(f.component.emptyTargetRoutesText, /No hay otra ruta de entrega pendiente o en progreso/)
 })
 
 test('opening the selector refreshes routes created after page load and keeps selected packages', async () => {

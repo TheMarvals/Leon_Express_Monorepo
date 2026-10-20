@@ -178,6 +178,7 @@ const api = {
   // ---- Metodos routes ----
   getRoutes: (params: ApiListParams) => axiosInstance.get('/routes', { params: mapParams(params) }),
   getRouteById: (id: string) => axiosInstance.get(`/routes/${id}`),
+  getRouteTransferDestinations: (id: string) => axiosInstance.get(`/routes/${id}/transfer-destinations`),
   createRoute: (data: any) => axiosInstance.post('/routes', data),
   updateRoute: (id: string, data: any) => axiosInstance.put(`/routes/${id}`, data),
   deleteRoute: (id: string) => axiosInstance.delete(`/routes/${id}`),

@@ -89,19 +89,26 @@ const fetchData = async (showLoading = true) => {
   const routeId = route.params.id as string
   loadError.value = ''
   try {
-    const [routeRes, packagesRes, routesRes] = await Promise.all([
+    const [routeRes, packagesRes] = await Promise.all([
       api.getRouteById(routeId),
       // Mostrar paquetes disponibles en almacén (Recibidos, Devueltos o Recolectados)
       api.getPackages({
         status: 'RECIBIDO_EN_ALMACEN,DEVUELTO_ALMACEN,RECOLECTADO_EN_ORIGEN,INCIDENCIA_ENTREGA,REPROGRAMADO',
         perPage: 1000,
       }),
-      api.getRoutes({}),
     ])
     if (route.params.id !== routeId) return
     routeData.value = routeRes.data
-    targetRoutes.value = routesRes.data.routes || []
+    targetRoutes.value = []
     targetRoutesError.value = ''
+    if (
+      canManageRoute.value &&
+      routeData.value?.route_type === 'ENTREGA' &&
+      ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.value.status)
+    ) {
+      await refreshTargetRoutes()
+    }
+    if (route.params.id !== routeId) return
     selectedPending.value = []
     availablePackages.value = packagesRes.data.packages || []
   } catch (error: any) {
@@ -196,16 +203,11 @@ const eligibleTargetRoutes = computed(() =>
     (item) =>
       item.route_id !== routeData.value?.route_id &&
       ['PENDIENTE', 'EN_PROGRESO'].includes(item.status) &&
-      (userStore.isAdmin || item.user_id === userStore.user?.user_id) &&
       item.route_type === 'ENTREGA' &&
       item.warehouse_id === routeData.value?.warehouse_id,
   ),
 )
-const emptyTargetRoutesText = computed(() =>
-  isAdmin.value
-    ? 'No hay otra ruta de entrega pendiente o en progreso en esta bodega.'
-    : 'No tienes otra ruta de entrega pendiente o en progreso en esta bodega. Para transferir a otro conductor, solicita la gestión a un administrador.',
-)
+const emptyTargetRoutesText = 'No hay otra ruta de entrega pendiente o en progreso en esta bodega.'
 const targetRouteOptions = computed(() =>
   eligibleTargetRoutes.value.map((item) => ({
     value: item.route_id,
@@ -221,7 +223,7 @@ const refreshTargetRoutes = async (isOpen = true) => {
   isLoadingTargetRoutes.value = true
   targetRoutesError.value = ''
   try {
-    const { data } = await api.getRoutes({})
+    const { data } = await api.getRouteTransferDestinations(routeId)
     if (route.params.id !== routeId) return
     targetRoutes.value = data.routes || []
     if (!eligibleTargetRoutes.value.some((item) => item.route_id === targetRouteId.value)) {
@@ -239,16 +241,15 @@ const refreshTargetRoutes = async (isOpen = true) => {
   }
 }
 const handleTransferPending = async () => {
-  if (
-    isTransferring.value ||
-    isLoadingTargetRoutes.value ||
-    !eligibleTargetRoutes.value.some((item) => item.route_id === targetRouteId.value) ||
-    !selectedPending.value.length
-  )
-    return
+  const destination = eligibleTargetRoutes.value.find((item) => item.route_id === targetRouteId.value)
+  if (isTransferring.value || isLoadingTargetRoutes.value || !destination || !selectedPending.value.length) return
   if (
     !window.confirm(
-      `¿Confirmas el traspaso físico de ${selectedPending.value.length} paquete(s) a la ruta seleccionada?`,
+      `¿Confirmas el traspaso físico de ${selectedPending.value.length} paquete(s) a la ruta ${
+        destination.route_name || 'sin nombre'
+      } de ${
+        destination.user?.full_name || 'el conductor de destino'
+      }? La entrega y su remuneración quedarán a cargo de ese conductor.`,
     )
   )
     return
@@ -1002,11 +1003,9 @@ const showApproveButton = computed(() => {
           de transferirlos.
         </p>
         <p class="mb-3">
-          {{
-            isAdmin
-              ? 'Puedes transferir a rutas propias o de otros conductores que estén pendientes o en progreso.'
-              : 'Puedes transferir entre tus propias rutas pendientes o en progreso. Para transferir a otro conductor, solicita la gestión a un administrador.'
-          }}
+          Puedes transferir a rutas propias o de otros conductores que estén pendientes o en progreso. El conductor de
+          destino quedará a cargo del paquete y del cobro contra entrega, si corresponde. La remuneración de la entrega
+          se asignará a ese conductor cuando la registre.
         </p>
         <VaDataTable
           v-model="selectedPending"

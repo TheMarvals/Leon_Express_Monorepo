@@ -106,8 +106,8 @@ test('route transfers with real SQL, HTTP handlers and concurrency', { skip: !pr
   const transfer = (f, ids = [f.pkg.package_id], user = f.user_id, role = 'ADMIN') => request('POST', `/routes/${f.source.route_id}/transfer-packages`, {
     target_route_id: f.target.route_id, package_ids: ids, confirm_physical_handoff: true
   }, user, role);
-  const deliver = (f, user = f.other_id) => request('POST', `/events/packages/${f.pkg.package_id}/deliveries`, {
-    status_at_delivery: 'ENTREGADO', receiver_name: 'Test', receiver_rut: '12345678K'
+  const deliver = (f, user = f.other_id, extra = {}) => request('POST', `/events/packages/${f.pkg.package_id}/deliveries`, {
+    status_at_delivery: 'ENTREGADO', receiver_name: 'Test', receiver_rut: '12345678K', ...extra
   }, user);
 
   await t.test('transfer, close source, deliver on target and keep historical outcome', async () => {
@@ -127,6 +127,33 @@ test('route transfers with real SQL, HTTP handlers and concurrency', { skip: !pr
     const oldRoute = await request('GET', `/routes/${f.source.route_id}`, null, f.user_id);
     assert.equal(oldRoute.data.routePackages[0].package.status, 'EN_RUTA_ENTREGA');
     assert.equal((await deliver(f)).status, 409);
+  });
+  await t.test('drivers can discover and hand off to another driver in the same warehouse', async () => {
+    const f = await fixture();
+    const url = `/routes/${f.source.route_id}/transfer-destinations`;
+    const result = await request('GET', url, null, f.user_id);
+    assert.equal(result.status, 200, JSON.stringify(result));
+    assert.deepEqual(result.data.routes.map(item => item.route_id), [f.target.route_id]);
+    assert.equal(result.data.routes[0].user_id, f.other_id);
+    assert.equal((await request('GET', url, null, f.other_id)).status, 403);
+    const otherWarehouse = await fixture();
+    const refreshed = await request('GET', url, null, f.user_id);
+    assert.equal(refreshed.data.routes.some(item => item.route_id === otherWarehouse.target.route_id), false);
+    await f.target.update({ status: 'FINALIZADA' });
+    assert.equal((await request('GET', url, null, f.user_id)).data.routes.length, 0);
+    await f.target.update({ status: 'EN_PROGRESO' });
+    assert.equal((await transfer(f, undefined, f.user_id, 'DRIVER')).status, 200);
+    assert.equal((await deliver(f, f.user_id)).status, 403);
+    assert.equal((await deliver(f)).status, 201);
+  });
+  await t.test('handoffs keep manually agreed delivery fees and customer COD amounts', async () => {
+    const f = await fixture();
+    await f.pkg.update({ is_delivery_cost_manual: true, delivery_cost: 2750, is_cod: true, cod_amount: 12000 });
+    assert.equal((await transfer(f, undefined, f.user_id, 'DRIVER')).status, 200);
+    await f.pkg.reload();
+    assert.equal(Number(f.pkg.delivery_cost), 2750);
+    assert.equal(Number(f.pkg.client_price), 3000);
+    assert.equal(Number(f.pkg.cod_amount), 12000);
   });
   await t.test('a driver can keep two active routes and close them independently', async () => {
     const f = await fixture();
@@ -165,7 +192,7 @@ test('route transfers with real SQL, HTTP handlers and concurrency', { skip: !pr
     const f = await fixture();
     assert.equal((await request('PUT', `/routes/${f.source.route_id}/status`, { status: 'FINALIZADA' }, f.user_id)).status, 409);
     assert.equal((await request('PUT', `/routes/${f.source.route_id}/status`, { status: 'FINALIZADA' }, f.other_id)).status, 403);
-    assert.equal((await transfer(f, undefined, f.user_id, 'DRIVER')).status, 403);
+    assert.equal((await transfer(f, undefined, f.other_id, 'DRIVER')).status, 403);
   });
   await t.test('failed batch leaves every package with its original owner', async () => {
     const f = await fixture();
@@ -238,4 +265,40 @@ test('route transfers with real SQL, HTTP handlers and concurrency', { skip: !pr
     await assert.rejects(PayoutItem.create({ payout_item_id: uuid(), payout_id: payout2.payout_id, package_id: f.pkg.package_id, item_description: 'Entrega - TEST', amount: 2000 }), { name: 'SequelizeUniqueConstraintError' });
     await PayoutItem.create({ payout_item_id: uuid(), payout_id: payout2.payout_id, package_id: f.pkg.package_id, item_description: 'Costo adicional', amount: 100 });
   });
+  await t.test('transferred delivery earnings and COD belong only to the destination driver, including retries', async () => {
+    // Sequelize.sync omits the timestamp defaults and triggers installed by init.sql in production.
+    for (const table of ['billing_periods', 'driver_payouts', 'payout_items']) {
+      await sequelize.query(`ALTER TABLE ${table} MODIFY created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+    }
+    await sequelize.query('ALTER TABLE driver_payouts MODIFY updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
+    const initSql = fs.readFileSync(path.resolve(__dirname, '../initdb/init.sql'), 'utf8');
+    for (const name of ['trg_after_payout_item_insert', 'trg_after_payout_item_update', 'trg_after_payout_item_delete']) {
+      const sql = initSql.match(new RegExp(`CREATE TRIGGER ${name}\\b[\\s\\S]*?END\\$\\$`));
+      assert.ok(sql, `Missing production trigger ${name}`);
+      await sequelize.query(sql[0].replace(/\$\$$/, ''));
+    }
+    const f = await fixture();
+    await f.pkg.update({ is_cod: true, cod_amount: 10000 });
+    assert.equal((await transfer(f, undefined, f.user_id, 'DRIVER')).status, 200);
+    await f.pkg.reload();
+    assert.equal(Number(f.pkg.delivery_cost), 2000);
+    assert.equal(Number(f.pkg.cod_amount), 10000);
+    assert.equal(Number(f.pkg.client_price), 3000);
+    assert.equal((await deliver(f, f.other_id, { collected_amount: 10000, payment_type: 'EFECTIVO' })).status, 201);
+    const delivery = await Delivery.findOne({ where: { package_id: f.pkg.package_id } });
+    const active = await RoutePackage.findOne({ where: { package_id: f.pkg.package_id, released_at: null } });
+    assert.equal(active.route_id, f.target.route_id);
+    assert.equal(delivery.route_package_id, active.route_package_id);
+    assert.equal(delivery.user_id, f.other_id);
+    const date = new Date(delivery.attempted_at).toISOString().slice(0, 10);
+    const billing = load('services/billingAutomation.js', { '../models': models });
+    await billing.generateDriverPayouts(date, date);
+    await billing.generateDriverPayouts(date, date);
+    const items = await PayoutItem.findAll({ where: { package_id: f.pkg.package_id }, include: ['driverPayout'] });
+    assert.equal(items.length, 2);
+    assert.ok(items.every(item => item.driverPayout.user_id === f.other_id));
+    assert.equal(Number(items.find(item => item.item_description.startsWith('Entrega - ')).amount), 2000);
+    assert.equal(Number(items.find(item => item.item_description.startsWith('Retención COD - ')).amount), -10000);
+  });
+
 });
