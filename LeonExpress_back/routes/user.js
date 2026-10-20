@@ -452,6 +452,20 @@ const logAudit = async (userId, action, targetTable, targetId, details) => {
  *           example: "550e8400-e29b-41d4-a716-446655440000"
  *           description: ID del almacén asignado
  * 
+ *         vehicle:
+ *           type: object
+ *           description: Vehículo opcional al crear un conductor; se guarda junto al usuario en una transacción
+ *           required:
+ *             - type_id
+ *             - license_plate
+ *           properties:
+ *             type_id:
+ *               type: string
+ *               description: ID de un tipo de vehículo existente
+ *             license_plate:
+ *               type: string
+ *               maxLength: 20
+ *
  *     UserUpdate:
  *       type: object
  *       required:
@@ -633,7 +647,7 @@ router.post('/', validateUser, async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { username, email, full_name, password, phone, role_id, warehouse_id } = req.body;
+    const { username, email, full_name, password, phone, role_id, warehouse_id, vehicle } = req.body;
 
     // Verify role exists
     const role = await Role.findByPk(role_id);
@@ -645,6 +659,30 @@ router.post('/', validateUser, async (req, res) => {
     const warehouse = await Warehouse.findByPk(warehouse_id);
     if (!warehouse) {
       return res.status(400).json({ error: 'Almacén no encontrado' });
+    }
+
+    let vehicleData;
+    if (vehicle !== undefined) {
+      if (role.role_name !== 'DRIVER') {
+        return res.status(400).json({ error: 'Solo se puede asociar un vehículo al crear un conductor' });
+      }
+      if (!vehicle || typeof vehicle !== 'object' || Array.isArray(vehicle) ||
+          typeof vehicle.type_id !== 'string' || !vehicle.type_id.trim() ||
+          typeof vehicle.license_plate !== 'string' || !vehicle.license_plate.trim() ||
+          vehicle.license_plate.trim().length > 20) {
+        return res.status(400).json({ error: 'Selecciona un tipo de vehículo e ingresa una patente válida (máx 20 caracteres)' });
+      }
+      const vehicleType = await VehicleType.findByPk(vehicle.type_id);
+      if (!vehicleType) {
+        return res.status(400).json({ error: 'Tipo de vehículo no encontrado' });
+      }
+      vehicleData = {
+        type_id: vehicle.type_id,
+        license_plate: vehicle.license_plate.trim().toUpperCase()
+      };
+      if (await Vehicle.findOne({ where: { license_plate: vehicleData.license_plate } })) {
+        return res.status(409).json({ error: 'La patente ya está registrada' });
+      }
     }
 
     // Check for duplicate username
@@ -669,16 +707,24 @@ router.post('/', validateUser, async (req, res) => {
     const user_id = uuidv4();
 
     // Create user
-    const newUser = await User.create({
-      user_id: user_id,
-      username: username.toLowerCase(),
-      email: processedEmail,
-      full_name,
-      password_hash,
-      phone: phone || null,
-      role_id,
-      warehouse_id,
-      is_active: true
+    const { newUser, newVehicle } = await sequelize.transaction(async (transaction) => {
+      const newUser = await User.create({
+        user_id: user_id,
+        username: username.toLowerCase(),
+        email: processedEmail,
+        full_name,
+        password_hash,
+        phone: phone || null,
+        role_id,
+        warehouse_id,
+        is_active: true
+      }, { transaction });
+      const newVehicle = vehicleData ? await Vehicle.create({
+        vehicle_id: uuidv4(),
+        user_id,
+        ...vehicleData
+      }, { transaction }) : null;
+      return { newUser, newVehicle };
     });
 
     // // Log audit
@@ -702,11 +748,19 @@ router.post('/', validateUser, async (req, res) => {
         warehouse_id: newUser.warehouse_id,
         warehouse_name: warehouse.warehouse_name,
         is_active: newUser.is_active,
+        vehicles: newVehicle ? [{
+          vehicle_id: newVehicle.vehicle_id,
+          license_plate: newVehicle.license_plate,
+          type_id: newVehicle.type_id
+        }] : [],
         created_at: newUser.created_at,
         updated_at: newUser.updated_at
       }
     });
   } catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(409).json({ error: 'El nombre de usuario o la patente ya están registrados' });
+    }
     console.error('Error al crear usuario:', error);
     res.status(500).json({
       error: 'Error del servidor',

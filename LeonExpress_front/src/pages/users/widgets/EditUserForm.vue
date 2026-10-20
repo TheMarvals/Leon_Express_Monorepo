@@ -7,6 +7,7 @@ import { User } from '../types'
 
 const props = defineProps({
   user: { type: Object as PropType<User | null>, default: null },
+  saving: { type: Boolean, default: false },
 })
 
 // --- 1. SE DEFINE EL PAYLOAD CON LA ESTRUCTURA DEL FRONTEND ('fullname') ---
@@ -18,6 +19,7 @@ interface UserFormPayload {
   phone: string
   role_id: string | null
   warehouse_id: string | null
+  vehicle?: { type_id: string; license_plate: string }
 }
 
 const emit = defineEmits<{
@@ -35,12 +37,38 @@ const email = ref('')
 const phone = ref('')
 const role_id = ref<string | null>(null)
 const warehouse_id = ref<string | null>(null)
+const vehicleTypeId = ref<string | null>(null)
+const licensePlate = ref('')
+const vehicleTypes = ref<{ text: string; value: string }[]>([])
+const vehicleTypesError = ref(false)
+const vehicleTypesLoading = ref(false)
 
 const roles = ref<{ text: string; value: string }[]>([])
 const warehouses = ref<{ text: string; value: string }[]>([])
 const isLoading = ref(true)
 
 const isEditing = computed(() => !!props.user)
+const isNewDriver = computed(
+  () => !isEditing.value && roles.value.find((role) => role.value === role_id.value)?.text === 'DRIVER',
+)
+
+const loadVehicleTypes = async () => {
+  if (vehicleTypesLoading.value) return
+  vehicleTypesLoading.value = true
+  vehicleTypesError.value = false
+  try {
+    const { data } = await api.getVehicleTypes({ perPage: 1000 })
+    vehicleTypes.value = data.vehicleTypes.map((type: any) => ({ text: type.type_name, value: type.type_id }))
+  } catch {
+    vehicleTypesError.value = true
+  } finally {
+    vehicleTypesLoading.value = false
+  }
+}
+
+watch(isNewDriver, (selected) => {
+  if (selected && !vehicleTypes.value.length) void loadVehicleTypes()
+})
 
 onMounted(async () => {
   isLoading.value = true
@@ -58,6 +86,8 @@ onMounted(async () => {
 watch(
   () => props.user,
   (userData) => {
+    vehicleTypeId.value = null
+    licensePlate.value = ''
     if (userData) {
       username.value = userData.username || ''
       fullname.value = userData.fullname || '' // Se usa la variable correcta
@@ -81,7 +111,7 @@ watch(
 )
 
 const handleSubmit = () => {
-  if (!validate()) return
+  if (props.saving || !validate()) return
 
   const finalRoleId = (role_id.value as any)?.value || role_id.value
   const finalWarehouseId = (warehouse_id.value as any)?.value || warehouse_id.value
@@ -98,6 +128,11 @@ const handleSubmit = () => {
 
   if (password.value) {
     payload.password = password.value
+  }
+
+  if (isNewDriver.value) {
+    if (vehicleTypesError.value || !vehicleTypes.value.some((type) => type.value === vehicleTypeId.value)) return
+    payload.vehicle = { type_id: vehicleTypeId.value!, license_plate: licensePlate.value.trim().toUpperCase() }
   }
 
   emit('save', payload)
@@ -131,6 +166,29 @@ const handleSubmit = () => {
       value-by="value"
       :rules="[validators.required]"
     />
+    <template v-if="isNewDriver">
+      <VaSelect
+        v-model="vehicleTypeId"
+        label="Tipo de vehículo"
+        :options="vehicleTypes"
+        :loading="vehicleTypesLoading"
+        text-by="text"
+        value-by="value"
+        :rules="[validators.required]"
+      />
+      <div v-if="vehicleTypesError" role="alert">
+        <p>No se pudieron cargar los tipos de vehículo.</p>
+        <VaButton preset="secondary" @click="loadVehicleTypes">Reintentar</VaButton>
+      </div>
+      <p v-else-if="!vehicleTypesLoading && !vehicleTypes.length">
+        No hay tipos de vehículo disponibles. Regístralos en Tipos de vehículo.
+      </p>
+      <VaInput
+        v-model.trim="licensePlate"
+        label="Patente"
+        :rules="[validators.required, (value) => value.trim().length <= 20 || 'La patente admite hasta 20 caracteres']"
+      />
+    </template>
     <VaSelect
       v-model="warehouse_id"
       label="Almacén"
@@ -140,8 +198,12 @@ const handleSubmit = () => {
       :rules="[validators.required]"
     />
     <div class="flex justify-end gap-2 mt-4">
-      <VaButton preset="secondary" @click="$emit('close')">Cancelar</VaButton>
-      <VaButton :disabled="!isValid" @click="handleSubmit">
+      <VaButton preset="secondary" :disabled="saving" @click="$emit('close')">Cancelar</VaButton>
+      <VaButton
+        :loading="saving"
+        :disabled="saving || !isValid || (isNewDriver && (vehicleTypesError || !vehicleTypes.length))"
+        @click="handleSubmit"
+      >
         {{ isEditing ? 'Guardar' : 'Crear' }}
       </VaButton>
     </div>

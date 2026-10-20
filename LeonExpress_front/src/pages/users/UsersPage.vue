@@ -1,7 +1,7 @@
 // src/pages/users/UsersPage.vue
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useModal, useToast } from 'vuestic-ui'
+import { useToast } from 'vuestic-ui'
 import UsersTable from './widgets/UsersTable.vue'
 import EditUserForm from './widgets/EditUserForm.vue'
 import { User } from './types'
@@ -10,6 +10,7 @@ import { useUsers } from './composables/useUsers'
 const { users, isLoading, filters, sorting, pagination, remove, add, update, reactivate } = useUsers()
 
 const doShowModal = ref(false)
+const isSaving = ref(false)
 const userToEdit = ref<User | null>(null)
 const { init: notify } = useToast()
 
@@ -19,15 +20,17 @@ const showModal = (user: User | null) => {
 }
 
 const onFormSave = async (payload: any) => {
-  doShowModal.value = false
+  if (isSaving.value) return
+  isSaving.value = true
   try {
     if (userToEdit.value) {
       await update({ ...userToEdit.value, ...payload })
       notify({ message: 'Usuario actualizado', color: 'success' })
     } else {
       await add(payload)
-      notify({ message: 'Usuario creado', color: 'success' })
+      notify({ message: payload.vehicle ? 'Conductor y vehículo creados' : 'Usuario creado', color: 'success' })
     }
+    doShowModal.value = false
   } catch (e: any) {
     const errorMsg =
       e.response?.data?.errors?.[0]?.msg || // Error de validación (express-validator)
@@ -35,6 +38,8 @@ const onFormSave = async (payload: any) => {
       e.message || // Error de red/axios
       'Error al guardar el usuario'
     notify({ message: errorMsg, color: 'danger' })
+  } finally {
+    isSaving.value = false
   }
 }
 
@@ -101,7 +106,14 @@ const onUserDelete = async (user: User) => {
 
   <VaModal v-model="doShowModal" size="small" close-button hide-default-actions>
     <h1 class="va-h5">{{ userToEdit ? 'Editar' : 'Nuevo' }} Usuario</h1>
-    <EditUserForm :user="userToEdit" @close="doShowModal = false" @save="onFormSave" />
+    <EditUserForm
+      v-if="doShowModal"
+      :key="userToEdit?.id || 'new'"
+      :user="userToEdit"
+      :saving="isSaving"
+      @close="doShowModal = false"
+      @save="onFormSave"
+    />
   </VaModal>
 </template>
 
