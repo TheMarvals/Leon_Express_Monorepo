@@ -6,6 +6,7 @@ const FormData = require('form-data');
 const { extractData, extractDataWithLearning, shouldAutoApprove } = require('./smartOcrParser');
 const { decodeQRFromImage, extractTrackingCodeFromQR } = require('./qrDecoder');
 const { v4: uuidv4 } = require('uuid');
+const { withPickupPackageLock } = require('./pickupPackageLock');
 const { Package, Pickup, Client, OcrProcessingQueue: OcrProcessingQueueModel } = require('../models');
 
 /**
@@ -18,31 +19,33 @@ class OcrProcessingQueue {
     this.results = new Map();
     this.isProcessing = false;
     this.packageCreationLock = Promise.resolve();
-    this.idempotencyCache = new Set();
+    this.idempotencyCache = new Map();
   }
 
   /**
    * Agrega un batch de imágenes a la cola
    */
   async addBatch(batchData) {
-    const { batch_id, pickup_id, images, metadata, client_price, delivery_cost, idempotency_key } = batchData;
+    const key = batchData.idempotency_key ? `${batchData.pickup_id}:${batchData.idempotency_key}` : null;
+    if (!key) return this._enqueueBatch(batchData);
+    if (this.idempotencyCache.has(key)) return this.idempotencyCache.get(key);
 
-    // Reject if recently processed (idempotency strategy for frontend network retries)
-    if (idempotency_key) {
-      if (this.idempotencyCache.has(idempotency_key)) {
-         console.log(`♻️ IDEMPOTENCIA: Ignorando batch duplicado (ya está en cola o se procesó exitosamente recientemente) key=${idempotency_key}`);
-         return {
-           batch_id: 'idempotent_' + idempotency_key.substring(0, 8),
-           status: 'queued_previously',
-           total_images: images.length,
-           estimated_time: 0,
-           message: 'Batch ya estaba en proceso'
-         };
-      }
-      this.idempotencyCache.add(idempotency_key);
-      // Clean up to prevent memory leak (prevent retries within 1 hour)
-      setTimeout(() => this.idempotencyCache.delete(idempotency_key), 60 * 60 * 1000);
+    // Concurrent retries wait for the actual result. Failed uploads must remain retryable.
+    const pending = Promise.resolve().then(() => this._enqueueBatch(batchData));
+    this.idempotencyCache.set(key, pending);
+    try {
+      const result = await pending;
+      const expiration = setTimeout(() => this.idempotencyCache.delete(key), 60 * 60 * 1000);
+      expiration.unref?.();
+      return result;
+    } catch (error) {
+      this.idempotencyCache.delete(key);
+      throw error;
     }
+  }
+
+  async _enqueueBatch(batchData) {
+    const { batch_id, pickup_id, images, metadata, client_price, delivery_cost } = batchData;
 
     // Crear directorio para este pickup
     const uploadDir = path.join(__dirname, '..', 'uploads', 'pickups', pickup_id, 'labels');
@@ -69,7 +72,7 @@ class OcrProcessingQueue {
     for (let i = 0; i < images.length; i++) {
       const imageData = images[i];
       const itemId = `${batch_id}_${i}`;
-      const filename = `label_${Date.now()}_${i}.jpg`;
+      const filename = `label_${itemId}.jpg`;
       const filepath = path.join(uploadDir, filename);
 
       // Guardar imagen
@@ -87,7 +90,6 @@ class OcrProcessingQueue {
         created_at: new Date().toISOString()
       };
 
-      this.queue.push(queueItem);
       batchInfo.items.push(queueItem);
     }
 
@@ -96,6 +98,8 @@ class OcrProcessingQueue {
     await fs.writeFile(metadataPath, JSON.stringify(batchInfo, null, 2));
 
     this.results.set(batch_id, batchInfo);
+    // Publish only after all files and metadata are saved successfully.
+    this.queue.push(...batchInfo.items);
 
     // Iniciar procesamiento si no está corriendo
     if (!this.isProcessing) {
@@ -196,6 +200,7 @@ class OcrProcessingQueue {
           // Registrar en BD como needs_review para que aparezca en el panel de revisión manual
           try {
             const { v4: uuidv4 } = require('uuid');
+const { withPickupPackageLock } = require('./pickupPackageLock');
             await OcrProcessingQueueModel.create({
               id: uuidv4(),
               pickup_id: item.pickup_id,
@@ -399,7 +404,7 @@ class OcrProcessingQueue {
           const mlAccountAccess = require('../services/mlAccountAccessService');
           const { Pickup } = require('../models');
           const pickup = await Pickup.findByPk(item.pickup_id);
-          
+
           if (pickup) {
             const pendingData = await mlAccountAccess.getPendingShipments({ search: trackingCodeToVerify });
             if (pendingData && pendingData.shipments && pendingData.shipments.length > 0) {
@@ -410,7 +415,7 @@ class OcrProcessingQueue {
                 const clientAccounts = accessibleAccounts
                   .filter(a => a.client_id === pickup.client_id)
                   .map(a => a.ml_account_id);
-                
+
                 if (clientAccounts.includes(shipment.ml_account_id)) {
                   console.log(`   ✅ Envío ML vinculado encontrado en Gateway!`);
                   isMLAutoImport = true;
@@ -437,7 +442,7 @@ class OcrProcessingQueue {
         extracted.data.destination_address = destinationAddress;
         extracted.data.recipient_phone = mlShipmentData.buyer_phone || extracted.data.recipient_phone || '';
         extracted.data.external_tracking_code = trackingCodeToVerify;
-        
+
         // Usar datos oficiales y forzar auto-aprobación
         extracted.overall_confidence = 100;
         console.log(`   ✅ Datos extraídos sobreescritos con la info oficial y limpia de MercadoLibre.`);
@@ -623,7 +628,7 @@ class OcrProcessingQueue {
     const localUrl = process.env.OCR_LOCAL_URL || 'http://leonexpress_ocr:8000/parse/image';
     const ocrSpaceUrl = 'https://api.ocr.space/parse/image';
     const ocrSpaceKey = process.env.OCR_SPACE_API_KEY || 'K86104641688957';
-    
+
     const MAX_RETRIES = 3;
     const BASE_DELAY_MS = 2000;
     const TIMEOUT_MS = 90000; // Aumentado a 90s para EasyOCR que puede ser lento en CPU
@@ -650,7 +655,7 @@ class OcrProcessingQueue {
       const form = new FormData();
       form.append('base64Image', base64Image);
       form.append('language', 'spa');
-      
+
       if (!isLocal) {
         form.append('apikey', ocrSpaceKey);
         form.append('detectOrientation', 'true');
@@ -683,7 +688,7 @@ class OcrProcessingQueue {
       } catch (error) {
         lastError = error;
         console.warn(`⚠️  Intento OCR ${attempt} fallido: ${error.message}${isLocal ? ' (Reintentando con fallback)' : ''}`);
-        
+
         // Si es un error crítico o se agotaron los intentos, salir
         if (attempt === MAX_RETRIES) break;
       }
@@ -699,12 +704,18 @@ class OcrProcessingQueue {
    * Crea un paquete automáticamente desde datos OCR extraídos (Sincronizado)
    */
   async createPackage(pickup_id, extractedData) {
+    const rawCode = String(extractedData.external_tracking_code || '').trim();
+    extractedData = {
+      ...extractedData,
+      external_tracking_code: /^[\d\s-]+$/.test(rawCode) ? rawCode.replace(/[\s-]/g, '') : rawCode
+    };
     if (!this.packageCreationLock) this.packageCreationLock = Promise.resolve();
 
     return new Promise((resolve, reject) => {
       this.packageCreationLock = this.packageCreationLock.then(async () => {
         try {
-          const result = await this._doCreatePackage(pickup_id, extractedData);
+          const result = await withPickupPackageLock(pickup_id, (_pickup, transaction) =>
+            this._doCreatePackage(pickup_id, extractedData, transaction));
           resolve(result);
         } catch (error) {
           reject(error);
@@ -716,7 +727,7 @@ class OcrProcessingQueue {
   /**
    * Implementación interna de la creación de paquete
    */
-  async _doCreatePackage(pickup_id, extractedData) {
+  async _doCreatePackage(pickup_id, extractedData, transaction) {
     console.log(`\n┌─────────────────────────────────────────────────────`);
     console.log(`│ 🔨 INICIANDO CREACIÓN DE PAQUETE`);
     console.log(`├─────────────────────────────────────────────────────`);
@@ -726,7 +737,7 @@ class OcrProcessingQueue {
       console.log(`📋 [1/5] Validando pickup...`);
       console.log(`   Pickup ID: ${pickup_id}`);
 
-      const pickup = await Pickup.findByPk(pickup_id);
+      const pickup = await Pickup.findByPk(pickup_id, { transaction });
       if (!pickup) {
         console.log(`❌ Pickup NO encontrado`);
         throw new Error(`Pickup ${pickup_id} no encontrado`);
@@ -787,7 +798,8 @@ class OcrProcessingQueue {
         // Buscar paquetes con el mismo código externo
         const packagesWithSameCode = await Package.findAll({
           where: { external_tracking_code: extractedData.external_tracking_code },
-          order: [['created_at', 'DESC']]
+          order: [['created_at', 'DESC']],
+          transaction
         });
 
         if (packagesWithSameCode.length > 0) {
@@ -881,7 +893,7 @@ class OcrProcessingQueue {
 
       // 5. Crear el paquete
       console.log(`\n💾 [6/6] Insertando en base de datos...`);
-      const newPackage = await Package.create(packageData);
+      const newPackage = await Package.create(packageData, { transaction });
 
       console.log(`✓✓✓ PAQUETE CREADO EXITOSAMENTE ✓✓✓`);
       console.log(`   Package ID: ${newPackage.package_id}`);
@@ -892,52 +904,55 @@ class OcrProcessingQueue {
         console.log(`   ⚠️  MARCADO COMO DUPLICADO PENDIENTE DE REVISIÓN`);
       }
 
-      // 🚀 Si el paquete tiene tracking ML (Chilean formats: starts with 4 (11 digits), 3 (10-11 digits), or 2 (12-16 digits)), intentar confirmar con el gateway ML
-      const extCode = (extractedData.external_tracking_code || '').replace(/[\s-]/g, '');
-      if (/^(4\d{10}|3\d{9,10}|2\d{11,15})$/.test(extCode)) {
-        console.log(`\n🔄 [ML-GATEWAY] Tracking ML detectado: ${extCode}`);
-        console.log(`   Intentando confirmar con el gateway de MercadoLibre...`);
-        
-        try {
-          const mlGatewayClient = require('../services/mlGatewayClient');
-          const mlAccountAccess = require('../services/mlAccountAccessService');
-          
-          // Buscar el envío en el gateway
-          const pendingData = await mlAccountAccess.getPendingShipments({ search: extCode });
-          
-          if (pendingData && pendingData.shipments && pendingData.shipments.length > 0) {
-            // Buscar coincidencia exacta
-            const shipment = pendingData.shipments.find(s => 
-              String(s.ml_shipment_external_id) === String(extCode)
-            );
-            
-            if (shipment) {
-              // Validar que la cuenta ML pertenezca al cliente del pickup
-              const accessibleAccounts = await mlAccountAccess.getAccounts();
-              const clientAccounts = accessibleAccounts
-                .filter(a => a.client_id === pickup.client_id)
-                .map(a => a.ml_account_id);
-              
-              if (clientAccounts.includes(shipment.ml_account_id)) {
-                // ✅ Cuenta vinculada - marcar como importado en el gateway
-                console.log(`   ✅ Cuenta ML vinculada encontrada. Marcando como importado...`);
-                await mlGatewayClient.markShipmentAsImported(shipment.ml_shipment_id, newPackage.package_id);
-                console.log(`   ✅ Envío ML confirmado en gateway: ${extCode}`);
+      transaction.afterCommit(async () => {
+        // 🚀 Si el paquete tiene tracking ML (Chilean formats: starts with 4 (11 digits), 3 (10-11 digits), or 2 (12-16 digits)), intentar confirmar con el gateway ML
+        const extCode = (extractedData.external_tracking_code || '').replace(/[\s-]/g, '');
+        if (/^(4\d{10}|3\d{9,10}|2\d{11,15})$/.test(extCode)) {
+          console.log(`\n🔄 [ML-GATEWAY] Tracking ML detectado: ${extCode}`);
+          console.log(`   Intentando confirmar con el gateway de MercadoLibre...`);
+
+          try {
+            const mlGatewayClient = require('../services/mlGatewayClient');
+            const mlAccountAccess = require('../services/mlAccountAccessService');
+
+            // Buscar el envío en el gateway
+            const pendingData = await mlAccountAccess.getPendingShipments({ search: extCode });
+
+            if (pendingData && pendingData.shipments && pendingData.shipments.length > 0) {
+              // Buscar coincidencia exacta
+              const shipment = pendingData.shipments.find(s =>
+                String(s.ml_shipment_external_id) === String(extCode)
+              );
+
+              if (shipment) {
+                // Validar que la cuenta ML pertenezca al cliente del pickup
+                const accessibleAccounts = await mlAccountAccess.getAccounts();
+                const clientAccounts = accessibleAccounts
+                  .filter(a => a.client_id === pickup.client_id)
+                  .map(a => a.ml_account_id);
+
+                if (clientAccounts.includes(shipment.ml_account_id)) {
+                  // ✅ Cuenta vinculada - marcar como importado en el gateway
+                  console.log(`   ✅ Cuenta ML vinculada encontrada. Marcando como importado...`);
+                  await mlGatewayClient.markShipmentAsImported(shipment.ml_shipment_id, newPackage.package_id);
+                  console.log(`   ✅ Envío ML confirmado en gateway: ${extCode}`);
+                } else {
+                  // ❌ Cuenta NO vinculada - el paquete ya se creó vía OCR, solo informar
+                  console.log(`   ℹ️  Cuenta ML no vinculada a este cliente. Paquete creado vía OCR.`);
+                }
               } else {
-                // ❌ Cuenta NO vinculada - el paquete ya se creó vía OCR, solo informar
-                console.log(`   ℹ️  Cuenta ML no vinculada a este cliente. Paquete creado vía OCR.`);
+                console.log(`   ℹ️  No se encontró coincidencia exacta en gateway ML para: ${extCode}`);
               }
             } else {
-              console.log(`   ℹ️  No se encontró coincidencia exacta en gateway ML para: ${extCode}`);
+              console.log(`   ℹ️  No se encontró el envío en el gateway ML (probablemente ya fue importado).`);
             }
-          } else {
-            console.log(`   ℹ️  No se encontró el envío en el gateway ML (probablemente ya fue importado).`);
+          } catch (mlError) {
+            // Si falla la comunicación con el gateway, no es crítico - el paquete ya se creó
+            console.log(`   ⚠️  Error al confirmar con gateway ML (no crítico): ${mlError.message}`);
           }
-        } catch (mlError) {
-          // Si falla la comunicación con el gateway, no es crítico - el paquete ya se creó
-          console.log(`   ⚠️  Error al confirmar con gateway ML (no crítico): ${mlError.message}`);
         }
-      }
+
+      });
 
       console.log(`└─────────────────────────────────────────────────────\n`);
 

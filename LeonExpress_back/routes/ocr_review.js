@@ -4,6 +4,8 @@ const authenticateToken = require('../middlewares/authenticateToken');
 const { OcrProcessingQueue, Package, Pickup, Client, User } = require('../models');
 const { Op } = require('sequelize');
 const learningEngine = require('../utils/ocrLearningEngine');
+const { withPickupPackageLock } = require('../utils/pickupPackageLock');
+const { v4: uuidv4 } = require('uuid');
 
 /**
  * Middleware para verificar que el usuario sea ADMIN
@@ -521,182 +523,107 @@ router.get('/grouped', authenticateToken, authorizeReview, async (req, res) => {
 router.post('/:queue_id/approve', authenticateToken, authorizeReview, async (req, res) => {
   try {
     const { queue_id } = req.params;
-    const { corrected_data, notes } = req.body;
+    const { corrected_data } = req.body;
     const user_id = req.user.user_id;
+    if (!corrected_data || typeof corrected_data !== 'object' || Array.isArray(corrected_data)) {
+      return res.status(400).json({ error: 'Los datos corregidos son requeridos' });
+    }
+    const initialItem = await OcrProcessingQueue.findByPk(queue_id);
+    if (!initialItem) return res.status(404).json({ error: 'Item no encontrado en la cola' });
 
-    console.log('\n🔍 [APPROVE] Iniciando aprobación de paquete OCR');
-    console.log('   Queue ID:', queue_id);
-    console.log('   User ID:', user_id);
-    console.log('   Datos recibidos:', JSON.stringify(corrected_data, null, 2));
+    const result = await withPickupPackageLock(initialItem.pickup_id, async (pickup, transaction) => {
+      // Re-read after acquiring the collection lock: another reviewer may have approved this photo.
+      const queueItem = await OcrProcessingQueue.findByPk(queue_id, { transaction });
+      if (!queueItem) throw Object.assign(new Error('Item no encontrado en la cola'), { status: 404 });
+      if (queueItem.status === 'completed' && queueItem.package_id) {
+        return { success: true, message: 'Este item ya fue aprobado', package_id: queueItem.package_id, already_approved: true };
+      }
+      if (!['needs_review', 'error'].includes(queueItem.status)) {
+        throw Object.assign(new Error('Este item ya fue procesado o completado'), { status: 400 });
+      }
 
+      const rawCode = String(corrected_data.external_tracking_code || '').trim();
+      const externalCode = /^[\d\s-]+$/.test(rawCode) ? rawCode.replace(/[\s-]/g, '') : rawCode;
+      if (externalCode) {
+        const existing = await Package.findOne({
+          where: {
+            external_tracking_code: externalCode,
+            ...(queueItem.package_id ? { package_id: { [Op.ne]: queueItem.package_id } } : {})
+          },
+          transaction
+        });
+        if (existing) {
+          // Persist the review flag without creating a second package. Explicit multi-part decisions
+          // remain available in the existing duplicate-confirmation workflow.
+          await queueItem.update({
+            status: 'needs_review',
+            is_duplicate: true,
+            duplicate_of_package_id: existing.package_id,
+            duplicate_reason: `Ya existe el paquete ${existing.tracking_code} con este código externo`,
+            extracted_data: { ...corrected_data, external_tracking_code: externalCode }
+          }, { transaction });
+          return { duplicate: true, package_id: existing.package_id, tracking_code: existing.tracking_code };
+        }
+      }
 
+      const originalExtracted = typeof queueItem.extracted_data === 'string'
+        ? JSON.parse(queueItem.extracted_data) : (queueItem.extracted_data || {});
+      let pkg = queueItem.package_id ? await Package.findByPk(queueItem.package_id, { transaction }) : null;
+      const packageData = {
+        external_tracking_code: externalCode || null,
+        status: 'RECOLECTADO_EN_ORIGEN',
+        is_cod: corrected_data.is_cod || false,
+        cod_amount: corrected_data.cod_amount || 0,
+        client_price: corrected_data.client_price || 0,
+        delivery_cost: corrected_data.delivery_cost || 0,
+        destination_address: corrected_data.destination_address || '',
+        recipient_name: corrected_data.recipient_name || '',
+        recipient_phone: corrected_data.recipient_phone || ''
+      };
+      if (pkg) {
+        await pkg.update(packageData, { transaction });
+      } else {
+        const { generateUniqueTrackingCode } = require('../utils/uuidUtils');
+        pkg = await Package.create({
+          ...packageData,
+          package_id: uuidv4(),
+          tracking_code: await generateUniqueTrackingCode(),
+          pickup_id: queueItem.pickup_id,
+          client_id: pickup.client_id,
+          scanned_at_origin_datetime: new Date()
+        }, { transaction });
+      }
+      await queueItem.update({
+        status: 'completed',
+        auto_approved: false,
+        package_id: pkg.package_id,
+        reviewed_by: user_id,
+        reviewed_at: new Date(),
+        extracted_data: { ...corrected_data, external_tracking_code: externalCode || null }
+      }, { transaction });
 
-    // Buscar el item en la cola
-    const queueItem = await OcrProcessingQueue.findByPk(queue_id, {
-      include: [{ model: Pickup, as: 'pickup' }]
+      transaction.afterCommit(async () => {
+        try {
+          await learningEngine.recordCorrections(queue_id, originalExtracted, corrected_data,
+            user_id, queueItem.parser_used, queueItem.ocr_raw_text);
+        } catch (error) {
+          console.error('No se pudieron registrar las correcciones OCR:', error.message);
+        }
+      });
+      return { success: true, message: 'Paquete aprobado exitosamente', package_id: pkg.package_id, tracking_code: pkg.tracking_code };
     });
 
-    if (!queueItem) {
-      console.error('❌ [APPROVE] Item no encontrado:', queue_id);
-      return res.status(404).json({ error: 'Item no encontrado en la cola' });
-    }
-
-    console.log('✅ [APPROVE] Item encontrado:', {
-      id: queueItem.id,
-      status: queueItem.status,
-      pickup_id: queueItem.pickup_id,
-      package_id: queueItem.package_id
-    });
-
-    // ADVERTENCIA: Código de Venta ML detectado (pero NO bloquear - el reviewer ya decidió aprobar)
-    // La validación hard de shouldAutoApprove ya envió esto a revisión manual.
-    // Si el reviewer decide aprobar con este código, se respeta su decisión.
-    const extCode = corrected_data.external_tracking_code;
-    if (extCode && extCode.startsWith('20000') && extCode.length === 16 && queueItem.parser_used === 'Mercado Libre') {
-      console.warn(`⚠️ [APPROVE] ADVERTENCIA: Código de Venta ML detectado (${extCode}). El reviewer decidió aprobar de todas formas.`);
-    }
-
-    if (queueItem.status !== 'needs_review' && queueItem.status !== 'error') {
-      console.warn('⚠️ [APPROVE] Item ya procesado:', queueItem.status);
-      return res.status(400).json({
-        error: 'Este item ya fue procesado o completado',
-        current_status: queueItem.status
+    if (result.duplicate) {
+      return res.status(409).json({
+        error: `Este código ya pertenece al paquete ${result.tracking_code}. Revisa el duplicado antes de crear otro.`,
+        requires_duplicate_confirmation: true,
+        package_id: result.package_id
       });
     }
-
-    // Si ya tiene un paquete creado, actualizarlo
-    if (queueItem.package_id) {
-      console.log('📦 [APPROVE] Paquete ya existe, actualizando:', queueItem.package_id);
-      const existingPackage = await Package.findByPk(queueItem.package_id);
-      if (existingPackage) {
-        await existingPackage.update({
-          ...corrected_data,
-          status: 'RECOLECTADO_EN_ORIGEN' // Confirmar que está listo
-        });
-
-        // Actualizar cola
-        await queueItem.update({
-          status: 'completed',
-          auto_approved: false,
-          reviewed_by: user_id,
-          reviewed_at: new Date(),
-          extracted_data: corrected_data
-        });
-
-        // 🧠 APRENDIZAJE: Registrar correcciones
-        const originalExtracted = typeof queueItem.extracted_data === 'string'
-          ? JSON.parse(queueItem.extracted_data)
-          : (queueItem.extracted_data || {});
-        await learningEngine.recordCorrections(
-          queue_id, originalExtracted, corrected_data,
-          user_id, queueItem.parser_used, queueItem.ocr_raw_text
-        );
-
-        console.log('✅ [APPROVE] Paquete actualizado exitosamente');
-        return res.json({
-          success: true,
-          message: 'Paquete actualizado y aprobado',
-          package_id: existingPackage.package_id,
-          tracking_code: existingPackage.tracking_code
-        });
-      }
-    }
-
-    // Crear nuevo paquete con datos corregidos
-    console.log('📦 [APPROVE] Creando nuevo paquete...');
-    const { v4: uuidv4 } = require('uuid');
-
-    // Generar tracking code
-    const generateTrackingCode = async () => {
-      const prefix = 'LE';
-      const randomNum = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-      const tracking_code = `${prefix}${randomNum}`;
-
-      const existing = await Package.findOne({ where: { tracking_code } });
-      if (existing) {
-        return generateTrackingCode(); // Recursivo si existe
-      }
-      return tracking_code;
-    };
-
-    const tracking_code = await generateTrackingCode();
-    console.log('🔢 [APPROVE] Tracking code generado:', tracking_code);
-
-    const packageData = {
-      package_id: uuidv4(),
-      tracking_code,
-      external_tracking_code: corrected_data.external_tracking_code || null,
-      pickup_id: queueItem.pickup_id,
-      client_id: queueItem.pickup.client_id,
-      status: 'RECOLECTADO_EN_ORIGEN',
-      is_cod: corrected_data.is_cod || false,
-      cod_amount: corrected_data.cod_amount || 0,
-      client_price: corrected_data.client_price || 0,
-      delivery_cost: corrected_data.delivery_cost || 0,
-      scanned_at_origin_datetime: new Date(),
-      destination_address: corrected_data.destination_address || '',
-      recipient_name: corrected_data.recipient_name || '',
-      recipient_phone: corrected_data.recipient_phone || ''
-    };
-
-    console.log('📋 [APPROVE] Datos del paquete a crear:', JSON.stringify(packageData, null, 2));
-
-    const newPackage = await Package.create(packageData);
-    console.log('✅ [APPROVE] Paquete creado:', newPackage.package_id);
-
-    // Actualizar cola
-    console.log('📝 [APPROVE] Actualizando estado de la cola...');
-    await queueItem.update({
-      status: 'completed',
-      auto_approved: false,
-      package_id: newPackage.package_id,
-      reviewed_by: user_id,
-      reviewed_at: new Date(),
-      extracted_data: corrected_data
-    });
-
-    // 🧠 APRENDIZAJE: Registrar las correcciones del reviewer
-    const originalExtracted = typeof queueItem.extracted_data === 'string'
-      ? JSON.parse(queueItem.extracted_data)
-      : (queueItem.extracted_data || {});
-    const learningResult = await learningEngine.recordCorrections(
-      queue_id, originalExtracted, corrected_data,
-      user_id, queueItem.parser_used, queueItem.ocr_raw_text
-    );
-
-    console.log('✅ [APPROVE] Cola actualizada exitosamente');
-    console.log(`🧠 [APPROVE] Correcciones registradas para aprendizaje: ${learningResult.recorded}`);
-    console.log('🎉 [APPROVE] Proceso completado exitosamente\n');
-
-    res.json({
-      success: true,
-      message: 'Paquete creado y aprobado exitosamente',
-      package_id: newPackage.package_id,
-      tracking_code: newPackage.tracking_code,
-      learning: {
-        corrections_recorded: learningResult.recorded,
-        corrections: learningResult.corrections || []
-      }
-    });
-
+    res.json(result);
   } catch (error) {
-    console.error('\n❌❌❌ [APPROVE] ERROR CRÍTICO ❌❌❌');
-    console.error('Tipo de error:', error.name);
-    console.error('Mensaje:', error.message);
-    console.error('Stack:', error.stack);
-
-    if (error.errors) {
-      console.error('Errores de validación:');
-      error.errors.forEach((err, idx) => {
-        console.error(`  ${idx + 1}. Campo: ${err.path}, Mensaje: ${err.message}`);
-      });
-    }
-
-    res.status(500).json({
-      error: 'Error al aprobar paquete',
-      message: error.message,
-      details: error.errors ? error.errors.map(e => ({ field: e.path, message: e.message })) : null
-    });
+    console.error('Error al aprobar paquete OCR:', error.message);
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Error al aprobar paquete', message: error.message });
   }
 });
 

@@ -29,12 +29,14 @@ const props = withDefaults(
     emitOnly?: boolean
     onPackageScanned?: (pkg: Package) => void
     hideControls?: boolean
+    paused?: boolean
   }>(),
   {
     routeId: '',
     emitOnly: false,
     onPackageScanned: undefined,
     hideControls: false,
+    paused: false,
   },
 )
 
@@ -350,8 +352,9 @@ const startCamera = async () => {
   // Detectar si es Android
   const isAndroid = /android/i.test(navigator.userAgent)
 
-  // En Android: usar jsQR que funciona mejor
-  if (isAndroid) {
+  // Use the hybrid camera when native barcode decoding is available. Otherwise html5-qrcode
+  // provides its JavaScript barcode decoder, including on Android.
+  if (isAndroid && 'BarcodeDetector' in window) {
     addDebugLog('📱 Android detectado - usando modo jsQR')
     isTransitioning.value = false
     await startJsQRWithBarcodes()
@@ -632,7 +635,7 @@ const stopCamera = async () => {
 const extractTrackingCode = (qrData: string): string => {
   try {
     const jsonData = JSON.parse(qrData)
-    if (jsonData.id) return jsonData.id
+    if (jsonData.id) return String(jsonData.id)
   } catch (e) {}
 
   // Normalizar Unicode (resolver caracteres raros como ¸)
@@ -649,7 +652,7 @@ const extractTrackingCode = (qrData: string): string => {
 
 // Manejar QR/Barra detectado
 const handleQRDetected = async (qrData: string) => {
-  if (isProcessing.value) return
+  if (isProcessing.value || props.paused) return
 
   console.log(
     '📦 Código RAW detectado:',

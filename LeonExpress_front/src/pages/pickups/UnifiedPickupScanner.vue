@@ -28,7 +28,7 @@
             class="flex items-center gap-1 bg-green-50 text-green-700 px-2.5 py-1.5 rounded-full font-medium"
           >
             <VaIcon name="check_circle" size="0.85rem" />
-            <span>{{ confirmedML.length }} ML</span>
+            <span>{{ confirmedML.length }} confirmados</span>
           </div>
           <div
             v-if="capturedPhotos.length > 0"
@@ -114,6 +114,7 @@
             ref="qrScannerRef"
             hide-controls
             emit-only
+            :paused="isConfirming || lastScanFeedback?.type === 'warning' || isUploading"
             @rawScan="handleQRScanned"
             @rawQrData="handleRawQRData"
             @cameraStatus="(active) => (isQRCameraActive = active)"
@@ -138,12 +139,14 @@
                 <!-- Botón de acción rápido si requiere foto -->
                 <div v-if="lastScanFeedback.type === 'warning'" class="mt-4 flex flex-col gap-2 w-full">
                   <button
+                    v-if="lastScanFeedback.allowPhoto"
                     class="flex items-center justify-center gap-2 mx-auto px-5 py-2.5 bg-white text-orange-700 hover:bg-orange-50 font-bold text-sm rounded-xl shadow-md transition-all duration-150 active:scale-95 pointer-events-auto w-full"
                     @click="handleFeedbackTakePhoto"
                   >
                     <VaIcon name="photo_camera" size="1.1rem" />
                     <span>Tomar Foto Ahora</span>
                   </button>
+                  <button class="px-5 py-2.5 font-semibold" @click="dismissScanFeedback">Seguir escaneando</button>
                 </div>
               </div>
             </div>
@@ -153,7 +156,7 @@
         <!-- Mensaje contextual (solo visible cuando la cámara está activa) -->
         <div v-if="isQRCameraActive" class="text-center mb-4">
           <p class="text-sm text-gray-500">
-            <template v-if="!pendingNonMLCode"> Apunta la cámara al código QR de la etiqueta </template>
+            <template v-if="!pendingNonMLCode"> Apunta la cámara al QR o código de barras de la etiqueta </template>
             <template v-else>
               <span class="text-orange-600 font-medium">Código leído: {{ pendingNonMLCode }}</span>
             </template>
@@ -162,14 +165,15 @@
 
         <!-- Botones de acción principales -->
         <div class="space-y-3">
-          <!-- Si la cámara QR está activa y tenemos un código pendiente de foto, mostrar acceso directo destacado -->
           <button
-            v-if="isQRCameraActive && pendingNonMLCode"
-            class="w-full flex items-center justify-center gap-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold text-base py-3.5 px-6 rounded-2xl shadow-lg transition-all duration-150 active:scale-[0.98]"
+            class="w-full flex items-center justify-center gap-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base py-3.5 px-6 rounded-2xl shadow-lg"
+            :disabled="isConfirming || isUploading"
             @click="handleFeedbackTakePhoto"
           >
             <VaIcon name="photo_camera" size="1.3rem" />
-            <span>Tomar Foto de este Paquete</span>
+            <span>{{
+              pendingNonMLCode ? 'Tomar foto de este paquete' : 'Tomar foto de etiqueta / Paquete manual'
+            }}</span>
           </button>
 
           <!-- Botón "Detener Cámara QR" - solo visible si está activa la cámara QR -->
@@ -195,7 +199,7 @@
             <div class="px-4 py-3 space-y-2 text-sm">
               <div v-if="confirmedML.length > 0" class="flex items-center gap-2 text-green-700">
                 <VaIcon name="check_circle" size="1rem" />
-                <span>{{ confirmedML.length }} paquete(s) ML confirmados</span>
+                <span>{{ confirmedML.length }} paquete(s) confirmados</span>
               </div>
               <div v-if="capturedPhotos.length > 0" class="flex items-center gap-2 text-blue-700">
                 <VaIcon name="photo_camera" size="1rem" />
@@ -229,14 +233,16 @@
 
           <!-- Botón "Terminar Recolección" - visible cuando hay algo procesado -->
           <button
-            v-if="(confirmedML.length > 0 || capturedPhotos.length > 0) && !isQRCameraActive"
+            v-if="(confirmedML.length > 0 || capturedPhotos.length > 0 || uploadedPhotoCount > 0) && !isQRCameraActive"
             :disabled="isUploading"
             class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 active:from-green-700 active:to-emerald-800 text-white font-bold text-base py-4 px-6 rounded-2xl shadow-lg shadow-green-600/25 transition-all duration-150 active:scale-[0.98] disabled:opacity-50"
             @click="finishCollection"
           >
             <VaIcon :name="isUploading ? 'hourglass_top' : 'check_circle'" size="1.3rem" />
             <span>{{
-              isUploading ? 'Procesando...' : `Terminar Recolección (${confirmedML.length + capturedPhotos.length})`
+              isUploading
+                ? 'Procesando...'
+                : `Terminar Recolección (${confirmedML.length + capturedPhotos.length + uploadedPhotoCount})`
             }}</span>
           </button>
 
@@ -400,15 +406,15 @@
           </div>
           <h2 class="text-2xl font-bold text-gray-900 mb-2">¡Listo!</h2>
           <p class="text-gray-500 mb-6 max-w-xs">
-            <template v-if="confirmedML.length > 0 && capturedPhotos.length > 0">
-              <strong>{{ confirmedML.length }}</strong> ML confirmados y
-              <strong>{{ capturedPhotos.length }}</strong> foto(s) enviadas a procesar.
+            <template v-if="confirmedML.length > 0 && uploadedPhotoCount > 0">
+              <strong>{{ confirmedML.length }}</strong> paquetes confirmados y
+              <strong>{{ uploadedPhotoCount }}</strong> foto(s) enviadas a procesar.
             </template>
             <template v-else-if="confirmedML.length > 0">
-              <strong>{{ confirmedML.length }}</strong> paquete(s) ML confirmados exitosamente.
+              <strong>{{ confirmedML.length }}</strong> paquete(s) confirmados exitosamente.
             </template>
             <template v-else>
-              <strong>{{ capturedPhotos.length }}</strong> foto(s) enviadas a procesar.
+              <strong>{{ uploadedPhotoCount }}</strong> foto(s) enviadas a procesar.
             </template>
           </p>
           <button
@@ -493,6 +499,7 @@ const isQRCameraActive = ref(false)
 const pendingPhotoCodes = ref<string[]>([])
 const showManualInput = ref(false)
 const manualTrackingCode = ref('')
+const isConfirming = ref(false)
 
 function startQRCamera() {
   qrScannerRef.value?.startCamera()
@@ -504,6 +511,8 @@ function stopQRCamera() {
 
 async function submitManualCode() {
   if (!manualTrackingCode.value.trim()) return
+  if (isConfirming.value) return
+  pendingRawQRData = null
   const code = manualTrackingCode.value.trim()
   manualTrackingCode.value = ''
   showManualInput.value = false
@@ -512,6 +521,7 @@ async function submitManualCode() {
 
 // ─── Confirmados ML ────────────────────────────────────────
 interface ConfirmedML {
+  packageId?: string
   tracking: string
   recipient: string
   timestamp: Date
@@ -525,12 +535,20 @@ const lastScanFeedback = ref<{
   color: string
   title: string
   subtitle?: string
+  allowPhoto: boolean
 } | null>(null)
 
 let feedbackTimeout: ReturnType<typeof setTimeout> | null = null
-function showFeedback(type: 'success' | 'warning', icon: string, color: string, title: string, subtitle?: string) {
+function showFeedback(
+  type: 'success' | 'warning',
+  icon: string,
+  color: string,
+  title: string,
+  subtitle?: string,
+  allowPhoto = type === 'warning',
+) {
   if (feedbackTimeout) clearTimeout(feedbackTimeout)
-  lastScanFeedback.value = { type, icon, color, title, subtitle }
+  lastScanFeedback.value = { type, icon, color, title, subtitle, allowPhoto }
   if (type === 'warning') return // warnings are persistent - user must choose action
   feedbackTimeout = setTimeout(() => {
     lastScanFeedback.value = null
@@ -543,6 +561,7 @@ const video = ref<HTMLVideoElement | null>(null)
 let cameraStream: MediaStream | null = null
 
 const capturedPhotos = ref<string[]>([])
+const uploadedPhotoCount = ref(0)
 const isProcessing = ref(false)
 const isUploading = ref(false)
 const uploadProgress = ref(0)
@@ -553,7 +572,11 @@ let exitConfirmationResolver: ((shouldLeave: boolean) => void) | null = null
 const hasUnsavedChanges = computed(
   () =>
     !uploadComplete.value &&
-    (capturedPhotos.value.length > 0 || pendingPhotoCodes.value.length > 0 || pendingNonMLCode.value !== null),
+    (isConfirming.value ||
+      isUploading.value ||
+      capturedPhotos.value.length > 0 ||
+      pendingPhotoCodes.value.length > 0 ||
+      pendingNonMLCode.value !== null),
 )
 // Pricing
 const clientPrice = ref(0)
@@ -635,98 +658,81 @@ function handleRawQRData(data: string) {
   pendingRawQRData = data
 }
 
-async function handleQRScanned(code: string) {
-  if (!code) return
+function dismissScanFeedback() {
+  lastScanFeedback.value = null
+  pendingNonMLCode.value = null
+  pendingRawQRData = null
+}
 
+async function handleQRScanned(code: string) {
+  if (!code || isConfirming.value || isUploading.value || photoModeActive.value) return
+  const trimmedCode = String(code).trim()
+  const cleanCode = /^[\d\s-]+$/.test(trimmedCode) ? trimmedCode.replace(/[\s-]/g, '') : trimmedCode
+  if (!cleanCode) return
+  const rawData = pendingRawQRData
+  pendingRawQRData = null
   pendingNonMLCode.value = null
 
-  // Evitar duplicados
-  if (confirmedML.value.some((c) => c.tracking === code)) {
-    notify({ message: `Código ${code} ya fue procesado`, color: 'info', duration: 1500 })
+  if (confirmedML.value.some((item) => item.tracking === cleanCode)) {
+    showFeedback('success', 'check_circle', '#4caf50', 'Ya escaneado', cleanCode)
     return
   }
 
-  // Detectar si es código ML (Chilean formats: starts with 4 (11 digits), 3 (10-11 digits), or 2 (12-16 digits))
-  const cleanCode = code.replace(/[\s-]/g, '')
-  const isML = /^(4\d{10}|3\d{9,10}|2\d{11,15})$/.test(cleanCode)
-
-  if (isML) {
-    await tryConfirmML(code)
-  } else {
-    // No es ML → sugerir tomar foto
-    pendingNonMLCode.value = code
-    showFeedback(
-      'warning',
-      'photo_camera',
-      '#ff9800',
-      'Necesitas tomar una foto',
-      'Este código no es de MercadoLibre. Presiona "Tomar Foto"',
-    )
-  }
-}
-
-async function tryConfirmML(code: string) {
+  isConfirming.value = true
   try {
-    const res = await axiosInstance.post('/ml-confirm/packages/confirm-ml', {
+    // Existing manual packages can be confirmed by internal tracking or external barcode as well.
+    const { data } = await axiosInstance.post('/ml-confirm/packages/confirm-ml', {
       pickup_id: pickupId,
-      ml_code: code,
-      raw_qr_data: pendingRawQRData,
+      ml_code: cleanCode,
+      raw_qr_data: rawData,
     })
-
-    // ✅ ML vinculado — confirmado
-    confirmedML.value.push({
-      tracking: code,
-      recipient: res.data.package?.recipient_name || res.data.package?.address || '—',
-      timestamp: new Date(),
-    })
-
-    showFeedback('success', 'check_circle', '#4caf50', 'ML Confirmado', res.data.package?.address || code)
-
-    if ('vibrate' in navigator) navigator.vibrate(100)
-  } catch (e: any) {
-    const errMsg = e.response?.data?.error || ''
-
-    if (/no vinculada|no vinculado|not.*link/i.test(errMsg)) {
-      // ❌ ML pero cuenta no vinculada → sugerir foto + OCR
-      pendingNonMLCode.value = code
-      showFeedback(
-        'warning',
-        'photo_camera',
-        '#ff9800',
-        'Necesitas tomar una foto',
-        'Cuenta ML no vinculada. Presiona "Tomar Foto"',
+    if (
+      !confirmedML.value.some(
+        (item) => item.tracking === cleanCode || (data.package?.id && item.packageId === data.package.id),
       )
-    } else if (/ya fue.*importado|already.*import|duplicado/i.test(errMsg)) {
+    ) {
       confirmedML.value.push({
-        tracking: code,
-        recipient: 'Ya importado',
+        packageId: data.package?.id,
+        tracking: cleanCode,
+        recipient: data.package?.name || data.package?.address || '—',
         timestamp: new Date(),
       })
-      showFeedback('success', 'check_circle', '#4caf50', 'Ya confirmado', code)
-    } else if (/ya fue.*escaneado|ya.*escaneo|already.*scanned|RECOLECTADO_EN_ORIGEN/i.test(errMsg)) {
-      if (!confirmedML.value.some((c) => c.tracking === code)) {
-        confirmedML.value.push({
-          tracking: code,
-          recipient: 'Ya escaneado',
-          timestamp: new Date(),
-        })
-      }
-      showFeedback('success', 'check_circle', '#4caf50', 'Ya escaneado', 'El envío ya fue escaneado previamente')
-    } else {
-      showFeedback('warning', 'warning', '#ff9800', 'Error', errMsg || 'Intenta con foto')
-      notify({ message: errMsg || 'Error al confirmar ML. Toma una foto.', color: 'danger', duration: 3000 })
     }
+    showFeedback(
+      'success',
+      'check_circle',
+      '#4caf50',
+      data.already_confirmed ? 'Ya escaneado' : 'Paquete confirmado',
+      data.package?.address || cleanCode,
+    )
+    if ('vibrate' in navigator) navigator.vibrate(100)
+  } catch (error: any) {
+    const message = error.response?.data?.error || 'No se pudo confirmar el paquete. Puedes reintentar.'
+    const allowPhoto =
+      error.response?.data?.allow_photo === true || error.response?.status === 404 || /no vinculad/i.test(message)
+    if (allowPhoto) pendingNonMLCode.value = cleanCode
+    showFeedback(
+      'warning',
+      'warning',
+      '#ff9800',
+      allowPhoto ? 'Tomar foto de la etiqueta' : 'No se pudo confirmar',
+      message,
+      allowPhoto,
+    )
+    notify({ message, color: 'warning', duration: 4000 })
+  } finally {
+    isConfirming.value = false
   }
 }
 
 // ─── Cambiar entre modo QR y modo foto ─────────────────────
 
-function switchToPhotoMode() {
+async function switchToPhotoMode() {
+  if (isConfirming.value || isUploading.value) return
   photoModeActive.value = true
-  if (qrScannerRef.value) {
-    qrScannerRef.value.stopCamera()
-  }
-  nextTick(() => startPhotoCamera())
+  await qrScannerRef.value?.stopCamera()
+  await nextTick()
+  await startPhotoCamera()
 }
 
 function handleFeedbackTakePhoto() {
@@ -853,10 +859,12 @@ function clearPhotos() {
 // ─── Finalizar recolección (fotos + ML) ──────────────────
 
 async function finishCollection() {
+  if (isUploading.value || isConfirming.value || uploadComplete.value) return
   // If there are photos, upload them first
   if (capturedPhotos.value.length > 0) {
     isUploading.value = true
     uploadProgress.value = 0
+    let uploadedPhotos = 0
     try {
       await uploadBatchChunked({
         pickupId,
@@ -865,10 +873,13 @@ async function finishCollection() {
         deliveryCost: deliveryCost.value,
         onProgress: (sent, total) => {
           uploadProgress.value = Math.round((sent / total) * 100)
+          capturedPhotos.value.splice(0, sent - uploadedPhotos)
+          uploadedPhotoCount.value += sent - uploadedPhotos
+          uploadedPhotos = sent
         },
       })
       notify({
-        message: `${capturedPhotos.value.length} foto(s) enviadas a OCR`,
+        message: `${uploadedPhotoCount.value} foto(s) enviadas a OCR`,
         color: 'success',
         duration: 3000,
       })

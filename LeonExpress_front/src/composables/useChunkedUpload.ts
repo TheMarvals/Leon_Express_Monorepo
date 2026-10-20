@@ -95,11 +95,6 @@ export async function uploadBatchChunked(opts: BatchChunkOptions): Promise<Batch
     chunks.push(images.slice(i, i + chunkSize))
   }
 
-  // Sesión única para esta operación de subida completa.
-  // Cada chunk recibe una clave de idempotencia única (pickup + índice de chunk + sesión),
-  // lo que evita que el backend rechace chunks distintos que tengan el mismo hash de imágenes.
-  const sessionId = Math.random().toString(36).substring(2, 10)
-
   let lastBatchId: string = ''
   let sent = 0
 
@@ -107,10 +102,10 @@ export async function uploadBatchChunked(opts: BatchChunkOptions): Promise<Batch
     const chunk = chunks[i]
     const chunkNum = i + 1
 
-    // Clave de idempotencia única por chunk: pickup + sesión + índice
-    // Esto garantiza que chunk 0, chunk 1, chunk 2... no colisionen entre sí,
-    // y que reintentos del MISMO chunk sí sean detectados correctamente.
-    const idempotencyKey = `${pickupId}_s${sessionId}_c${i}`
+    // The same photos keep their key if a mobile upload is retried after a partial failure.
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(chunk)))
+    const contentHash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+    const idempotencyKey = `${pickupId}_${contentHash}`
 
     console.log(`📤 Enviando chunk ${chunkNum}/${chunks.length} (${chunk.length} imágenes)... key=${idempotencyKey}`)
 
