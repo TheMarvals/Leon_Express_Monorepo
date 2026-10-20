@@ -10,7 +10,8 @@ WORKDIR /app
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Allow slow package downloads during builds (PyTorch wheels are large).
+RUN pip install --no-cache-dir --timeout 120 --retries 5 -r requirements.txt
 
 # Pre-download EasyOCR models for English and Spanish to save time on first run
 RUN python -c "import easyocr; reader = easyocr.Reader(['es', 'en'], gpu=False)"
