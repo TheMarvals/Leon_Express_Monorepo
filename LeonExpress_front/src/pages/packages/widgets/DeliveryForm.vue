@@ -420,8 +420,11 @@ onUnmounted(closeCamera)
       <!-- Leyenda de orientación vertical -->
       <div class="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3">
         <p class="text-xs text-blue-800 text-center flex items-center justify-center gap-2">
-          <i class="fa fa-mobile-alt"></i>
-          <strong>Importante:</strong> Las fotos siempre deben tomarse en <strong>vertical</strong> (modo retrato)
+          <i class="fa fa-mobile-alt shrink-0"></i>
+          <span
+            ><strong>Importante:</strong> Las fotos siempre deben tomarse en <strong>vertical</strong> (modo
+            retrato)</span
+          >
         </p>
       </div>
 

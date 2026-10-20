@@ -1,6 +1,9 @@
 <template>
   <VaForm ref="form" @submit.prevent="submit">
     <h1 class="font-semibold text-4xl mb-4">Log in</h1>
+    <VaAlert v-if="route.query.reason === 'session-expired'" color="warning" class="mb-4" role="alert">
+      {{ SESSION_EXPIRED_MESSAGE }}
+    </VaAlert>
     <!-- <p class="text-base mb-4 leading-5">
       New to our platform?
       <RouterLink :to="{ name: 'signup' }" class="font-semibold text-primary"
@@ -41,12 +44,14 @@
 
 <script lang="ts" setup>
 import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { SESSION_EXPIRED_MESSAGE } from '../../services/sessionExpiry'
 import { useForm, useToast } from 'vuestic-ui'
 import { validators } from '../../services/utils'
 import { useUserStore } from '@stores/user-store'
 import api from '../../services/api' // 1. Importa tu servicio de API centralizado
 
+const route = useRoute()
 const userStore = useUserStore()
 const { validate } = useForm('form')
 const { push } = useRouter()

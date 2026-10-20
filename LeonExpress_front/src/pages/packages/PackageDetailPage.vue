@@ -261,7 +261,7 @@ const openImageInLightbox = (photoIndex: number) => {
 }
 
 const handleDeliverySave = async (formData: FormData) => {
-  if (!pkg.value) return
+  if (!pkg.value || isSavingDelivery.value) return
 
   isSavingDelivery.value = true
 
@@ -378,50 +378,10 @@ const handleDeliverySave = async (formData: FormData) => {
     )
 
     const response = await api.createDelivery(pkg.value.package_id, formData)
-    const deliveryId: string | undefined = response.data?.delivery_id
 
     console.log('✅ Registro de entrega guardado:', response.data)
 
-    // Extraer fotos del FormData para subida incremental
-    const photosFromForm: File[] = []
-    ;(formData as any).forEach((val: any, key: string) => {
-      if (key === 'photos' && val instanceof File) photosFromForm.push(val)
-    })
-
-    if (deliveryId && photosFromForm.length > 1) {
-      // La primera foto ya se incluyó en el request original, subir el resto
-      const remainingPhotos = photosFromForm.slice(1)
-      notify({
-        message: `📤 Subiendo ${remainingPhotos.length} foto(s) adicionales...`,
-        color: 'info',
-        duration: 2500,
-      })
-      let uploadedCount = 0
-      for (const photo of remainingPhotos) {
-        let lastErr: any
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          try {
-            await api.uploadDeliveryPhoto(deliveryId, photo)
-            uploadedCount++
-            break
-          } catch (err: any) {
-            lastErr = err
-            if (attempt < 3) {
-              await new Promise((r) => setTimeout(r, 2000 * attempt))
-            }
-          }
-        }
-        if (lastErr && uploadedCount < remainingPhotos.length) {
-          console.warn('⚠️ No se pudo subir una foto de evidencia:', lastErr)
-          notify({
-            message: '⚠️ Algunas fotos no pudieron subirse. El registro se guardó igualmente.',
-            color: 'warning',
-            duration: 5000,
-          })
-        }
-      }
-    }
-
+    // El servidor guarda todas las fotos del FormData en la misma transacción que la entrega.
     notify({ message: 'Registro de entrega guardado con éxito.', color: 'success' })
 
     showCloseDeliveryConfirm.value = false
@@ -438,26 +398,26 @@ const handleDeliverySave = async (formData: FormData) => {
   } catch (e: any) {
     console.error('❌ Error al guardar la entrega:', e)
 
-    let errorMessage = 'Error al guardar el registro.'
-    if (e.message === 'PERMISSION_DENIED' || (e.code && typeof e.code === 'number' && e.code === 1)) {
+    const data = e.response?.data
+    const validationMessages = Array.isArray(data?.errors)
+      ? data.errors.map((error: { msg?: unknown }) => error?.msg).filter((msg: unknown) => typeof msg === 'string')
+      : []
+    let errorMessage = 'Error al guardar el registro. Intenta nuevamente; los datos del formulario se conservan.'
+
+    if (validationMessages.length > 0) {
+      errorMessage = [...new Set(validationMessages)].join(' ')
+    } else if (typeof data?.error === 'string' && data.error.trim()) {
+      errorMessage = data.error
+    } else if (typeof data?.message === 'string' && data.message.trim()) {
+      errorMessage = data.message
+    } else if (e.response?.status === 413) {
+      errorMessage = 'Las fotos superan el tamaño permitido. Reduce su tamaño e intenta nuevamente.'
+    } else if (!e.response) {
       errorMessage =
-        'Se necesita permiso de ubicación para registrar la entrega. Por favor, habilite la geolocalización en la configuración de su navegador y recargue la página.'
-    } else if (e.code && typeof e.code === 'number') {
-      switch (e.code) {
-        case 2: // POSITION_UNAVAILABLE
-          errorMessage = 'La información de ubicación no está disponible.'
-          break
-        case 3: // TIMEOUT
-          errorMessage = 'Se agotó el tiempo de espera para obtener la ubicación.'
-          break
-        default:
-          errorMessage = 'Ocurrió un error al obtener la ubicación.'
-      }
-    } else if (e.response?.data?.message) {
-      errorMessage = e.response.data.message
+        'No se pudo confirmar el guardado. Verifica tu conexión y actualiza el paquete para comprobar si la entrega quedó registrada antes de reintentar.'
     }
 
-    notify({ message: errorMessage, color: 'danger' })
+    notify({ message: errorMessage, color: 'danger', duration: 8000 })
   } finally {
     isSavingDelivery.value = false
   }

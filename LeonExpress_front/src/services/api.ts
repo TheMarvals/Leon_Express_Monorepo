@@ -1,12 +1,19 @@
 // api.ts
 import axios from 'axios'
 import { useLoading } from '@/composables/useLoading'
+import { createSessionExpiryHandler } from './sessionExpiry'
 
 const { show: showLoading, hide: hideLoading } = useLoading()
 
 // Axios instance
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
+})
+
+const handleSessionExpiry = createSessionExpiryHandler({
+  storage: localStorage,
+  redirect: (path) => window.location.replace(path),
+  loginPath: `${import.meta.env.BASE_URL}auth/login`,
 })
 
 // Interceptor para agregar el token de autenticación y mostrar loading
@@ -61,6 +68,7 @@ axiosInstance.interceptors.response.use(
   (error) => {
     console.error('❌ Error en la API:', error.response?.data || error.message)
     hideLoading() // Asegurar que se oculte el loading en caso de error
+    handleSessionExpiry(error)
     return Promise.reject(error)
   },
 )

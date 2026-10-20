@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute as useVueRoute, RouterLink } from 'vue-router'
 import { useToast, defineVaDataTableColumns } from 'vuestic-ui'
 import api from '../../services/api'
+import { isSessionExpiredError, SESSION_EXPIRED_MESSAGE } from '../../services/sessionExpiry'
 import { Route } from './types'
 import { Package } from '../packages/types'
 import { getAvailableComunas, getComunasFromAddresses, comunasService } from '../../data/comunas'
@@ -15,6 +16,7 @@ const userStore = useUserStore()
 
 // --- Estado del componente ---
 const routeData = ref<Route | null>(null)
+const loadError = ref('')
 const targetRoutes = ref<Route[]>([])
 const selectedPending = ref<Package[]>([])
 const targetRouteId = ref('')
@@ -83,6 +85,7 @@ const statusColors: Record<string, string> = {
 const fetchData = async (showLoading = true) => {
   if (showLoading) isLoading.value = true
   const routeId = route.params.id as string
+  loadError.value = ''
   try {
     const [routeRes, packagesRes, routesRes] = await Promise.all([
       api.getRouteById(routeId),
@@ -105,8 +108,14 @@ const fetchData = async (showLoading = true) => {
     )
     selectedPending.value = []
     availablePackages.value = packagesRes.data.packages || []
-  } catch (error) {
-    notify({ message: 'Error al cargar los datos de la ruta', color: 'danger' })
+  } catch (error: any) {
+    if (route.params.id !== routeId) return
+    loadError.value = isSessionExpiredError(error)
+      ? SESSION_EXPIRED_MESSAGE
+      : error.response?.data?.error || 'No se pudieron cargar los datos de la ruta. Intenta nuevamente.'
+    if (!isSessionExpiredError(error)) {
+      notify({ message: loadError.value, color: 'danger' })
+    }
   } finally {
     if (showLoading) isLoading.value = false
   }
@@ -991,7 +1000,7 @@ const showApproveButton = computed(() => {
     </div>
   </div>
   <div v-else>
-    <h1 class="page-title">Ruta no encontrada</h1>
+    <VaAlert color="warning" role="alert">{{ loadError || 'No se pudieron cargar los datos de la ruta.' }}</VaAlert>
   </div>
 </template>
 
