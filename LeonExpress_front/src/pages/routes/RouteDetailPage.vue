@@ -18,6 +18,8 @@ const userStore = useUserStore()
 const routeData = ref<Route | null>(null)
 const loadError = ref('')
 const targetRoutes = ref<Route[]>([])
+const isLoadingTargetRoutes = ref(false)
+const targetRoutesError = ref('')
 const selectedPending = ref<Package[]>([])
 const targetRouteId = ref('')
 const isTransferring = ref(false)
@@ -98,14 +100,8 @@ const fetchData = async (showLoading = true) => {
     ])
     if (route.params.id !== routeId) return
     routeData.value = routeRes.data
-    targetRoutes.value = (routesRes.data.routes || []).filter(
-      (item: Route) =>
-        item.route_id !== routeId &&
-        ['PENDIENTE', 'EN_PROGRESO'].includes(item.status) &&
-        (userStore.isAdmin || item.user_id === userStore.user?.user_id) &&
-        item.route_type === 'ENTREGA' &&
-        item.warehouse_id === routeData.value?.warehouse_id,
-    )
+    targetRoutes.value = routesRes.data.routes || []
+    targetRoutesError.value = ''
     selectedPending.value = []
     availablePackages.value = packagesRes.data.packages || []
   } catch (error: any) {
@@ -195,8 +191,23 @@ const pendingPackages = computed(() =>
 const canManageRoute = computed(
   () => isAdmin.value || (isDriver.value && routeData.value?.user_id === userStore.user?.user_id),
 )
+const eligibleTargetRoutes = computed(() =>
+  targetRoutes.value.filter(
+    (item) =>
+      item.route_id !== routeData.value?.route_id &&
+      ['PENDIENTE', 'EN_PROGRESO'].includes(item.status) &&
+      (userStore.isAdmin || item.user_id === userStore.user?.user_id) &&
+      item.route_type === 'ENTREGA' &&
+      item.warehouse_id === routeData.value?.warehouse_id,
+  ),
+)
+const emptyTargetRoutesText = computed(() =>
+  isAdmin.value
+    ? 'No hay otra ruta de entrega pendiente o en progreso en esta bodega.'
+    : 'No tienes otra ruta de entrega pendiente o en progreso en esta bodega. Para transferir a otro conductor, solicita la gestión a un administrador.',
+)
 const targetRouteOptions = computed(() =>
-  targetRoutes.value.map((item) => ({
+  eligibleTargetRoutes.value.map((item) => ({
     value: item.route_id,
     text: `${item.route_name || 'Ruta sin nombre'} · ${item.user?.full_name || 'Conductor'} · ${item.status.replace(
       /_/g,
@@ -204,8 +215,37 @@ const targetRouteOptions = computed(() =>
     )}`,
   })),
 )
+const refreshTargetRoutes = async (isOpen = true) => {
+  if (!isOpen || isLoadingTargetRoutes.value) return
+  const routeId = route.params.id as string
+  isLoadingTargetRoutes.value = true
+  targetRoutesError.value = ''
+  try {
+    const { data } = await api.getRoutes({})
+    if (route.params.id !== routeId) return
+    targetRoutes.value = data.routes || []
+    if (!eligibleTargetRoutes.value.some((item) => item.route_id === targetRouteId.value)) {
+      targetRouteId.value = ''
+    }
+  } catch (error: any) {
+    if (route.params.id !== routeId) return
+    targetRoutes.value = []
+    targetRouteId.value = ''
+    targetRoutesError.value = isSessionExpiredError(error)
+      ? SESSION_EXPIRED_MESSAGE
+      : 'No se pudieron actualizar las rutas de destino. Intenta nuevamente.'
+  } finally {
+    isLoadingTargetRoutes.value = false
+  }
+}
 const handleTransferPending = async () => {
-  if (!targetRouteId.value || !selectedPending.value.length) return
+  if (
+    isTransferring.value ||
+    isLoadingTargetRoutes.value ||
+    !eligibleTargetRoutes.value.some((item) => item.route_id === targetRouteId.value) ||
+    !selectedPending.value.length
+  )
+    return
   if (
     !window.confirm(
       `¿Confirmas el traspaso físico de ${selectedPending.value.length} paquete(s) a la ruta seleccionada?`,
@@ -669,48 +709,6 @@ const showApproveButton = computed(() => {
       </div>
     </VaModal>
 
-    <VaCard
-      v-if="
-        canManageRoute &&
-        routeData.route_type === 'ENTREGA' &&
-        ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status) &&
-        pendingPackages.length
-      "
-      class="mb-6"
-    >
-      <VaCardTitle>Transferir pendientes</VaCardTitle>
-      <VaCardContent>
-        <p class="mb-3">
-          Selecciona los paquetes que pasan a la siguiente ruta. Confirma que fueron entregados físicamente al conductor
-          de destino.
-        </p>
-        <VaDataTable
-          v-model="selectedPending"
-          :items="pendingPackages"
-          :columns="columns"
-          selectable
-          select-mode="multiple"
-          :per-page="20"
-        />
-        <VaSelect
-          v-model="targetRouteId"
-          :options="targetRouteOptions"
-          text-by="text"
-          value-by="value"
-          label="Ruta de destino"
-          class="my-3"
-          no-options-text="No hay otras rutas de entrega abiertas en esta bodega"
-        />
-        <VaButton
-          :disabled="!targetRouteId || !selectedPending.length"
-          :loading="isTransferring"
-          @click="handleTransferPending"
-        >
-          Transferir {{ selectedPending.length }} paquetes
-        </VaButton>
-      </VaCardContent>
-    </VaCard>
-
     <VaCard v-if="releasedPackages.length" class="mb-6">
       <VaCardTitle>Historial de salida de paquetes ({{ releasedPackages.length }})</VaCardTitle>
       <VaCardContent>
@@ -987,6 +985,66 @@ const showApproveButton = computed(() => {
         </VaCardContent>
       </VaCard>
     </div>
+
+    <VaCard
+      v-if="
+        canManageRoute &&
+        routeData.route_type === 'ENTREGA' &&
+        ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status) &&
+        pendingPackages.length
+      "
+      class="mb-6"
+    >
+      <VaCardTitle>Transferir pendientes</VaCardTitle>
+      <VaCardContent>
+        <p class="mb-3">
+          Selecciona los paquetes pendientes y una ruta de destino de la misma bodega. Confirma el traspaso físico antes
+          de transferirlos.
+        </p>
+        <p class="mb-3">
+          {{
+            isAdmin
+              ? 'Puedes transferir a rutas propias o de otros conductores que estén pendientes o en progreso.'
+              : 'Puedes transferir entre tus propias rutas pendientes o en progreso. Para transferir a otro conductor, solicita la gestión a un administrador.'
+          }}
+        </p>
+        <VaDataTable
+          v-model="selectedPending"
+          :items="pendingPackages"
+          :columns="columns"
+          selectable
+          select-mode="multiple"
+          :per-page="20"
+        />
+        <VaSelect
+          v-model="targetRouteId"
+          :options="targetRouteOptions"
+          text-by="text"
+          value-by="value"
+          label="Ruta de destino"
+          class="my-3"
+          :loading="isLoadingTargetRoutes"
+          :no-options-text="
+            isLoadingTargetRoutes ? 'Actualizando rutas de destino...' : targetRoutesError || emptyTargetRoutesText
+          "
+          @update:isOpen="refreshTargetRoutes"
+        />
+        <VaAlert v-if="targetRoutesError" color="warning" class="mb-3">{{ targetRoutesError }}</VaAlert>
+        <VaAlert v-else-if="!isLoadingTargetRoutes && !targetRouteOptions.length" color="info" class="mb-3">
+          {{ emptyTargetRoutesText }}
+        </VaAlert>
+        <VaButton preset="secondary" class="mr-3 mb-3" :loading="isLoadingTargetRoutes" @click="refreshTargetRoutes()">
+          Actualizar rutas
+        </VaButton>
+        <VaButton
+          :disabled="isLoadingTargetRoutes || !targetRouteId || !selectedPending.length"
+          :loading="isTransferring"
+          @click="handleTransferPending"
+        >
+          Transferir {{ selectedPending.length }} paquetes
+        </VaButton>
+      </VaCardContent>
+    </VaCard>
 
     <div v-if="isAdmin && ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status)" class="flex justify-center mt-6">
       <VaButton
