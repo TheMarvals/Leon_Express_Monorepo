@@ -1,6 +1,7 @@
 'use strict';
 
 const { buildBrandedEmail, escapeHtml } = require('./brandLayout');
+const { getFrontendUrl } = require('../../utils/frontendUrl');
 
 function buildPickupRequestedEmail({ clientName, scheduledDate, notes, pickupId, pickupAddress, portalUrl }) {
   const scheduled = scheduledDate ? new Date(scheduledDate) : null;
@@ -9,7 +10,7 @@ function buildPickupRequestedEmail({ clientName, scheduledDate, notes, pickupId,
       dateStyle: 'full', timeStyle: 'short', timeZone: 'America/Santiago', hourCycle: 'h23'
     }).format(scheduled)
     : 'Fecha por confirmar';
-  const portal = portalUrl || `${(process.env.FRONTEND_URL || 'https://app.leonexpress.cl').replace(/\/+$/, '')}/pickups`;
+  const portal = portalUrl || `${getFrontendUrl()}/pickups`;
   if (!['http:', 'https:'].includes(new URL(portal).protocol)) throw new Error('URL del portal inválida');
   const link = escapeHtml(portal);
   const fields = [

@@ -13,14 +13,14 @@ function generateEmailPreviews(outputDirectory = path.join(os.tmpdir(), 'leon-co
   const examples = [
     { file: 'bienvenida', title: 'Bienvenida', description: 'Invitación para activar la cuenta de cliente.', mail: buildClientInvitationEmail({
       clientName: 'Marval test', basePrice: 3500, hasFreePickups: true,
-      inviteUrl: 'https://app.leonexpress.cl/portal/registro?token=ejemplo-de-invitacion'
+      inviteUrl: 'https://leonexpress.cl/portal/registro?token=ejemplo-de-invitacion'
     }) },
     { file: 'codigo-acceso', title: 'Código de acceso', description: 'Código temporal para ingresar al portal.', mail: buildOtpEmail({ clientName: 'Marval test', code: '482916' }) },
     { file: 'solicitud-recolecta', title: 'Solicitud de recolecta', description: 'Confirmación del retiro solicitado, pendiente de asignación.', mail: buildPickupRequestedEmail({
       clientName: 'Marval test', scheduledDate: '2026-10-22T17:30:00Z',
       notes: 'Retirar en recepción.\nTocar timbre 2B. Hay 15 paquetes.',
       pickupId: 'LE-RETIRO-EJEMPLO', pickupAddress: 'Pedernal 3793, Puente Alto',
-      portalUrl: 'https://app.leonexpress.cl/pickups'
+      portalUrl: 'https://leonexpress.cl/pickups'
     }) },
   ];
   fs.mkdirSync(outputDirectory, { recursive: true });

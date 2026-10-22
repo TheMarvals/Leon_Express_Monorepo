@@ -1,15 +1,35 @@
-version: '3.8'
+name: leonexpress-ocr
 
 services:
   ocr-engine:
-    build: .
-    container_name: leonexpress_ocr
+    image: ${OCR_IMAGE:-leonexpress-ocr:1.0.0}
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    environment:
+      OCR_MODEL_DIR: /opt/easyocr/models
+    expose:
+      - "8000"
+    volumes:
+      - ocr_models:/opt/easyocr/models
     networks:
-      - leon_express_leonexpress_network
+      ocr_private:
+        aliases:
+          - leonexpress-ocr
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    stop_grace_period: 60s
 
 networks:
-  leon_express_leonexpress_network:
+  ocr_private:
     external: true
+    name: ${OCR_NETWORK_NAME:-leonexpress_ocr_network}
+
+volumes:
+  ocr_models:
+    name: leonexpress_ocr_models

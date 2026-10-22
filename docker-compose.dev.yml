@@ -17,6 +17,8 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
       - OCR_SPACE_API_KEY=${OCR_SPACE_API_KEY}
+      - OCR_PROVIDER=${OCR_PROVIDER:-local}
+      - OCR_LOCAL_URL=${OCR_LOCAL_URL:-http://leonexpress-ocr:8000/parse/image}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
     ports:
@@ -25,6 +27,7 @@ services:
       - ./LeonExpress_back/uploads:/app/uploads
     networks:
       - leonexpress_network
+      - ocr_private
     restart: unless-stopped
 
   # Frontend Vue.js
@@ -45,5 +48,8 @@ services:
     restart: unless-stopped
 
 networks:
+  ocr_private:
+    external: true
+    name: ${OCR_NETWORK_NAME:-leonexpress_ocr_network}
   leonexpress_network:
     driver: bridge

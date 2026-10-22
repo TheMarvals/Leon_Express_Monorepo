@@ -38,12 +38,13 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - OCR_SPACE_API_KEY=${OCR_SPACE_API_KEY}
       - OCR_PROVIDER=${OCR_PROVIDER:-local}
-      - OCR_LOCAL_URL=${OCR_LOCAL_URL:-http://leonexpress_ocr:8000/parse/image}
+      - OCR_LOCAL_URL=${OCR_LOCAL_URL:-http://leonexpress-ocr:8000/parse/image}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
       - VAPID_SUBJECT=${VAPID_SUBJECT}
       # MercadoLibre Gateway (servicio externo en Coolify)
       - ML_GATEWAY_URL=${ML_GATEWAY_URL:-https://gateway.themarvals.com}
+      - FRONTEND_URL=${FRONTEND_URL:-}
       - ML_GATEWAY_API_KEY=${ML_GATEWAY_API_KEY}
     expose:
       - "4100"
@@ -54,6 +55,7 @@ services:
         condition: service_healthy
     networks:
       - leonexpress_network
+      - ocr_private
     restart: unless-stopped
 
   frontend:
@@ -103,6 +105,9 @@ services:
     restart: unless-stopped
 
 networks:
+  ocr_private:
+    external: true
+    name: ${OCR_NETWORK_NAME:-leonexpress_ocr_network}
   leonexpress_network:
     driver: bridge
 

@@ -625,7 +625,7 @@ const { withPickupPackageLock } = require('./pickupPackageLock');
    */
   async callOcrProvider(base64Image) {
     const ocrProvider = process.env.OCR_PROVIDER || 'local'; // Por defecto local si no se especifica
-    const localUrl = process.env.OCR_LOCAL_URL || 'http://leonexpress_ocr:8000/parse/image';
+    const localUrl = process.env.OCR_LOCAL_URL || 'http://leonexpress-ocr:8000/parse/image';
     const ocrSpaceUrl = 'https://api.ocr.space/parse/image';
     const ocrSpaceKey = process.env.OCR_SPACE_API_KEY || 'K86104641688957';
 

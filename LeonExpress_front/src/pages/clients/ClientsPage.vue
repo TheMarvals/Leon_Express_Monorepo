@@ -102,9 +102,8 @@ const beforeEditFormModalClose = async (hide: () => void) => {
         </div>
         <div class="flex items-center gap-2">
           <VaButton
-            color="#10b981"
+            color="primary"
             icon="mail"
-            class="font-bold shadow-sm"
             @click="doShowInviteModal = true"
           >
             Invitar Cliente

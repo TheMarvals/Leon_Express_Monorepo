@@ -11,6 +11,7 @@ const { queueNotification, queueNotificationForRole } = require('../utils/notifi
 const { logAudit } = require('../utils/audit');
 const ocrQueue = require('../utils/ocrProcessingQueue');
 const emailService = require('../services/emailService');
+const { getFrontendUrl } = require('../utils/frontendUrl');
 
 const router = express.Router();
 
@@ -212,6 +213,7 @@ router.post('/', authenticateToken, roleValidator(['ADMIN', 'WAREHOUSE_STAFF', '
         }
 
         const isClient = req.user.role === 'CLIENT';
+        const portalUrl = isClient ? `${getFrontendUrl(req)}/pickups` : undefined;
         let { user_id, client_id, pickup_scheduled_date, notes, pickup_cost } = req.body;
 
         if (isClient) {
@@ -300,6 +302,7 @@ router.post('/', authenticateToken, roleValidator(['ADMIN', 'WAREHOUSE_STAFF', '
                 scheduledDate: pickup_scheduled_date,
                 pickupId: newPickup.pickup_id,
                 pickupAddress: client.address,
+                portalUrl,
                 notes
             }).catch(err => console.error('Error enviando confirmación de colecta por email:', err));
         }

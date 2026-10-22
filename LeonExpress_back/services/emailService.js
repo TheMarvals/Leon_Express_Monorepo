@@ -54,9 +54,9 @@ module.exports = {
   /**
    * Notificación cuando el cliente solicita una colecta
    */
-  async sendPickupRequestedNotification({ to, clientName, scheduledDate, notes, pickupId, pickupAddress }) {
+  async sendPickupRequestedNotification({ to, clientName, scheduledDate, notes, pickupId, pickupAddress, portalUrl }) {
     const { html, text, attachments } = buildPickupRequestedEmail({
-      clientName, scheduledDate, notes, pickupId, pickupAddress
+      clientName, scheduledDate, notes, pickupId, pickupAddress, portalUrl
     });
 
     const resend = getResend();

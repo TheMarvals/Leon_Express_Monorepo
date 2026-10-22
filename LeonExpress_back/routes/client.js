@@ -9,6 +9,7 @@ const { logAudit } = require("../utils/audit");
 const authenticateToken = require("../middlewares/authenticateToken");
 const roleValidator = require("../middlewares/roleValidator");
 const emailService = require("../services/emailService");
+const { getFrontendUrl } = require('../utils/frontendUrl');
 const { Op } = require("sequelize");
 const { isAfter } = require("date-fns");
 
@@ -543,6 +544,30 @@ router.get("/", authenticateToken, async (req, res) => {
 });
 
 // GET /clients/:id - Obtener un cliente por su ID
+/**
+ * GET /clients/invitations - Listar invitaciones
+ */
+router.get('/invitations', authenticateToken, roleValidator(['ADMIN']), async (req, res) => {
+    try {
+        const invitations = await ClientInvitation.findAll({
+            order: [['created_at', 'DESC']],
+            limit: 50
+        });
+
+        const appUrl = getFrontendUrl(req);
+        const formatted = invitations.map(inv => ({
+            ...inv.toJSON(),
+            invite_url: `${appUrl}/portal/registro?token=${inv.token}`,
+            is_expired: new Date(inv.expires_at) < new Date()
+        }));
+
+        res.json({ invitations: formatted });
+    } catch (error) {
+        console.error('Error al listar invitaciones:', error);
+        res.status(500).json({ error: 'Error al listar invitaciones', details: error.message });
+    }
+});
+
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const clientId = req.params.id;
@@ -932,6 +957,8 @@ router.post('/invitations', authenticateToken, roleValidator(['ADMIN']), [
             return res.status(409).json({ error: 'Ya existe un cliente activo registrado con este correo electrónico.' });
         }
 
+        const appUrl = getFrontendUrl(req);
+
         // Generar token seguro de 32 bytes (64 caracteres hex)
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 días
@@ -948,7 +975,6 @@ router.post('/invitations', authenticateToken, roleValidator(['ADMIN']), [
             created_by: req.user.user_id
         });
 
-        const appUrl = process.env.FRONTEND_URL || 'https://app.leonexpress.cl';
         const inviteUrl = `${appUrl}/portal/registro?token=${token}`;
 
         // Enviar correo de invitación en segundo plano
@@ -983,30 +1009,6 @@ router.post('/invitations', authenticateToken, roleValidator(['ADMIN']), [
     } catch (error) {
         console.error('Error al crear invitación de cliente:', error);
         res.status(500).json({ error: 'Error del servidor al crear invitación', details: error.message });
-    }
-});
-
-/**
- * GET /clients/invitations - Listar invitaciones
- */
-router.get('/invitations', authenticateToken, roleValidator(['ADMIN']), async (req, res) => {
-    try {
-        const invitations = await ClientInvitation.findAll({
-            order: [['created_at', 'DESC']],
-            limit: 50
-        });
-
-        const appUrl = process.env.FRONTEND_URL || 'https://app.leonexpress.cl';
-        const formatted = invitations.map(inv => ({
-            ...inv.toJSON(),
-            invite_url: `${appUrl}/portal/registro?token=${inv.token}`,
-            is_expired: new Date(inv.expires_at) < new Date()
-        }));
-
-        res.json({ invitations: formatted });
-    } catch (error) {
-        console.error('Error al listar invitaciones:', error);
-        res.status(500).json({ error: 'Error al listar invitaciones', details: error.message });
     }
 });
 

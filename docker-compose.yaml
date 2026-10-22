@@ -17,20 +17,19 @@ services:
       # Secretos
       - JWT_SECRET=${JWT_SECRET}
       - OCR_SPACE_API_KEY=${OCR_SPACE_API_KEY}
+      - OCR_PROVIDER=${OCR_PROVIDER:-local}
+      - OCR_LOCAL_URL=${OCR_LOCAL_URL:-http://leonexpress-ocr:8000/parse/image}
+      - FRONTEND_URL=${FRONTEND_URL:-https://leonexpress.cl}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
       - VAPID_SUBJECT=${VAPID_SUBJECT}
       - ML_GATEWAY_URL=${ML_GATEWAY_URL:-https://gateway.themarvals.com}
       - ML_GATEWAY_API_KEY=${ML_GATEWAY_API_KEY}
+    networks:
+      - default
+      - ocr_private
     volumes:
       - /opt/leon_express/data/uploads:/app/uploads
-    restart: unless-stopped
-
-  leonexpress_ocr:
-    build:
-      context: ./LeonExpress_ocr
-      dockerfile: Dockerfile
-    container_name: leonexpress_ocr
     restart: unless-stopped
 
   frontend:
@@ -58,3 +57,8 @@ services:
       - backend
     restart: unless-stopped
 
+
+networks:
+  ocr_private:
+    external: true
+    name: ${OCR_NETWORK_NAME:-leonexpress_ocr_network}

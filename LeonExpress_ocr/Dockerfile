@@ -8,15 +8,18 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+ENV OCR_MODEL_DIR=/opt/easyocr/models
+ENV PYTHONUNBUFFERED=1
+
 # Install Python dependencies
 COPY requirements.txt .
 # Allow slow package downloads during builds (PyTorch wheels are large).
 RUN pip install --no-cache-dir --timeout 120 --retries 5 -r requirements.txt
 
 # Pre-download EasyOCR models for English and Spanish to save time on first run
-RUN python -c "import easyocr; reader = easyocr.Reader(['es', 'en'], gpu=False)"
+RUN python -c "import easyocr; reader = easyocr.Reader(['es', 'en'], gpu=False, model_storage_directory='/opt/easyocr/models')"
 
-COPY . .
+COPY main.py .
 
 EXPOSE 8000
 
