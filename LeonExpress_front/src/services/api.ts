@@ -40,13 +40,6 @@ axiosInstance.interceptors.request.use(
       showLoading(message)
     }
 
-    // --- INICIO DE LA DEPURACIÓN ---
-    console.log(`➡️ Enviando petición: ${config.method?.toUpperCase()} a ${config.url}`)
-    if (['post', 'put', 'patch'].includes(config.method?.toLowerCase() || '')) {
-      console.log('📦 Payload enviado:', JSON.stringify(config.data, null, 2))
-    }
-    // --- FIN DE LA DEPURACIÓN ---
-
     return config
   },
   (error) => {

@@ -295,7 +295,13 @@ const submit = async () => {
 
     push({ name: 'dashboard' })
   } catch (error: any) {
-    errorMessage.value = error.response?.data?.error || 'Las credenciales son incorrectas.'
+    errorMessage.value =
+      error.response?.data?.error ||
+      (error.response?.status >= 500
+        ? 'El servicio de acceso no está disponible. Intenta nuevamente en unos minutos.'
+        : !error.response
+          ? 'No se pudo conectar con el servidor. Revisa tu conexión e intenta nuevamente.'
+          : 'No se pudo iniciar sesión. Intenta nuevamente.')
     init({
       message: errorMessage.value,
       color: 'danger',

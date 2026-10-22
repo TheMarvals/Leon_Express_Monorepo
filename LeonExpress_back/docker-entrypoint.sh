@@ -33,6 +33,32 @@ wait_for_db() {
     return 1
 }
 
+# Evitar recrear un trigger que ya está instalado con la misma definición.
+# MySQL con binlog exige privilegios adicionales al crear triggers.
+apply_pickup_request_trigger() {
+    local migration_file="$1"
+    local expected_definition
+    local installed_definition
+
+    expected_definition=$(sed -n '/^BEGIN$/,/^END\$\$/p' "$migration_file" | sed 's/^END\$\$/END/')
+    if [ -z "$expected_definition" ]; then
+        echo "❌ No se pudo leer la definición del trigger de colectas"
+        return 1
+    fi
+    installed_definition=$(mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl --default-character-set=utf8mb4 -D "$DB_NAME" --batch --raw --skip-column-names -e "
+        SELECT ACTION_STATEMENT FROM information_schema.TRIGGERS
+        WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = 'trg_before_pickup_insert';
+    ")
+
+    if [ "$installed_definition" = "$expected_definition" ]; then
+        echo "✅ Validación de solicitudes de colecta ya actualizada"
+        return 0
+    fi
+
+    echo "Actualizando validación de solicitudes de colecta..."
+    mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl --default-character-set=utf8mb4 "$DB_NAME" < "$migration_file"
+}
+
 # Inicializar base de datos
 setup_database() {
     # Crear base de datos si no existe (con root sería mejor, pero intentamos con usuario normal)
@@ -184,8 +210,7 @@ run_pending_migrations() {
 
     # Permitir solicitudes de colecta pendientes de asignación de conductor.
     if [ -f "/app/migrations/20261021_pickup_request_trigger.sql" ]; then
-        echo "Actualizando validación de solicitudes de colecta..."
-        mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" < "/app/migrations/20261021_pickup_request_trigger.sql"
+        apply_pickup_request_trigger "/app/migrations/20261021_pickup_request_trigger.sql"
     fi
 
     # --- Migración: Comprobantes de Pago y Estado EN_REVISION ---

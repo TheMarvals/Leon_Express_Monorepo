@@ -125,10 +125,11 @@ test('the API interceptor redirects expired sessions while preserving the reject
   const data = new Map([['token', 'expired-token'], ['user', '{}']])
   const redirects = []
   let loadingHidden = 0
+  const requestLogs = []
   const module = { exports: {} }
   vm.runInNewContext(apiScript, {
     module, exports: module.exports,
-    console: { log() {}, error() {} },
+    console: { log: (...args) => requestLogs.push(args), error() {} },
     localStorage: { getItem: (key) => data.get(key), removeItem: (key) => data.delete(key) },
     window: { location: { replace: (url) => redirects.push(url) } },
     require(id) {
@@ -148,4 +149,6 @@ test('the API interceptor redirects expired sessions while preserving the reject
   assert.equal(loadingHidden, 1)
   assert.deepEqual(redirects, ['/auth/login?reason=session-expired'])
   assert.equal(data.has('token'), false)
+  await assert.rejects(module.exports.default.login({ username: 'test-staff', password: 'sensitive-test-password' }))
+  assert.deepEqual(requestLogs, [])
 })
