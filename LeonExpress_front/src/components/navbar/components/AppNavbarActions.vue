@@ -1,17 +1,5 @@
 <template>
   <div class="app-navbar-actions">
-    <!-- Example: <VaButton ...><font-awesome-icon icon="circle-info" ... /> ... </VaButton> -->
-    <GithubButton v-if="!isMobile" class="app-navbar-actions__item" />
-    <VaButton
-      v-if="!isMobile"
-      preset="secondary"
-      href="https://discord.gg/u7fQdqQt8c"
-      target="_blank"
-      color="textPrimary"
-      class="app-navbar-actions__item flex-shrink-0 mx-0"
-    >
-      <FontAwesomeIcon icon="fa-brands fa-discord" style="font-size: 2rem; margin-right: 0.25rem" />
-    </VaButton>
     <NotificationDropdown class="app-navbar-actions__item" />
     <ProfileDropdown class="app-navbar-actions__item app-navbar-actions__item--profile mr-1" />
   </div>
@@ -20,15 +8,10 @@
 <script lang="ts" setup>
 import ProfileDropdown from './dropdowns/ProfileDropdown.vue'
 import NotificationDropdown from '../NotificationsDropdown.vue'
-// // import GithubButton from './GitHubButton.vue'
-// import VaIconDiscord from '../../icons/VaIconDiscord.vue'
 
 defineProps({
   isMobile: { type: Boolean, default: false },
 })
-
-import { useI18n } from 'vue-i18n'
-const { t } = useI18n()
 </script>
 
 <style lang="scss">
@@ -67,10 +50,6 @@ const { t } = useI18n()
         margin-left: 0;
       }
     }
-  }
-
-  .fa-github {
-    color: var(--va-on-background-primary);
   }
 }
 </style>

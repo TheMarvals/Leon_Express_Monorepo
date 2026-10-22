@@ -4,7 +4,7 @@
       <VaButton preset="secondary" color="textPrimary">
         <VaBadge
           :text="notificationsStore.unreadCount"
-          :offset="[-4, -4]"
+          :offset="['-4px', '-4px']"
           :color="notificationsStore.unreadCount > 0 ? 'danger' : 'secondary'"
         >
           <FontAwesomeIcon icon="bell" />
