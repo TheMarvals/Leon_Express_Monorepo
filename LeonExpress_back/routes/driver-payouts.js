@@ -3,9 +3,11 @@
 const express = require('express');
 const { DriverPayout, PayoutItem, User, BillingPeriod, Package, Pickup } = require('../models');
 const authenticateToken = require('../middlewares/authenticateToken');
+const roleValidator = require('../middlewares/roleValidator');
 const { Op } = require('sequelize');
 
 const router = express.Router();
+router.use(authenticateToken, roleValidator(['ADMIN', 'DRIVER']));
 
 /**
  * @openapi

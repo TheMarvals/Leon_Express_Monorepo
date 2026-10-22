@@ -148,6 +148,7 @@ test('client searches remain scoped to the authenticated client', async t => {
   const f = await fixture(t, 'client', { role: 'CLIENT' });
   assert.equal((await f.request('GET', '/?search=other-client')).status, 200);
   assert.equal(f.calls.clientsWhere.client_id, 'client-1');
+  assert.equal(f.calls.clientsWhere.is_active, true);
 });
 for (const endpoint of ['/other-client', '/other-client/pricing', '/other-client/history']) {
   test(`clients cannot read another client through ${endpoint}`, async t => {
@@ -165,5 +166,17 @@ for (const [file, method, endpoint] of [['package', 'PUT', '/foreign-package'], 
   test(`client tokens cannot invoke internal ${file} updates`, async t => {
     const f = await fixture(t, file, { role: 'CLIENT' });
     assert.equal((await f.request(method, endpoint, {})).status, 403);
+  });
+}
+
+test('inactive clients stay out of the default list after soft deletion', async t => {
+  const f = await fixture(t, 'client');
+  assert.equal((await f.request('GET', '/')).status, 200);
+  assert.equal(f.calls.clientsWhere.is_active, true);
+});
+for (const [file, role] of [['driver-payouts', 'CLIENT'], ['invoice', 'CUSTOMER_SERVICE'], ['audit_log', 'DRIVER']]) {
+  test(`${role} cannot list restricted financial or audit data through ${file}`, async t => {
+    const f = await fixture(t, file, { role });
+    assert.equal((await f.request('GET', '/')).status, 403);
   });
 }

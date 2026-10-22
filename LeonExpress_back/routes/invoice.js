@@ -13,6 +13,7 @@ const { Op } = require('sequelize');
 const { queueNotificationForRole } = require('../utils/notificationService');
 
 const router = express.Router();
+router.use(authenticateToken, roleValidator(['ADMIN', 'FINANCE', 'CLIENT']));
 
 // Configuración de Multer para comprobantes de pago
 const receiptStorage = multer.diskStorage({

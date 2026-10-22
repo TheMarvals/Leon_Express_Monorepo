@@ -518,7 +518,7 @@ const validatePricingPolicy = [
 // GET /clients - Protegido y con alias corregido
 router.get("/", authenticateToken, async (req, res) => {
   try {
-    const { page = 1, pageSize = 10, search = "" } = req.query;
+    const { page = 1, pageSize = 10, search = "", isActive = 'true' } = req.query;
 
     const whereClause = search ? {
       [Op.or]: [
@@ -527,6 +527,7 @@ router.get("/", authenticateToken, async (req, res) => {
       ]
     } : {};
 
+    whereClause.is_active = isActive !== 'false';
     if (req.user.role === 'CLIENT') whereClause.client_id = req.user.client_id;
     const { count, rows: clients } = await Client.findAndCountAll({
       where: whereClause,

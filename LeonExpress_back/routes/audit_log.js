@@ -3,7 +3,7 @@ const router = express.Router();
 const { AuditLog, User, Role } = require('../models');
 const authenticateToken = require('../middlewares/authenticateToken');
 const roleValidator = require('../middlewares/roleValidator');
-router.use(authenticateToken, roleValidator(['ADMIN', 'DRIVER', 'WAREHOUSE_STAFF', 'CUSTOMER_SERVICE']));
+router.use(authenticateToken, roleValidator(['ADMIN']));
 
 // GET /audit-log - Últimos registros de auditoría
 router.get('/', authenticateToken, async (req, res) => {
