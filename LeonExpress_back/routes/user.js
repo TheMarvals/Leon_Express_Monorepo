@@ -2,10 +2,11 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
-const { User, Role, Vehicle, VehicleType, Warehouse, AuditLog, sequelize } = require('../models');
+const { User, Role, Client, Vehicle, VehicleType, Warehouse, AuditLog, sequelize } = require('../models');
 const authenticateToken = require('../middlewares/authenticateToken');
 const roleValidator = require('../middlewares/roleValidator'); // Asegúrate de que la ruta sea correcta
 const { Op } = require('sequelize');
+const { syncClientEmail } = require('../services/clientEmailService');
 
 const router = express.Router();
 router.use(authenticateToken, roleValidator(['ADMIN', 'WAREHOUSE_STAFF']));
@@ -65,7 +66,7 @@ const validateUpdateUser = [
   body('email')
     .optional({ nullable: true, checkFalsy: true })
     .isEmail()
-    .normalizeEmail()
+    .trim().toLowerCase()
     .withMessage('Formato de email inválido'),
   body('full_name')
     .isString()
@@ -89,6 +90,7 @@ const validateUpdateUser = [
     .notEmpty()
     .withMessage('El ID de rol es requerido'),
   body('warehouse_id')
+    .optional({ nullable: true, checkFalsy: true })
     .isString()
     .notEmpty()
     .withMessage('El ID de almacén es requerido'),
@@ -782,8 +784,6 @@ router.put('/:id', authenticateToken, roleValidator(['ADMIN']), validateUpdateUs
     const userId = req.params.id;
     const { username, email, full_name, password, phone, role_id, warehouse_id } = req.body;
 
-    console.log(req.body)
-
     // Find user
     const user = await User.findByPk(userId);
     if (!user) {
@@ -797,8 +797,8 @@ router.put('/:id', authenticateToken, roleValidator(['ADMIN']), validateUpdateUs
     }
 
     // Verify warehouse
-    const warehouse = await Warehouse.findByPk(warehouse_id);
-    if (!warehouse) {
+    const warehouse = warehouse_id ? await Warehouse.findByPk(warehouse_id) : null;
+    if ((warehouse_id && !warehouse) || (!warehouse && role.role_name !== 'CLIENT')) {
       return res.status(400).json({ error: 'Almacén no encontrado' });
     }
 
@@ -810,16 +810,7 @@ router.put('/:id', authenticateToken, roleValidator(['ADMIN']), validateUpdateUs
       }
     }
 
-    // Check for duplicate email
-    // Check for duplicate email
     const processedEmail = email || null;
-    // Allow duplicate emails
-    // if (processedEmail && processedEmail !== user.email) {
-    //   const existingUser = await User.findOne({ where: { email: processedEmail } });
-    //   if (existingUser) {
-    //     return res.status(409).json({ error: 'El email ya está registrado' });
-    //   }
-    // }
 
     // Update fields
     user.username = username.toLowerCase();
@@ -834,7 +825,18 @@ router.put('/:id', authenticateToken, roleValidator(['ADMIN']), validateUpdateUs
       user.password_hash = await bcrypt.hash(password, 10);
     }
 
-    await user.save();
+    await sequelize.transaction(async transaction => {
+      if (user.client_id) {
+        const client = await Client.findByPk(user.client_id, { transaction, lock: transaction.LOCK.UPDATE });
+        if (!client) {
+          const error = new Error('No se encontró el cliente asociado al usuario.');
+          error.status = 409;
+          throw error;
+        }
+        user.email = await syncClientEmail(client, processedEmail, transaction);
+      }
+      await user.save({ transaction });
+    });
 
     // Log audit
     await logAudit(req.user.user_id, 'UPDATE_USER', 'users', user.user_id, {
@@ -855,7 +857,7 @@ router.put('/:id', authenticateToken, roleValidator(['ADMIN']), validateUpdateUs
         role_id: user.role_id,
         role_name: role.role_name,
         warehouse_id: user.warehouse_id,
-        warehouse_name: warehouse.warehouse_name,
+        warehouse_name: warehouse?.warehouse_name || null,
         is_active: user.is_active,
         created_at: user.created_at,
         updated_at: user.updated_at
@@ -863,8 +865,8 @@ router.put('/:id', authenticateToken, roleValidator(['ADMIN']), validateUpdateUs
     });
   } catch (error) {
     console.error('Error al actualizar usuario:', error);
-    res.status(500).json({
-      error: 'Error del servidor',
+    res.status(error.status || (error.name === 'SequelizeUniqueConstraintError' ? 409 : 500)).json({
+      error: error.status ? error.message : error.name === 'SequelizeUniqueConstraintError' ? 'El correo o nombre de usuario ya pertenece a otra cuenta.' : 'Error del servidor',
       message: 'Error al actualizar el usuario',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });

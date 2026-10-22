@@ -38,6 +38,13 @@ const clients = ref<{ text: string; value: string }[]>([])
 const isLoading = ref(true)
 
 const isEditing = computed(() => !!props.pickup)
+const loadedClientName = ref('')
+const selectedClientName = computed(
+  () =>
+    props.pickup?.client?.client_name ||
+    clients.value.find((client) => client.value === client_id.value)?.text ||
+    loadedClientName.value,
+)
 
 onMounted(async () => {
   isLoading.value = true
@@ -50,6 +57,10 @@ onMounted(async () => {
       .filter((u: any) => u.role_name === 'DRIVER' && u.is_active)
       .map((d: any) => ({ text: d.full_name, value: d.user_id }))
     clients.value = clientsRes.data.clients.map((c: any) => ({ text: c.client_name, value: c.client_id }))
+    if (props.pickup?.client_id && !selectedClientName.value) {
+      const { data } = await api.getClientById(props.pickup.client_id)
+      loadedClientName.value = data.client?.client_name || ''
+    }
   } catch (err) {
     notify({ message: 'Error al cargar datos para el formulario', color: 'danger' })
   } finally {
@@ -104,14 +115,15 @@ const handleSubmit = () => {
     <VaProgressCircle indeterminate />
   </div>
   <VaForm v-else ref="pickup-form" v-slot="{ isValid }" class="flex flex-col gap-4">
+    <VaInput v-if="isEditing" :model-value="selectedClientName || 'Cliente no disponible'" label="Cliente" readonly />
     <VaSelect
+      v-else
       v-model="client_id"
       label="Cliente"
       :options="clients"
       :rules="[validators.required]"
       text-by="text"
       value-by="value"
-      :readonly="isEditing"
     />
     <VaSelect
       v-model="user_id"
@@ -121,7 +133,7 @@ const handleSubmit = () => {
       text-by="text"
       value-by="value"
       searchable
-      :max-height="300"
+      max-height="300px"
       class="driver-select"
     />
     <div class="flex gap-4">

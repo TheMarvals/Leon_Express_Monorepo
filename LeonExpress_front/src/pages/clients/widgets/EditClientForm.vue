@@ -85,6 +85,7 @@ const handleSubmit = async () => {
   <VaForm ref="client-form" v-slot="{ isValid }" class="flex flex-col gap-4 max-w-xl mx-auto mt-6">
     <VaInput v-model="client_name" label="Nombre del cliente" :rules="[validators.required]" />
     <VaInput v-model="email" label="Email" :rules="[validators.required, validators.email]" />
+    <p class="text-sm text-secondary">Este correo también se usa para recibir los códigos de acceso al portal.</p>
     <VaInput v-model="phone" label="Teléfono" :rules="[validators.required]" />
     <VaInput v-model="address" label="Dirección" :rules="[validators.required]" />
 

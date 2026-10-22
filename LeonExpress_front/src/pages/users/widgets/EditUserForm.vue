@@ -48,6 +48,7 @@ const warehouses = ref<{ text: string; value: string }[]>([])
 const isLoading = ref(true)
 
 const isEditing = computed(() => !!props.user)
+const isClient = computed(() => roles.value.find((role) => role.value === role_id.value)?.text === 'CLIENT')
 const isNewDriver = computed(
   () => !isEditing.value && roles.value.find((role) => role.value === role_id.value)?.text === 'DRIVER',
 )
@@ -157,6 +158,9 @@ const handleSubmit = () => {
     />
     <VaInput v-model="fullname" label="Nombre completo" :rules="[validators.required]" />
     <VaInput v-model.trim="email" label="Email" :rules="[validators.email]" />
+    <p v-if="user?.client_id" class="text-sm text-secondary">
+      Al cambiar este correo, también se actualizará el acceso al portal del cliente.
+    </p>
     <VaInput v-model="phone" label="Teléfono" />
     <VaSelect
       v-model="role_id"
@@ -190,6 +194,7 @@ const handleSubmit = () => {
       />
     </template>
     <VaSelect
+      v-if="!isClient"
       v-model="warehouse_id"
       label="Almacén"
       :options="warehouses"

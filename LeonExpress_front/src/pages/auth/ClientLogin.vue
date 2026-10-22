@@ -36,10 +36,10 @@
       </div>
     </VaForm>
 
-    <!-- PASO 2: Ingreso de Código OTP / PIN -->
+    <!-- PASO 2: Ingreso de Código OTP -->
     <div v-if="otpSent && !isEditingEmail" class="mt-4">
       <VaAlert color="success" class="mb-4 text-xs">
-        Hemos enviado un código temporal a <strong>{{ email }}</strong>. También puedes ingresar con tu PIN permanente.
+        Hemos enviado un código temporal a <strong>{{ email }}</strong>. Revisa tu bandeja de entrada o spam.
       </VaAlert>
 
       <VaForm ref="clientOtpForm" @submit.prevent="verifyOtp">

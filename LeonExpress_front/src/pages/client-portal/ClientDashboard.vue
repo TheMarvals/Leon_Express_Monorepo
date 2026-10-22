@@ -8,7 +8,6 @@
           Bienvenido, {{ clientName }}
           <span v-if="clientAddress"> · {{ clientAddress }}</span>
           <span v-if="clientPhone"> · Tel: {{ clientPhone }}</span>
-          <span v-if="clientPin"> · PIN: {{ clientPin }}</span>
         </p>
       </div>
 
@@ -222,7 +221,6 @@ const { init: notify } = useToast()
 const clientName = computed(() => userStore.user?.client?.client_name || userStore.user?.full_name || 'Cliente')
 const clientAddress = computed(() => userStore.user?.client?.address || '')
 const clientPhone = computed(() => userStore.user?.client?.phone || userStore.user?.phone || '')
-const clientPin = computed(() => userStore.user?.client?.verification_code || '')
 
 // Estado de estadísticas
 const stats = reactive({

@@ -86,6 +86,7 @@ const formatDate = (dateString: string) => new Date(dateString).toLocaleString('
           preset="primary"
           size="small"
           icon="fa4-edit"
+          aria-label="Editar recolección"
           @click="$emit('edit-pickup', rowData as Pickup)"
         />
         <VaButton

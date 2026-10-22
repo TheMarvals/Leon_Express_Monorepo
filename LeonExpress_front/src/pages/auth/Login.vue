@@ -24,10 +24,10 @@
       {{ SESSION_EXPIRED_MESSAGE }}
     </VaAlert>
 
-    <!-- FORMULARIO CLIENTE (OTP / PIN) -->
+    <!-- FORMULARIO CLIENTE (OTP) -->
     <div v-if="loginMode === 'client'">
       <h2 class="font-bold text-2xl mb-1 text-gray-800">Acceso a Clientes</h2>
-      <p class="text-sm text-gray-500 mb-5">Ingresa tu correo para recibir un código de acceso temporal o usa tu PIN.</p>
+      <p class="text-sm text-gray-500 mb-5">Ingresa tu correo para recibir un código de acceso temporal.</p>
 
       <!-- PASO 1: Ingreso de Correo -->
       <VaForm ref="clientEmailForm" @submit.prevent="requestOtp">
@@ -53,7 +53,7 @@
         </div>
       </VaForm>
 
-      <!-- PASO 2: Ingreso de Código OTP / PIN -->
+      <!-- PASO 2: Ingreso de Código OTP -->
       <div v-if="otpSent && !isEditingEmail" class="mt-4">
         <VaAlert color="success" class="mb-4 text-xs">
           Hemos enviado un código de 6 dígitos a <strong>{{ clientData.email }}</strong>. Revisa tu bandeja de entrada o spam.
@@ -64,7 +64,7 @@
             v-model="clientData.code"
             :rules="[validators.required, (v: string) => (v && v.length === 6) || 'El código debe tener 6 dígitos']"
             class="mb-4"
-            label="Código de 6 Dígitos / PIN"
+            label="Código temporal de 6 dígitos"
             placeholder="Ej: 123456"
             maxlength="6"
             input-class="text-center font-mono text-xl tracking-widest font-bold"

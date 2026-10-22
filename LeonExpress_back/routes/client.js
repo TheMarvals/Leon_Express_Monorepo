@@ -10,6 +10,7 @@ const authenticateToken = require("../middlewares/authenticateToken");
 const roleValidator = require("../middlewares/roleValidator");
 const emailService = require("../services/emailService");
 const { getFrontendUrl } = require('../utils/frontendUrl');
+const { syncClientEmail } = require('../services/clientEmailService');
 const { Op } = require("sequelize");
 const { isAfter } = require("date-fns");
 
@@ -31,7 +32,7 @@ router.param('id', (req, res, next, id) => {
 // --- Validadores ---
 const validateClient = [
   body("client_name").isString().notEmpty().trim().withMessage("Nombre del cliente es requerido"),
-  body("email").optional({ nullable: true, checkFalsy: true }).isEmail().trim().withMessage("Formato de email inválido"),
+  body("email").optional({ nullable: true, checkFalsy: true }).trim().toLowerCase().isEmail().withMessage("Formato de email inválido"),
   body("phone").optional({ nullable: true, checkFalsy: true }).isString().trim().withMessage("Teléfono debe ser texto"),
   body("address").optional({ nullable: true, checkFalsy: true }).isString().trim().withMessage("Dirección debe ser texto"),
 ];
@@ -39,7 +40,7 @@ const validateClient = [
 // Validación específica para actualizaciones parciales de cliente
 const validateClientUpdate = [
   body("client_name").optional().isString().notEmpty().trim().withMessage("Nombre del cliente es requerido"),
-  body("email").optional({ nullable: true, checkFalsy: true }).isEmail().trim().withMessage("Formato de email inválido"),
+  body("email").optional({ nullable: true, checkFalsy: true }).trim().toLowerCase().isEmail().withMessage("Formato de email inválido"),
   body("phone").optional({ nullable: true, checkFalsy: true }).isString().trim().withMessage("Teléfono debe ser texto"),
   body("address").optional({ nullable: true, checkFalsy: true }).isString().trim().withMessage("Dirección debe ser texto"),
   body("is_active").optional().isBoolean().withMessage("Estado activo debe ser booleano"),
@@ -709,11 +710,12 @@ router.put("/:id", authenticateToken, roleValidator(['ADMIN']), validateClientUp
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      await t.rollback();
       return res.status(400).json({ errors: errors.array() });
     }
 
     const clientId = req.params.id;
-    const client = await Client.findByPk(clientId, { transaction: t });
+    const client = await Client.findByPk(clientId, { transaction: t, lock: t.LOCK.UPDATE });
     if (!client) {
       await t.rollback();
       return res.status(404).json({ error: "Cliente no encontrado" });
@@ -724,7 +726,9 @@ router.put("/:id", authenticateToken, roleValidator(['ADMIN']), validateClientUp
     const { client_name, email, phone, address, is_active, has_free_pickups } = req.body;
 
     if (client_name !== undefined) updateData.client_name = client_name;
-    if (email !== undefined) updateData.email = email;
+    if (email !== undefined) {
+      updateData.email = await syncClientEmail(client, email, t);
+    }
     if (phone !== undefined) updateData.phone = phone;
     if (address !== undefined) updateData.address = address;
     if (is_active !== undefined) updateData.is_active = is_active;
@@ -737,7 +741,9 @@ router.put("/:id", authenticateToken, roleValidator(['ADMIN']), validateClientUp
   } catch (error) {
     await t.rollback();
     console.error("Error al actualizar cliente:", error);
-    res.status(500).json({ error: "Error del servidor" });
+    res.status(error.status || (error.name === 'SequelizeUniqueConstraintError' ? 409 : 500)).json({
+      error: error.status ? error.message : error.name === 'SequelizeUniqueConstraintError' ? 'El correo ya pertenece a otra cuenta.' : 'Error del servidor',
+    });
   }
 });
 

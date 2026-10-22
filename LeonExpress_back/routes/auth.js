@@ -197,7 +197,7 @@ const otpRequestLimiter = rateLimit({
  *     description: Genera un código OTP de 6 dígitos y lo envía al correo del cliente.
  */
 router.post('/otp/request', otpRequestLimiter, [
-  body('email').isEmail().normalizeEmail().withMessage('Debe ingresar un correo electrónico válido')
+  body('email').trim().toLowerCase().isEmail().withMessage('Debe ingresar un correo electrónico válido')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -231,6 +231,11 @@ router.post('/otp/request', otpRequestLimiter, [
         });
       }
 
+      const linkedUser = await User.findOne({ where: { client_id: client.client_id } });
+      if (linkedUser) {
+        return res.status(409).json({ error: 'El correo del usuario no coincide con el del cliente. Solicita al administrador que actualice el correo del cliente.' });
+      }
+
       // Obtener o crear el rol CLIENT
       let clientRole = await Role.findOne({ where: { role_name: 'CLIENT' } });
       if (!clientRole) {
@@ -259,6 +264,10 @@ router.post('/otp/request', otpRequestLimiter, [
 
       user.role = clientRole;
       user.client = client;
+    }
+
+    if (user.role?.role_name !== 'CLIENT' || !user.client?.is_active || user.client.email?.trim().toLowerCase() !== email) {
+      return res.status(403).json({ error: 'El correo no corresponde a un acceso de cliente activo. Contacte al administrador.' });
     }
 
     if (!user.is_active) {
@@ -294,11 +303,6 @@ router.post('/otp/request', otpRequestLimiter, [
       clientName: recipientName
     });
 
-    // Log visible para desarrollo y monitoreo
-    console.log(`\n======================================================`);
-    console.log(`🔑 [OTP CLIENTE] Código para ${email}: [ ${otpCode} ] (expira en 15 min)`);
-    console.log(`======================================================\n`);
-
     res.json({
       success: true,
       message: 'Código de acceso enviado exitosamente a tu correo.',
@@ -318,10 +322,10 @@ router.post('/otp/request', otpRequestLimiter, [
  *     tags:
  *       - Autenticación
  *     summary: Verificar código OTP para clientes
- *     description: Verifica el código OTP o PIN permanente y retorna el token JWT de acceso.
+ *     description: Verifica el código temporal enviado por correo y retorna el token JWT de acceso.
  */
 router.post('/otp/verify', [
-  body('email').isEmail().normalizeEmail().withMessage('Correo electrónico inválido'),
+  body('email').trim().toLowerCase().isEmail().withMessage('Correo electrónico inválido'),
   body('code').trim().isLength({ min: 6, max: 6 }).withMessage('El código debe ser de 6 dígitos')
 ], async (req, res) => {
   try {
@@ -353,17 +357,17 @@ router.post('/otp/verify', [
 
       isValid = await bcrypt.compare(code, otpRecord.code_hash);
       if (isValid) {
-        await otpRecord.update({ is_used: true });
+        const [claimed] = await ClientOtp.update({ is_used: true }, {
+          where: {
+            otp_id: otpRecord.otp_id,
+            is_used: false,
+            expires_at: { [Op.gt]: new Date() },
+            attempts: { [Op.lt]: 5 },
+          },
+        });
+        if (!claimed) isValid = false;
       } else {
         await otpRecord.increment('attempts');
-      }
-    }
-
-    // 2. Si no es válido mediante ClientOtp temporal, verificar si coincide con el PIN permanente del cliente
-    if (!isValid) {
-      const clientRecord = await Client.findOne({ where: { email } });
-      if (clientRecord && clientRecord.verification_code && String(clientRecord.verification_code).trim() === code) {
-        isValid = true;
       }
     }
 
@@ -376,11 +380,11 @@ router.post('/otp/verify', [
       where: { email },
       include: [
         { model: Role, as: 'role', attributes: ['role_id', 'role_name'] },
-        { model: Client, as: 'client', attributes: ['client_id', 'client_name', 'address', 'phone', 'email'] }
+        { model: Client, as: 'client', attributes: ['client_id', 'client_name', 'address', 'phone', 'email', 'is_active'] }
       ]
     });
 
-    if (!user || !user.is_active) {
+    if (!user || !user.is_active || user.role?.role_name !== 'CLIENT' || !user.client?.is_active || user.client.email?.trim().toLowerCase() !== email) {
       return res.status(403).json({ error: 'La cuenta de usuario está desactivada o no existe.' });
     }
 
@@ -614,8 +618,7 @@ router.post('/invitation/accept', [
           client_name: client.client_name,
           email: client.email,
           phone: client.phone,
-          address: client.address,
-          verification_code: client.verification_code
+          address: client.address
         }
       }
     });
