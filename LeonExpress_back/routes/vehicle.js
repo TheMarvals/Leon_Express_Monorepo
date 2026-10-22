@@ -10,6 +10,7 @@ const roleValidator = require('../middlewares/roleValidator');
 const { Op } = require("sequelize");
 
 const router = express.Router();
+router.use(authenticateToken, roleValidator(['ADMIN', 'DRIVER', 'WAREHOUSE_STAFF', 'CUSTOMER_SERVICE']));
 
 /**
  * @swagger

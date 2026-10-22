@@ -14,6 +14,12 @@ const emailService = require('../services/emailService');
 const { getFrontendUrl } = require('../utils/frontendUrl');
 
 const router = express.Router();
+router.use(authenticateToken, (req, res, next) => {
+    if (req.user.role === 'CLIENT' && req.method !== 'GET' && !(req.method === 'POST' && req.path === '/')) {
+        return res.status(403).json({ error: 'No tienes permiso para modificar esta recolección.' });
+    }
+    next();
+});
 
 // --- Validadores ---
 const validatePickupCreation = [

@@ -20,6 +20,9 @@ const authenticateToken = (req, res, next) => {
       return res.status(403).json({ error: 'Token inválido' });
     }
     
+    if (user.role === 'CLIENT' && !user.client_id) {
+      return res.status(403).json({ error: 'El usuario no tiene un cliente asociado.' });
+    }
     req.user = user;
     next();
   });

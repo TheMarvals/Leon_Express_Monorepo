@@ -25,6 +25,9 @@ async function fixture(t, file, options = {}) {
     RoutePackage: { count: async () => options.hasPackages ? 1 : 0 },
     DriverPayout: { findAll: async query => { calls.owners.push(query.where.user_id); return []; } },
     Cost: { findAll: async () => [{ cost_id: 'cost-1', cost_name: 'Peaje' }] },
+    Client: { findAndCountAll: async options => { calls.clientsWhere = options.where; return { count: 0, rows: [] }; } },
+    Package: { findByPk: async () => ({ client_id: 'other-client' }), findOne: async () => ({ client_id: 'other-client' }) },
+    Delivery: { findAll: async () => [] },
     sequelize: { transaction: async () => tx },
   };
   const filename = path.resolve(__dirname, '../routes', file + '.js');
@@ -40,9 +43,11 @@ async function fixture(t, file, options = {}) {
       };
       if (id === '../middlewares/authenticateToken') return (req, res, next) => {
         if (options.anonymous) return res.status(401).json({ error: 'Token no proporcionado' });
-        req.user = { user_id: driverId, role: options.role || 'ADMIN' }; next();
+        req.user = { user_id: driverId, role: options.role || 'ADMIN', client_id: 'client-1' }; next();
       };
       if (id === '../utils/audit') return { logAudit: async () => {} };
+      if (id === '../services/emailService') return {};
+      if (id === '../utils/uuidUtils') return {};
       if (id === '../utils/notificationService') return {};
       if (id === '../utils/qrDecoder' || id === '../utils/smartOcrParser' || id === '../services/routeAssignments') return {};
       if (id === '../utils/ocrProcessingQueue') return { getStats: () => ({ total_batches: 0 }) };
@@ -124,3 +129,41 @@ test('driver statistics ignore another driver ID supplied in the query', async t
   assert.ok(f.calls.owners.length > 1);
   assert.ok(f.calls.owners.every(id => id === driverId));
 });
+
+test('user creation rejects unauthenticated callers before validators or database writes', async t => {
+  const f = await fixture(t, 'user', { anonymous: true });
+  assert.equal((await f.request('POST', '/', {})).status, 401);
+});
+test('warehouse staff cannot create administrator or other users', async t => {
+  const f = await fixture(t, 'user', { role: 'WAREHOUSE_STAFF' });
+  assert.equal((await f.request('POST', '/', {})).status, 403);
+});
+for (const file of ['user', 'vehicle', 'route', 'delivery_events', 'audit_log']) {
+  test(`clients cannot list internal ${file} data`, async t => {
+    const f = await fixture(t, file, { role: 'CLIENT' });
+    assert.equal((await f.request('GET', '/')).status, 403);
+  });
+}
+test('client searches remain scoped to the authenticated client', async t => {
+  const f = await fixture(t, 'client', { role: 'CLIENT' });
+  assert.equal((await f.request('GET', '/?search=other-client')).status, 200);
+  assert.equal(f.calls.clientsWhere.client_id, 'client-1');
+});
+for (const endpoint of ['/other-client', '/other-client/pricing', '/other-client/history']) {
+  test(`clients cannot read another client through ${endpoint}`, async t => {
+    const f = await fixture(t, 'client', { role: 'CLIENT' });
+    assert.equal((await f.request('GET', endpoint)).status, 403);
+  });
+}
+for (const endpoint of ['/foreign-package', '/foreign-package/deliveries', '/by-code/foreign-code']) {
+  test(`foreign packages are blocked through ${endpoint}`, async t => {
+    const f = await fixture(t, 'package', { role: 'CLIENT' });
+    assert.equal((await f.request('GET', endpoint)).status, 403);
+  });
+}
+for (const [file, method, endpoint] of [['package', 'PUT', '/foreign-package'], ['pickup', 'PATCH', '/foreign-pickup/status']]) {
+  test(`client tokens cannot invoke internal ${file} updates`, async t => {
+    const f = await fixture(t, file, { role: 'CLIENT' });
+    assert.equal((await f.request(method, endpoint, {})).status, 403);
+  });
+}

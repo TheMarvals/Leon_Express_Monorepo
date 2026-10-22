@@ -17,6 +17,7 @@ const FormData = require('form-data');
 const { assignPackage, OPEN_ROUTE_STATUSES, PENDING_STATUSES } = require('../services/routeAssignments');
 
 const router = express.Router();
+router.use(authenticateToken, roleValidator(['ADMIN', 'DRIVER', 'WAREHOUSE_STAFF']));
 
 // --- Validadores ---
 const validateRouteCreation = [
@@ -301,6 +302,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
     });
 
     if (!route) return res.status(404).json({ error: 'Ruta no encontrada' });
+    if (req.user.role === 'DRIVER' && String(route.user_id) !== String(req.user.user_id)) {
+      return res.status(403).json({ error: 'Solo puedes consultar rutas a tu cargo.' });
+    }
     const data = route.toJSON();
     data.routePackages = data.routePackages.map((item) => {
       if (!item.released_at || !item.package) return item;

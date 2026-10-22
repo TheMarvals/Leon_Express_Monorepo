@@ -8,6 +8,7 @@ const roleValidator = require('../middlewares/roleValidator'); // Asegúrate de 
 const { Op } = require('sequelize');
 
 const router = express.Router();
+router.use(authenticateToken, roleValidator(['ADMIN', 'WAREHOUSE_STAFF']));
 
 
 
@@ -640,7 +641,7 @@ router.get('/', authenticateToken, roleValidator(), async (req, res) => {
   }
 });
 // POST /users - Create new user (Solo administradores)
-router.post('/', validateUser, async (req, res) => {
+router.post('/', authenticateToken, roleValidator(['ADMIN']), validateUser, async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

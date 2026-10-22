@@ -14,6 +14,19 @@ const { Op } = require("sequelize");
 const { isAfter } = require("date-fns");
 
 const router = express.Router();
+router.use(authenticateToken);
+router.use((req, res, next) => {
+  if (req.user.role === 'CLIENT' && req.method === 'POST' && req.path === '/verify' && String(req.body.client_id) !== String(req.user.client_id)) {
+    return res.status(403).json({ error: 'Solo puedes verificar los datos de tu cliente.' });
+  }
+  next();
+});
+router.param('id', (req, res, next, id) => {
+  if (req.user.role === 'CLIENT' && String(id) !== String(req.user.client_id)) {
+    return res.status(403).json({ error: 'Solo puedes consultar los datos de tu cliente.' });
+  }
+  next();
+});
 
 // --- Validadores ---
 const validateClient = [
@@ -514,6 +527,7 @@ router.get("/", authenticateToken, async (req, res) => {
       ]
     } : {};
 
+    if (req.user.role === 'CLIENT') whereClause.client_id = req.user.client_id;
     const { count, rows: clients } = await Client.findAndCountAll({
       where: whereClause,
       offset: (Number(page) - 1) * Number(pageSize),

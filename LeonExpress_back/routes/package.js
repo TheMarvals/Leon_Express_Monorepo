@@ -12,6 +12,12 @@ const roleValidator = require('../middlewares/roleValidator');
 const { queueNotificationForRole } = require('../utils/notificationService');
 
 const router = express.Router();
+router.use(authenticateToken, (req, res, next) => {
+  if (req.user.role === 'CLIENT' && req.method !== 'GET' && !(req.method === 'POST' && req.path === '/')) {
+    return res.status(403).json({ error: 'No tienes permiso para modificar este paquete.' });
+  }
+  next();
+});
 
 const validatePackage = [
   body("pickup_id").optional({ nullable: true }).isUUID(4).withMessage("ID de recolección inválido"),
@@ -900,6 +906,9 @@ router.get('/:id/deliveries', authenticateToken, async (req, res) => {
     if (!pkg) {
       return res.status(404).json({ error: 'Paquete no encontrado.' });
     }
+    if (req.user.role === 'CLIENT' && String(pkg.client_id) !== String(req.user.client_id)) {
+      return res.status(403).json({ error: 'No tienes permiso para ver este paquete' });
+    }
 
     // Buscamos todos los registros de entrega asociados a este package_id
     const deliveries = await Delivery.findAll({
@@ -1038,6 +1047,9 @@ router.get('/by-code/:trackingCode', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Paquete no encontrado con ese código de seguimiento.' });
     }
 
+    if (req.user.role === 'CLIENT' && String(pkg.client_id) !== String(req.user.client_id)) {
+      return res.status(403).json({ error: 'No tienes permiso para ver este paquete' });
+    }
     res.json(pkg);
   } catch (error) {
     console.error("Error al buscar paquete por código:", error);

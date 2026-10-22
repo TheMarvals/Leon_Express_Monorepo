@@ -17,3 +17,13 @@ test('OCR endpoints reject unauthenticated requests before image processing', ()
     assert.equal(report.backendRoutes.find(route => route.path === endpoint).requiresAuth, true, endpoint)
   }
 })
+
+test('business API calls require authentication; only portal authentication routes are public', () => {
+  const publicPaths = new Set(['/api/auth/login', '/api/auth/otp/request', '/api/auth/otp/verify', '/api/auth/invitation/:param', '/api/auth/invitation/accept'])
+  const canonical = value => value.replace(/:[^/]+/g, ':param')
+  for (const call of report.frontendCalls) {
+    if (publicPaths.has(canonical(call.path))) continue
+    const route = report.backendRoutes.find(route => route.method === call.method && canonical(route.path) === canonical(call.path))
+    assert.equal(route.requiresAuth, true, `${call.method} ${call.path}`)
+  }
+})

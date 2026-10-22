@@ -50,7 +50,13 @@ async function request(t, options = {}, vehicle = { type_id: 'type-1', license_p
   const moduleObject = { exports: {} };
   vm.runInNewContext(fs.readFileSync(routeFile, 'utf8'), {
     module: moduleObject,
-    require: (id) => id === '../models' ? models : routeRequire(id),
+    require: (id) => {
+      if (id === '../models') return models;
+      if (id === '../middlewares/authenticateToken') return (req, res, next) => {
+        req.user = { user_id: 'admin-1', role: 'ADMIN' }; next();
+      };
+      return routeRequire(id);
+    },
     console: { ...console, error() {} },
     process
   }, { filename: routeFile });

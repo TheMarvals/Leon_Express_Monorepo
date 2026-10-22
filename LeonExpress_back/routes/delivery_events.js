@@ -13,6 +13,7 @@ const { queueNotificationForRole } = require('../utils/notificationService');
 const { logAudit } = require('../utils/audit');
 
 const router = express.Router();
+router.use(authenticateToken, roleValidator(['ADMIN', 'DRIVER', 'WAREHOUSE_STAFF', 'CUSTOMER_SERVICE']));
 
 // --- Configuración de Multer para la subida de fotos ---
 const storage = multer.diskStorage({
