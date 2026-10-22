@@ -8,7 +8,7 @@
             :active="routeHasActiveChild(route)"
             :active-color="activeColor"
             :text-color="textColor(route)"
-            :aria-label="`${route.children ? 'Open category ' : 'Visit'} ${t(route.displayName)}`"
+            :aria-label="`${route.children ? 'Open category ' : 'Visit'} ${navigationLabel(route.displayName)}`"
             role="button"
             hover-opacity="0.10"
           >
@@ -20,7 +20,7 @@
                 aria-hidden="true"
               />
               <VaSidebarItemTitle class="flex justify-between items-center leading-5 font-semibold">
-                {{ t(route.displayName) }}
+                {{ navigationLabel(route.displayName) }}
                 <FontAwesomeIcon
                   v-if="route.children"
                   :icon="faArrowIcon(isCollapsed)"
@@ -37,12 +37,12 @@
               :active="isActiveChildRoute(childRoute)"
               :active-color="activeColor"
               :text-color="textColor(childRoute)"
-              :aria-label="`Visit ${t(route.displayName)}`"
+              :aria-label="`Visit ${navigationLabel(route.displayName)}`"
               hover-opacity="0.10"
             >
               <VaSidebarItemContent class="py-3 pr-2 pl-11">
                 <VaSidebarItemTitle class="leading-5 font-semibold">
-                  {{ t(childRoute.displayName) }}
+                  {{ navigationLabel(childRoute.displayName) }}
                 </VaSidebarItemTitle>
               </VaSidebarItemContent>
             </VaSidebarItem>
@@ -66,8 +66,6 @@ import {
   faHandshake,
   faCar,
   faMoneyBill,
-  faArrowUp,
-  faArrowDown,
   faCaretUp,
   faCaretDown,
   faCamera,
@@ -78,6 +76,7 @@ import { useUserStore } from '../../stores/user-store'
 
 export default defineComponent({
   name: 'Sidebar',
+  components: { FontAwesomeIcon },
   props: {
     visible: { type: Boolean, default: true },
     mobile: { type: Boolean, default: false },
@@ -87,7 +86,8 @@ export default defineComponent({
   setup: (props, { emit }) => {
     const { getColor, colorToRgba } = useColors()
     const route = useRoute()
-    const { t } = useI18n()
+    const { t, te } = useI18n()
+    const navigationLabel = (label: string) => (te(label) ? t(label) : label)
     const userStore = useUserStore()
 
     const visibleNavigationRoutes = computed(() => {
@@ -230,7 +230,7 @@ export default defineComponent({
       visibleNavigationRoutes,
       routeHasActiveChild,
       isActiveChildRoute,
-      t,
+      navigationLabel,
       iconColor,
       textColor,
       faIcon,
