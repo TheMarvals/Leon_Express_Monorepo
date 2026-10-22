@@ -49,6 +49,23 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
         transaction
       });
 
+      // Si no está asignado a este pickup_id, buscar si es un paquete manual pendiente de este cliente
+      if (!pkg) {
+        pkg = await Package.findOne({
+          where: {
+            client_id: pickup.client_id,
+            pickup_id: null,
+            status: 'PENDIENTE_RECOLECCION',
+            [Op.or]: [{ external_tracking_code: ml_code }, { tracking_code: ml_code }]
+          },
+          transaction
+        });
+
+        if (pkg) {
+          await pkg.update({ pickup_id: pickup_id }, { transaction });
+        }
+      }
+
       if (pkg) {
         if (pkg.status !== 'PENDIENTE_RECOLECCION') {
            return { pkg, alreadyConfirmed: true };
@@ -86,10 +103,10 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
         // Validar que la cuenta de ML dueña del paquete le pertenezca al cliente del Pickup
         const accessibleAccounts = await mlAccountAccess.getAccounts();
         const clientAccounts = accessibleAccounts
-          .filter(a => a.client_id === pickup.client_id)
-          .map(a => a.ml_account_id);
+          .filter(a => String(a.client_id) === String(pickup.client_id))
+          .map(a => String(a.ml_account_id));
 
-        if (!clientAccounts.includes(shipment.ml_account_id)) {
+        if (!clientAccounts.includes(String(shipment.ml_account_id))) {
           throw Object.assign(new Error('Este paquete pertenece a otro cliente distinto al de esta recolección.'), { status: 403 });
         }
 

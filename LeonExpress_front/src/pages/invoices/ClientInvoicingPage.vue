@@ -4,10 +4,11 @@ import InvoicesTable from './widgets/InvoicesTable.vue'
 import { useInvoices } from './composables/useInvoices'
 
 // Usamos el nuevo composable para obtener los datos y la lógica
-const { invoices, isLoading, filters, pagination } = useInvoices()
+const { invoices, isLoading, filters, pagination, fetch } = useInvoices()
 
 const statusOptions = [
   { value: 'PENDIENTE', text: 'Pendiente' },
+  { value: 'EN_REVISION', text: 'En Revisión' },
   { value: 'PAGADA', text: 'Pagada' },
   { value: 'VENCIDA', text: 'Vencida' },
   { value: 'CANCELADA', text: 'Cancelada' },
@@ -31,7 +32,7 @@ const statusOptions = [
         </div>
       </div>
 
-      <InvoicesTable :invoices="invoices" :loading="isLoading" />
+      <InvoicesTable :invoices="invoices" :loading="isLoading" @refresh="fetch" />
 
       <div class="flex flex-col-reverse md:flex-row gap-2 justify-between items-center py-2">
         <div>

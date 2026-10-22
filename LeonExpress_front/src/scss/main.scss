@@ -2,6 +2,10 @@
 @use 'vuestic';
 @use 'icon-fonts/index';
 
+:root {
+  --va-leon-color: #03323a;
+}
+
 body {
   @apply text-regularMedium;
 

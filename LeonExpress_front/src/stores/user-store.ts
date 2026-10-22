@@ -42,5 +42,6 @@ export const useUserStore = defineStore('user', {
     isAdmin: (state) => state.user?.role === 'ADMIN',
     isDriver: (state) => state.user?.role === 'DRIVER',
     isWarehouseStaff: (state) => state.user?.role === 'WAREHOUSE_STAFF',
+    isClient: (state) => state.user?.role === 'CLIENT',
   },
 })

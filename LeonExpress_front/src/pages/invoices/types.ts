@@ -6,7 +6,7 @@ export interface Invoice {
   invoice_date: string
   due_date: string
   total_amount: number
-  status: 'PENDIENTE' | 'PAGADA' | 'VENCIDA' | 'CANCELADA'
+  status: 'PENDIENTE' | 'EN_REVISION' | 'PAGADA' | 'VENCIDA' | 'CANCELADA'
   client_id: string
   client: {
     client_id: string
@@ -39,4 +39,10 @@ export interface Payment {
   payment_method: string
   transaction_reference?: string
   notes?: string
+  receipt_url?: string
+  status?: 'PENDIENTE_APROBACION' | 'APROBADO' | 'RECHAZADO'
+  created_by?: string
+  approved_by?: string
+  approved_at?: string
+  rejection_reason?: string
 }

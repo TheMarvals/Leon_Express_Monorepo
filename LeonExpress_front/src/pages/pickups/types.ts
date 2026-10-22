@@ -26,10 +26,11 @@ export interface Package {
 
 export interface Pickup {
   pickup_id: string
-  user_id: string
+  user_id: string | null
   client_id: string
   pickup_scheduled_date: string
   status:
+    | 'SOLICITADA'
     | 'ASIGNADO_A_RECOLECTOR'
     | 'EN_PROCESO_RECOLECCION'
     | 'RECOLECCION_FINALIZADA_DRIVER'
@@ -38,7 +39,7 @@ export interface Pickup {
     | 'CANCELADO'
   notes?: string | null
 
-  user?: { full_name: string }
+  user?: { full_name: string } | null
   client?: { client_name: string }
 
   // --- AÑADE ESTA LÍNEA ---

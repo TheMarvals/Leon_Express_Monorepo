@@ -13,10 +13,18 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    // https: {
-    //   key: fs.readFileSync('localhost+1-key.pem'),
-    //   cert: fs.readFileSync('localhost+1.pem'),
-    // },
+    proxy: {
+      '/api': {
+        target: 'https://localhost:4100',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/uploads': {
+        target: 'https://localhost:4100',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
     allowedHosts: ['c148f6ac0ea9.ngrok-free.app', '7b4c23fdf39e.ngrok-free.app'],
   },
   plugins: [

@@ -114,9 +114,20 @@ const api = {
   reactivateUser: (id: string) => axiosInstance.patch(`/users/${id}/activate`),
 
   login: (credentials: { username: string; password: string }) => axiosInstance.post('/auth/login', credentials),
+  requestOtp: (data: { email: string }) => axiosInstance.post('/auth/otp/request', data),
+  verifyOtp: (data: { email: string; code: string }) => axiosInstance.post('/auth/otp/verify', data),
+  getInvitationByToken: (token: string) => axiosInstance.get(`/auth/invitation/${token}`),
+  acceptInvitation: (data: { token: string; phone: string; address: string; commune?: string }) =>
+    axiosInstance.post('/auth/invitation/accept', data),
   getMe: () => axiosInstance.get('/auth/me'),
   changePassword: (data: { currentPassword: string; newPassword: string; confirmNewPassword: string }) =>
     axiosInstance.patch('/auth/password', data),
+
+  // --- Métodos Mercado Libre para Clientes ---
+  getMyMlAccount: () => axiosInstance.get('/mercadolibre/my-account'),
+  linkMyMlAccount: () => axiosInstance.post('/mercadolibre/my-account/link'),
+  syncMyMlAccount: () => axiosInstance.post('/mercadolibre/my-account/sync'),
+  unlinkMyMlAccount: () => axiosInstance.delete('/mercadolibre/my-account'),
 
   // --- Métodos de Roles y Almacenes ---
   getRoles: () => axiosInstance.get('/users/roles'),
@@ -159,6 +170,10 @@ const api = {
     axiosInstance.put(`/clients/${clientId}/pricing/${pricingId}`, data),
   verifyClientCode: (payload: { verification_code: string; client_id: string }) =>
     axiosInstance.post('/clients/verify', payload),
+  createClientInvitation: (data: { client_name: string; email: string; base_price: number; has_free_pickups?: boolean }) =>
+    axiosInstance.post('/clients/invitations', data),
+  getClientInvitations: () => axiosInstance.get('/clients/invitations'),
+  deleteClientInvitation: (id: string) => axiosInstance.delete(`/clients/invitations/${id}`),
 
   // --- Metodos Packages ----
   getPackages: (params: ApiListParams) => axiosInstance.get('/packages', { params: mapParams(params) }),
@@ -169,6 +184,7 @@ const api = {
       },
     }),
   createPackage: (data: any) => axiosInstance.post('/packages', data),
+  createManualPackage: (data: any) => axiosInstance.post('/packages', data),
   updatePackage: (id: string, data: any) => axiosInstance.put(`/packages/${id}`, data),
   updatePackageTracking: (id: string, externalTrackingCode: string) =>
     axiosInstance.patch(`/packages/${id}/tracking`, { external_tracking_code: externalTrackingCode }),
@@ -244,7 +260,20 @@ const api = {
   },
 
   registerInvoicePayment(invoiceId: string, data: any) {
+    if (data instanceof FormData) {
+      return axiosInstance.post(`/invoices/${invoiceId}/payments`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+    }
     return axiosInstance.post(`/invoices/${invoiceId}/payments`, data)
+  },
+
+  approveInvoicePayment(invoiceId: string, paymentId: string) {
+    return axiosInstance.post(`/invoices/${invoiceId}/payments/${paymentId}/approve`)
+  },
+
+  rejectInvoicePayment(invoiceId: string, paymentId: string, reason: string) {
+    return axiosInstance.post(`/invoices/${invoiceId}/payments/${paymentId}/reject`, { reason })
   },
 
   getPackageByTrackingCode: (trackingCode: string) => axiosInstance.get(`/packages/by-code/${trackingCode}`),

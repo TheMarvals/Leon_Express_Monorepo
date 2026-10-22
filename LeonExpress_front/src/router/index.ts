@@ -115,7 +115,7 @@ const routes: Array<RouteRecordRaw> = [
         name: 'packages',
         path: 'packages',
         component: () => import('../pages/packages/PackagesPage.vue'),
-        meta: { roles: ['ADMIN', 'WAREHOUSE_STAFF', 'CUSTOMER_SERVICE'] },
+        meta: { roles: ['ADMIN', 'WAREHOUSE_STAFF', 'CUSTOMER_SERVICE', 'CLIENT'] },
       },
       {
         name: 'package-verification',
@@ -138,7 +138,7 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('../pages/packages/PackageDetailPage.vue'),
         meta: {
           requiresAuth: true,
-          roles: ['ADMIN', 'WAREHOUSE_STAFF', 'DRIVER', 'FINANCE', 'CUSTOMER_SERVICE'],
+          roles: ['ADMIN', 'WAREHOUSE_STAFF', 'DRIVER', 'FINANCE', 'CUSTOMER_SERVICE', 'CLIENT'],
         },
       },
       {
@@ -170,13 +170,13 @@ const routes: Array<RouteRecordRaw> = [
             name: 'client-invoicing', // Nombre para la lista, usado en el menú
             path: '', // Carga en /invoices
             component: () => import('../pages/invoices/ClientInvoicingPage.vue'),
-            meta: { requiresAuth: true, roles: ['ADMIN', 'FINANCE'] },
+            meta: { requiresAuth: true, roles: ['ADMIN', 'FINANCE', 'CLIENT'] },
           },
           {
             name: 'invoice-details', // Nombre para el detalle, usado en los botones
             path: ':id', // Carga en /invoices/:id
             component: () => import('../pages/invoices/InvoiceDetailPage.vue'),
-            meta: { requiresAuth: true, roles: ['ADMIN', 'FINANCE'] },
+            meta: { requiresAuth: true, roles: ['ADMIN', 'FINANCE', 'CLIENT'] },
             props: true, // Permite pasar el 'id' como prop al componente
           },
         ],
@@ -201,7 +201,7 @@ const routes: Array<RouteRecordRaw> = [
         name: 'mercadolibre',
         path: 'mercadolibre',
         component: () => import('../pages/mercadolibre/MercadoLibrePage.vue'),
-        meta: { roles: ['ADMIN'] },
+        meta: { roles: ['ADMIN', 'CLIENT'] },
       },
       {
         name: 'payments',
@@ -258,6 +258,26 @@ const routes: Array<RouteRecordRaw> = [
     ],
   },
   {
+    path: '/portal',
+    component: AuthLayout,
+    children: [
+      {
+        name: 'client-login',
+        path: 'login',
+        component: () => import('../pages/auth/ClientLogin.vue'),
+      },
+      {
+        name: 'register-invite',
+        path: 'registro',
+        component: () => import('../pages/auth/RegisterInvite.vue'),
+      },
+      {
+        path: '',
+        redirect: { name: 'client-login' },
+      },
+    ],
+  },
+  {
     path: '/print',
     component: () => import('../layouts/PrintLayout.vue'),
     children: [
@@ -270,6 +290,11 @@ const routes: Array<RouteRecordRaw> = [
         path: 'payouts/:id',
         name: 'print-payout',
         component: () => import('../pages/print/PayoutPrintPage.vue'),
+      },
+      {
+        path: 'package-label/:trackingCode',
+        name: 'print-package-label',
+        component: () => import('../pages/print/PackageLabelPrintPage.vue'),
       },
     ],
   },
@@ -330,7 +355,7 @@ router.beforeEach(async (to, from, next) => {
     return next(from.name ? false : { name: 'dashboard' })
   }
 
-  if (to.name === 'login' && isLoggedIn) {
+  if ((to.name === 'login' || to.name === 'client-login') && isLoggedIn) {
     return next({ name: 'dashboard' })
   }
 

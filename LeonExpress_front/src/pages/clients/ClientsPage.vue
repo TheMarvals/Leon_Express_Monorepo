@@ -3,10 +3,12 @@ import { ref, watchEffect } from 'vue'
 import { useModal, useToast } from 'vuestic-ui'
 import ClientsTable from './widgets/ClientsTable.vue'
 import EditClientForm from './widgets/EditClientForm.vue'
+import InviteClientModal from './widgets/InviteClientModal.vue'
 import { Client } from './types'
 import { useClients } from './composables/useClients'
 
 const doShowEditClientModal = ref(false)
+const doShowInviteModal = ref(false)
 const clientToEdit = ref<Client | null>(null)
 const {
   clients,
@@ -98,7 +100,17 @@ const beforeEditFormModalClose = async (hide: () => void) => {
             </template>
           </VaInput>
         </div>
-        <VaButton color="#03323A" @click="showEditClientModal(null)">Añadir Partner</VaButton>
+        <div class="flex items-center gap-2">
+          <VaButton
+            color="#10b981"
+            icon="mail"
+            class="font-bold shadow-sm"
+            @click="doShowInviteModal = true"
+          >
+            Invitar Cliente
+          </VaButton>
+          <VaButton color="#03323A" @click="showEditClientModal(null)">Añadir Partner</VaButton>
+        </div>
       </div>
 
       <div class="table-wrapper">
@@ -138,6 +150,11 @@ const beforeEditFormModalClose = async (hide: () => void) => {
       @success="onClientSaved"
     />
   </VaModal>
+
+  <InviteClientModal
+    v-model="doShowInviteModal"
+    @created="debouncedFetch"
+  />
 </template>
 
 <style scoped>

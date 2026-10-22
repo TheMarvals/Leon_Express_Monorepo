@@ -38,7 +38,9 @@ export async function subscribeUserToPush(publicVapidKey: string) {
         } else if (existingKey && areUint8ArraysEqual(existingKey, newKey)) {
           // Si ya existe con la misma key, usar la existente
           console.log('Usando suscripción existente')
-          await api.pushSubscribe(existingSubscription)
+          if (localStorage.getItem('token')) {
+            await api.pushSubscribe(existingSubscription)
+          }
           return existingSubscription
         }
       }
@@ -49,8 +51,10 @@ export async function subscribeUserToPush(publicVapidKey: string) {
         applicationServerKey: urlBase64ToUint8Array(publicVapidKey),
       })
 
-      // Enviar la suscripción al backend
-      await api.pushSubscribe(subscription)
+      // Enviar la suscripción al backend si el usuario está autenticado
+      if (localStorage.getItem('token')) {
+        await api.pushSubscribe(subscription)
+      }
       return subscription
     } catch (error) {
       console.error('Error al manejar suscripción push:', error)

@@ -1,19 +1,27 @@
 <script setup lang="ts">
 import { defineVaDataTableColumns, useModal } from 'vuestic-ui'
 import { Package } from '../types'
-import { PropType } from 'vue'
-import { RouterLink } from 'vue-router'
+import { PropType, computed } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
 import { useUserStore } from '../../../stores/user-store'
 
 const userStore = useUserStore()
+const router = useRouter()
 
-const columns = defineVaDataTableColumns([
-  { label: 'CÓDIGO DE SEGUIMIENTO', key: 'tracking_code', sortable: true },
-  { label: 'CLIENTE', key: 'client', sortable: true },
-  { label: 'DESTINATARIO', key: 'recipient_name', sortable: true },
-  { label: 'ESTADO', key: 'status', sortable: true },
-  { label: ' ', key: 'actions', align: 'right' },
-])
+const columns = computed(() => {
+  const cols = [
+    { label: 'CÓDIGO DE SEGUIMIENTO', key: 'tracking_code', sortable: true },
+  ]
+  if (!userStore.isClient) {
+    cols.push({ label: 'CLIENTE', key: 'client', sortable: true })
+  }
+  cols.push(
+    { label: 'DESTINATARIO', key: 'recipient_name', sortable: true },
+    { label: 'ESTADO', key: 'status', sortable: true },
+    { label: 'ACCIONES', key: 'actions', align: 'right' },
+  )
+  return defineVaDataTableColumns(cols)
+})
 
 defineProps({
   packages: { type: Array as PropType<Package[]>, required: true },
@@ -30,6 +38,15 @@ const emit = defineEmits<{
 
 const { confirm } = useModal()
 
+const printThermalLabel = (pkg: Package) => {
+  if (!pkg?.tracking_code) return
+  const routeResolved = router.resolve({
+    name: 'print-package-label',
+    params: { trackingCode: pkg.tracking_code },
+  })
+  window.open(routeResolved.href, '_blank')
+}
+
 const onPackageDelete = async (pkg: Package) => {
   const agreed = await confirm({
     title: 'Eliminar Paquete',
@@ -42,9 +59,11 @@ const onPackageDelete = async (pkg: Package) => {
 
 // Colores para los diferentes estados de los paquetes
 const statusColors: Record<string, string> = {
+  PENDIENTE_RECOLECCION: 'warning',
   RECOLECTADO_EN_ORIGEN: 'info',
   RECIBIDO_EN_ALMACEN: 'primary',
   ASIGNADO_A_RUTA: 'warning',
+  EN_RUTA_ENTREGA: 'info',
   ENTREGADO: 'success',
   INCIDENCIA_ENTREGA: 'danger',
   CANCELADO: 'secondary',
@@ -55,7 +74,7 @@ const statusColors: Record<string, string> = {
 <template>
   <VaDataTable :columns="columns" :items="packages" :loading="loading" :per-page="pagination.perPage" sticky-header>
     <template #cell(tracking_code)="{ rowData }">
-      <span>{{ rowData.tracking_code }}</span>
+      <span class="font-mono font-bold">{{ rowData.tracking_code }}</span>
     </template>
     <template #cell(client)="{ rowData }">
       <span>{{ rowData.client?.client_name || 'N/A' }}</span>
@@ -67,20 +86,20 @@ const statusColors: Record<string, string> = {
           :color="statusColors[value] || 'secondary'"
         />
         <!-- Badge para múltiples etiquetas -->
-        <VaBadge v-if="rowData.has_multiple_labels" text="🏷️ MÚLTIPLES ETIQUETAS" color="info" class="text-xs" />
+        <VaBadge v-if="rowData.has_multiple_labels" text="MÚLTIPLES ETIQUETAS" color="info" class="text-xs" />
 
         <!-- Badge para cambios -->
         <div v-if="rowData.is_change" class="flex flex-col gap-1">
           <VaBadge
             v-if="!rowData.change_received"
-            text="🔄 CAMBIO PENDIENTE"
+            text="CAMBIO PENDIENTE"
             color="warning"
             class="text-xs cursor-pointer hover:opacity-80 transition-opacity"
             @click="$emit('open-change-modal', rowData as Package)"
           />
           <VaBadge
             v-else
-            :text="`✅ CAMBIO RECIBIDO`"
+            text="CAMBIO RECIBIDO"
             color="success"
             class="text-xs cursor-pointer hover:opacity-80 transition-opacity"
             @click="$emit('open-change-modal', rowData as Package)"
@@ -91,7 +110,7 @@ const statusColors: Record<string, string> = {
         <template v-if="rowData.pending_return_user_id">
           <VaBadge
             color="warning"
-            :text="'📦 Pendiente entrega física: ' + (rowData.pendingReturnDriver?.full_name || 'Conductor')"
+            :text="'Pendiente entrega física: ' + (rowData.pendingReturnDriver?.full_name || 'Conductor')"
             class="text-xs mt-1"
           />
           <VaButton
@@ -108,15 +127,23 @@ const statusColors: Record<string, string> = {
       </div>
     </template>
     <template #cell(actions)="{ rowData }">
-      <div class="flex gap-2 justify-end">
+      <div class="flex gap-1 justify-end items-center">
+        <VaButton
+          preset="secondary"
+          size="small"
+          icon="print"
+          title="Imprimir Etiqueta (100x150mm)"
+          @click="printThermalLabel(rowData as Package)"
+        />
         <RouterLink :to="{ name: 'package-details', params: { id: rowData.package_id } }">
-          <VaButton preset="primary" size="small" icon="fa4-eye" aria-label="Ver detalles" />
+          <VaButton preset="primary" size="small" icon="fa4-eye" title="Ver detalles" />
         </RouterLink>
         <VaButton
+          v-if="!userStore.isClient"
           preset="primary"
           size="small"
           icon="fa4-edit"
-          aria-label="Editar paquete"
+          title="Editar paquete"
           @click="$emit('edit-package', rowData as Package)"
         />
         <VaButton
@@ -125,7 +152,7 @@ const statusColors: Record<string, string> = {
           size="small"
           icon="fa4-trash"
           color="danger"
-          aria-label="Eliminar paquete"
+          title="Eliminar paquete"
           @click="onPackageDelete(rowData as Package)"
         />
       </div>

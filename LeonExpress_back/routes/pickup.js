@@ -10,14 +10,16 @@ const { Op } = require("sequelize");
 const { queueNotification, queueNotificationForRole } = require('../utils/notificationService');
 const { logAudit } = require('../utils/audit');
 const ocrQueue = require('../utils/ocrProcessingQueue');
+const emailService = require('../services/emailService');
 
 const router = express.Router();
 
 // --- Validadores ---
 const validatePickupCreation = [
-    body('user_id').isUUID(4).withMessage('ID del driver inválido (debe ser UUIDv4)'),
-    body('client_id').isUUID(4).withMessage('ID del cliente inválido (debe ser UUIDv4)'),
+    body('user_id').optional({ nullable: true }).isUUID(4).withMessage('ID del driver inválido (debe ser UUIDv4)'),
+    body('client_id').optional({ nullable: true }).isUUID(4).withMessage('ID del cliente inválido (debe ser UUIDv4)'),
     body('pickup_scheduled_date').isISO8601().toDate().withMessage('Fecha de recolección programada inválida'),
+    body('pickup_cost').optional().isFloat({ min: 0 }).withMessage('El valor de la recolección debe ser un número mayor o igual a 0'),
 ];
 
 // Se incluyen todos los estados que un usuario puede establecer manualmente
@@ -58,6 +60,8 @@ router.get('/', authenticateToken, async (req, res) => {
 
         if (userRole === 'DRIVER') {
             whereClause.user_id = userId;
+        } else if (userRole === 'CLIENT') {
+            whereClause.client_id = req.user.client_id;
         }
 
         const { count, rows } = await Pickup.findAndCountAll({
@@ -185,6 +189,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
         if (req.user.role === 'DRIVER' && pickup.user_id !== req.user.user_id) {
             return res.status(403).json({ error: 'No tienes permiso para ver esta recolección.' });
         }
+        if (req.user.role === 'CLIENT' && pickup.client_id !== req.user.client_id) {
+            return res.status(403).json({ error: 'No tienes permiso para ver esta recolección.' });
+        }
 
         res.json(pickupJson);
     } catch (error) {
@@ -195,8 +202,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
 
 // POST /pickups
-router.post('/', authenticateToken, roleValidator(['ADMIN', 'WAREHOUSE_STAFF']), validatePickupCreation, async (req, res) => {
-    // ... tu código de POST /pickups se mantiene igual ...
+router.post('/', authenticateToken, roleValidator(['ADMIN', 'WAREHOUSE_STAFF', 'CLIENT']), validatePickupCreation, async (req, res) => {
     const t = await sequelize.transaction();
     try {
         const errors = validationResult(req);
@@ -204,64 +210,105 @@ router.post('/', authenticateToken, roleValidator(['ADMIN', 'WAREHOUSE_STAFF']),
             await t.rollback();
             return res.status(400).json({ errors: errors.array() });
         }
-        const { user_id, client_id, pickup_scheduled_date, notes } = req.body;
-        const user = await User.findByPk(user_id, { transaction: t });
-        if (!user) {
-            await t.rollback();
-            return res.status(404).json({ error: 'Driver no encontrado' });
+
+        const isClient = req.user.role === 'CLIENT';
+        let { user_id, client_id, pickup_scheduled_date, notes, pickup_cost } = req.body;
+
+        if (isClient) {
+            client_id = req.user.client_id;
+            user_id = null;
+            pickup_cost = 0.00;
+            if (!client_id) {
+                await t.rollback();
+                return res.status(400).json({ error: 'No se encontró un cliente asociado a su usuario.' });
+            }
+        } else {
+            if (!client_id) {
+                await t.rollback();
+                return res.status(400).json({ error: 'El ID del cliente es obligatorio.' });
+            }
+            if (user_id) {
+                const user = await User.findByPk(user_id, { transaction: t });
+                if (!user) {
+                    await t.rollback();
+                    return res.status(404).json({ error: 'Driver no encontrado' });
+                }
+                const vehicle = await Vehicle.findOne({ where: { user_id }, transaction: t });
+                if (!vehicle) {
+                    await t.rollback();
+                    return res.status(409).json({
+                        error: 'Conductor sin vehículo',
+                        message: `El conductor ${user.full_name} no tiene un vehículo asignado. Por favor, asigne un vehículo a este conductor antes de crear la recolección.`
+                    });
+                }
+            }
         }
+
         const client = await Client.findByPk(client_id, { transaction: t });
         if (!client) {
             await t.rollback();
             return res.status(404).json({ error: 'Cliente no encontrado' });
         }
 
-        // --- VALIDACIÓN DE VEHÍCULO ---
-        const vehicle = await Vehicle.findOne({ where: { user_id: user_id }, transaction: t });
-        if (!vehicle) {
-            await t.rollback();
-            return res.status(409).json({
-                error: 'Conductor sin vehículo',
-                message: `El conductor ${user.full_name} no tiene un vehículo asignado. Por favor, asigne un vehículo a este conductor antes de crear la recolección.`
-            });
-        }
-        // -----------------------------
+        const initialStatus = isClient || !user_id ? 'SOLICITADA' : 'ASIGNADO_A_RECOLECTOR';
+        const parsedCost = parseFloat(pickup_cost) || 0.00;
+
         const newPickup = await Pickup.create({
             pickup_id: uuidv4(),
-            user_id,
+            user_id: user_id || null,
             client_id,
             pickup_scheduled_date,
-            notes,
-            status: 'ASIGNADO_A_RECOLECTOR'
+            notes: notes || null,
+            pickup_cost: parsedCost,
+            status: initialStatus
         }, { transaction: t });
 
         const scheduledAt = pickup_scheduled_date ? new Date(pickup_scheduled_date).toLocaleString('es-CL') : '';
 
-        console.log(`🎯 DEBUG PICKUP: Enviando notificación a driver ${user_id} para cliente ${client.client_name}`);
-        console.log(`🎯 DEBUG PICKUP: Transaction ID: ${t ? 'SÍ' : 'NO'}`);
+        if (user_id) {
+            queueNotification({
+                userId: user_id,
+                title: 'Nueva recolección asignada',
+                message: `Tienes una nueva recolección para ${client.client_name}${scheduledAt ? ` programada para ${scheduledAt}` : ''}.`,
+                link: `/pickups/${newPickup.pickup_id}`
+            }, { transaction: t });
+        }
 
-        queueNotification({
-            userId: user_id,
-            title: 'Nueva recolección asignada',
-            message: `Tienes una nueva recolección para ${client.client_name}${scheduledAt ? ` programada para ${scheduledAt}` : ''}.`,
-            link: `/pickups/${newPickup.pickup_id}`
-        }, { transaction: t });
+        if (isClient) {
+            await queueNotificationForRole('ADMIN', {
+                title: 'Nueva Solicitud de Colecta',
+                message: `El cliente ${client.client_name} ha solicitado una colecta para ${scheduledAt}.`,
+                link: `/pickups/${newPickup.pickup_id}`
+            }, { transaction: t });
+        }
 
-        console.log(`🎯 DEBUG PICKUP: queueNotification llamado correctamente`);
-
-        // Log de auditoría
         await logAudit(req.user.user_id, 'CREATE_PICKUP', {
             pickup_id: newPickup.pickup_id,
             client_name: client.client_name,
-            driver_id: user_id,
+            driver_id: user_id || null,
+            pickup_cost: parsedCost,
+            status: initialStatus,
             scheduled_date: pickup_scheduled_date
         });
 
         await t.commit();
-        res.status(201).json({ message: 'Tarea de pickup creada exitosamente', pickup: newPickup });
+
+        if (isClient && client.email) {
+            emailService.sendPickupRequestedNotification({
+                to: client.email,
+                clientName: client.client_name,
+                scheduledDate: pickup_scheduled_date,
+                pickupId: newPickup.pickup_id,
+                pickupAddress: client.address,
+                notes
+            }).catch(err => console.error('Error enviando confirmación de colecta por email:', err));
+        }
+
+        res.status(201).json({ message: 'Recolección creada exitosamente', pickup: newPickup });
     } catch (error) {
         await t.rollback();
-        res.status(500).json({ error: 'Error del servidor' });
+        console.error('Error al crear recolección:', error);
+        res.status(500).json({ error: 'Error del servidor al crear la recolección', details: error.message });
     }
 });
 
@@ -269,17 +316,29 @@ router.post('/', authenticateToken, roleValidator(['ADMIN', 'WAREHOUSE_STAFF']),
 // PUT /pickups/:id - Actualizar datos generales de la recolección
 router.put('/:id', authenticateToken, roleValidator(['ADMIN', 'WAREHOUSE_STAFF']), async (req, res) => {
     try {
-        const { user_id, client_id, pickup_scheduled_date, notes } = req.body;
+        const { user_id, client_id, pickup_scheduled_date, notes, pickup_cost } = req.body;
         const pickup = await Pickup.findByPk(req.params.id);
         if (!pickup) return res.status(404).json({ error: 'Recolección no encontrada' });
 
-        await pickup.update({
-            user_id: user_id || pickup.user_id,
-            client_id: client_id || pickup.client_id,
-            pickup_scheduled_date: pickup_scheduled_date || pickup.pickup_scheduled_date,
-            notes: notes !== undefined ? notes : pickup.notes
-        });
+        const updateData = {};
+        if (user_id !== undefined) updateData.user_id = user_id;
+        if (client_id !== undefined) updateData.client_id = client_id;
+        if (pickup_scheduled_date !== undefined) updateData.pickup_scheduled_date = pickup_scheduled_date;
+        if (notes !== undefined) updateData.notes = notes;
+        if (pickup_cost !== undefined) updateData.pickup_cost = parseFloat(pickup_cost) || 0.00;
 
+        // Si estaba SOLICITADA y ahora se le asigna conductor, pasa a ASIGNADO_A_RECOLECTOR
+        if (pickup.status === 'SOLICITADA' && user_id) {
+            updateData.status = 'ASIGNADO_A_RECOLECTOR';
+            queueNotification({
+                userId: user_id,
+                title: 'Nueva recolección asignada',
+                message: `Se te ha asignado una recolección programada.`,
+                link: `/pickups/${pickup.pickup_id}`
+            });
+        }
+
+        await pickup.update(updateData);
         res.json(pickup);
     } catch (error) {
         console.error('Error al actualizar recolección:', error);

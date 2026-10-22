@@ -15,6 +15,7 @@ interface PickupFormData {
   user_id: string | null
   client_id: string | null
   pickup_scheduled_date: Date
+  pickup_cost?: number
   notes: string
 }
 
@@ -29,6 +30,7 @@ const { init: notify } = useToast()
 const user_id = ref<string | null>(null)
 const client_id = ref<string | null>(null)
 const pickup_scheduled_date = ref(new Date())
+const pickup_cost = ref<number>(0)
 const notes = ref('')
 
 const drivers = ref<{ text: string; value: string }[]>([])
@@ -64,14 +66,16 @@ watch(
       user_id.value = pickupData.user_id || null
       client_id.value = pickupData.client_id || null
       pickup_scheduled_date.value = new Date(pickupData.pickup_scheduled_date)
+      pickup_cost.value = (pickupData as any).pickup_cost !== undefined ? Number((pickupData as any).pickup_cost) : 0
       notes.value = pickupData.notes || ''
     } else {
       reset()
       value.value = new Date()
       // Si hay un preserveDriverId, mantenerlo; si no, resetear
-      user_id.value = props.preserveDriverId || null
+      user_id.value = (props as any).preserveDriverId || null
       client_id.value = null
       pickup_scheduled_date.value = new Date()
+      pickup_cost.value = 0
       notes.value = ''
     }
   },
@@ -87,6 +91,7 @@ const handleSubmit = () => {
     user_id: (user_id.value as any)?.value || user_id.value,
     client_id: (client_id.value as any)?.value || client_id.value,
     pickup_scheduled_date: combinedDate,
+    pickup_cost: Number(pickup_cost.value) || 0,
     notes: notes.value,
   }
 
@@ -129,6 +134,14 @@ const handleSubmit = () => {
         color="#10b981"
       />
     </div>
+    <VaInput
+      v-model.number="pickup_cost"
+      type="number"
+      min="0"
+      step="100"
+      label="Monto al Repartidor / Chofer ($)"
+      placeholder="0"
+    />
     <VaTextarea v-model="notes" label="Notas (Opcional)" />
     <div class="flex justify-end gap-2 mt-4">
       <VaButton preset="secondary" @click="$emit('close')">Cancelar</VaButton>

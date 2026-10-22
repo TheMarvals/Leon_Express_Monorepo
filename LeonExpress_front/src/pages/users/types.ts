@@ -21,5 +21,7 @@ export interface User {
   role?: string // Campo directo del backend /auth/me
   warehouse_id?: string
   warehouse_name?: string
+  client_id?: string
+  client?: any
   vehicles?: Vehicle[] // Es un array de objetos Vehicle
 }

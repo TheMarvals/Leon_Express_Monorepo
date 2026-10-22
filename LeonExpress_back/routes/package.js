@@ -3,7 +3,7 @@
 const express = require("express");
 const { body, validationResult } = require("express-validator");
 const { v4: uuidv4 } = require("uuid");
-const { Package, PackageCost, Client, Pickup, Delivery, DeliveryPhoto, User, Cancellation, Return, OcrProcessingQueue, Route, RoutePackage, sequelize } = require('../models');
+const { Package, PackageCost, Client, ClientPricing, VehicleType, Pickup, Delivery, DeliveryPhoto, User, Cancellation, Return, OcrProcessingQueue, Route, RoutePackage, sequelize } = require('../models');
 const authenticateToken = require("../middlewares/authenticateToken");
 const { Op } = require("sequelize");
 const { logAudit } = require("../utils/audit");
@@ -14,13 +14,13 @@ const { queueNotificationForRole } = require('../utils/notificationService');
 const router = express.Router();
 
 const validatePackage = [
-  body("pickup_id").isUUID(4).withMessage("ID de recolección inválido"),
-  body("client_id").isUUID(4).withMessage("ID de cliente inválido"),
+  body("pickup_id").optional({ nullable: true }).isUUID(4).withMessage("ID de recolección inválido"),
+  body("client_id").optional({ nullable: true }).isUUID(4).withMessage("ID de cliente inválido"),
   body("recipient_name").isString().notEmpty().withMessage("Nombre del destinatario es requerido"),
   body("destination_address").isString().notEmpty().withMessage("Dirección de destino es requerida"),
-  body("client_price").isFloat({ min: 0 }).withMessage("Precio al cliente debe ser un número positivo"),
-  body("delivery_cost").isFloat({ min: 0 }).withMessage("Costo de entrega debe ser un número positivo"),
-  body("scanned_at_origin_datetime").isISO8601().toDate().withMessage("Fecha de escaneo inválida"),
+  body("client_price").optional().isFloat({ min: 0 }).withMessage("Precio al cliente debe ser un número positivo"),
+  body("delivery_cost").optional().isFloat({ min: 0 }).withMessage("Costo de entrega debe ser un número positivo"),
+  body("scanned_at_origin_datetime").optional({ nullable: true }).isISO8601().toDate().withMessage("Fecha de escaneo inválida"),
 ];
 
 const validateVerification = [
@@ -457,6 +457,8 @@ router.get("/", authenticateToken, async (req, res) => {
         required: true,
       });
       distinct = true;
+    } else if (req.user.role === 'CLIENT') {
+      whereClause.client_id = req.user.client_id;
     }
     // --- FIN DE LA CORRECCIÓN ---
 
@@ -592,17 +594,53 @@ router.post("/", authenticateToken, validatePackage, async (req, res) => {
       }
     }
 
-    // 3. Validar existencia de cliente y recolección
-    const client = await Client.findByPk(packageData.client_id);
+    // Si el usuario es CLIENT, forzar client_id = req.user.client_id
+    if (req.user.role === 'CLIENT') {
+      packageData.client_id = req.user.client_id;
+    }
+
+    // 3. Validar existencia de cliente
+    const client = await Client.findByPk(packageData.client_id, { transaction: t });
     if (!client) {
       await t.rollback();
       return res.status(400).json({ error: "Cliente no encontrado" });
     }
-    const pickup = await Pickup.findByPk(packageData.pickup_id);
-    if (!pickup) {
-      await t.rollback();
-      return res.status(400).json({ error: "Recolección no encontrada" });
+
+    // Validar recolección (si fue especificada)
+    let pickup = null;
+    if (packageData.pickup_id) {
+      pickup = await Pickup.findByPk(packageData.pickup_id, { transaction: t });
+      if (!pickup) {
+        await t.rollback();
+        return res.status(400).json({ error: "Recolección no encontrada" });
+      }
+      if (req.user.role === 'CLIENT' && pickup.client_id !== req.user.client_id) {
+        await t.rollback();
+        return res.status(403).json({ error: "La recolección no pertenece a su cuenta" });
+      }
     }
+
+    // Calcular client_price si no fue especificado
+    let clientPrice = packageData.client_price !== undefined && packageData.client_price !== null ? parseFloat(packageData.client_price) : null;
+    if (clientPrice === null || isNaN(clientPrice)) {
+      const pricing = await ClientPricing.findOne({ 
+        where: { client_id: packageData.client_id, valid_to: null }, 
+        transaction: t 
+      });
+      clientPrice = pricing ? parseFloat(pricing.base_price) : 0.00;
+    }
+
+    // Calcular delivery_cost si no fue especificado
+    let deliveryCost = packageData.delivery_cost !== undefined && packageData.delivery_cost !== null ? parseFloat(packageData.delivery_cost) : null;
+    if (deliveryCost === null || isNaN(deliveryCost)) {
+      const defaultVehicleType = await VehicleType.findOne({
+        order: [['base_delivery_cost', 'ASC']],
+        transaction: t
+      });
+      deliveryCost = defaultVehicleType ? parseFloat(defaultVehicleType.base_delivery_cost) : 1700.00;
+    }
+
+    const initialStatus = req.user.role === 'CLIENT' || !packageData.pickup_id ? 'PENDIENTE_RECOLECCION' : (packageData.status || 'RECOLECTADO_EN_ORIGEN');
 
     // --- FIN DE LA CORRECCIÓN ---
 
@@ -610,15 +648,15 @@ router.post("/", authenticateToken, validatePackage, async (req, res) => {
       package_id: uuidv4(),
       tracking_code,
       external_tracking_code: external_tracking_code || null,
-      pickup_id: packageData.pickup_id,
+      pickup_id: packageData.pickup_id || null,
       client_id: packageData.client_id,
-      status: packageData.status || 'RECOLECTADO_EN_ORIGEN',
+      status: initialStatus,
       is_cod: packageData.is_cod || false,
       cod_amount: packageData.cod_amount || 0,
       is_change: packageData.is_change || false,
-      client_price: packageData.client_price,
-      delivery_cost: packageData.delivery_cost,
-      scanned_at_origin_datetime: packageData.scanned_at_origin_datetime,
+      client_price: clientPrice,
+      delivery_cost: deliveryCost,
+      scanned_at_origin_datetime: packageData.scanned_at_origin_datetime || (initialStatus === 'RECOLECTADO_EN_ORIGEN' ? new Date() : null),
       destination_address: packageData.destination_address,
       recipient_name: packageData.recipient_name,
       recipient_phone: packageData.recipient_phone,
@@ -805,6 +843,10 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     if (!packageInstance) {
       return res.status(404).json({ error: 'Paquete no encontrado' });
+    }
+
+    if (req.user.role === 'CLIENT' && packageInstance.client_id !== req.user.client_id) {
+      return res.status(403).json({ error: 'No tienes permiso para ver este paquete' });
     }
 
     // Convert package instance to plain object and add deliveries

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineVaDataTableColumns, useToast, useColors } from 'vuestic-ui'
+import { defineVaDataTableColumns, useColors } from 'vuestic-ui'
 import { Pickup } from '../types'
 import { PropType, computed } from 'vue'
 
@@ -10,25 +10,35 @@ defineProps({
   loading: { type: Boolean, default: false },
 })
 
-const emit = defineEmits<{
+defineEmits<{
   (event: 'edit-pickup', pickup: Pickup): void
   (event: 'delete-pickup', pickup: Pickup): void
 }>()
 
-const { init: notify } = useToast()
 const { getColor } = useColors()
 
 const userStore = useUserStore()
-const isDriver = computed(() => userStore.isDriver)
+const canEdit = computed(() => userStore.isAdmin || userStore.isWarehouseStaff)
 const isAdmin = computed(() => userStore.isAdmin)
 
 const statusColors: Record<string, string> = {
+  SOLICITADA: 'warning',
   ASIGNADO_A_RECOLECTOR: 'secondary',
   EN_PROCESO_RECOLECCION: 'info',
   RECOLECCION_FINALIZADA_DRIVER: 'primary',
   ENTREGADO_EN_ALMACEN: 'warning',
   VERIFICADO_EN_ALMACEN: 'success',
   CANCELADO: 'danger',
+}
+
+const statusLabels: Record<string, string> = {
+  SOLICITADA: 'Solicitada',
+  ASIGNADO_A_RECOLECTOR: 'Conductor asignado',
+  EN_PROCESO_RECOLECCION: 'Recolección en curso',
+  RECOLECCION_FINALIZADA_DRIVER: 'Recolectada',
+  ENTREGADO_EN_ALMACEN: 'Entregada en almacén',
+  VERIFICADO_EN_ALMACEN: 'Verificada en almacén',
+  CANCELADO: 'Cancelada',
 }
 
 const columns = defineVaDataTableColumns([
@@ -43,7 +53,17 @@ const formatDate = (dateString: string) => new Date(dateString).toLocaleString('
 </script>
 
 <template>
-  <VaDataTable :columns="columns" :items="pickups" :loading="loading" :per-page="100" sticky-header>
+  <VaDataTable
+    :columns="columns"
+    :items="pickups"
+    :loading="loading"
+    :per-page="100"
+    no-data-html="No hay colectas para mostrar."
+    sticky-header
+  >
+    <template #[`cell(user.full_name)`]="{ rowData }">
+      {{ rowData.user?.full_name || 'Pendiente de asignación' }}
+    </template>
     <template #cell(pickup_scheduled_date)="{ value }">
       {{ formatDate(value) }}
     </template>
@@ -51,7 +71,7 @@ const formatDate = (dateString: string) => new Date(dateString).toLocaleString('
     <template #cell(status)="{ rowData }">
       <div class="flex items-center">
         <span class="va-text-bold" :style="{ color: getColor(statusColors[rowData.status] || 'secondary') }">
-          {{ rowData.status }}
+          {{ statusLabels[rowData.status] || rowData.status }}
         </span>
       </div>
     </template>
@@ -62,10 +82,10 @@ const formatDate = (dateString: string) => new Date(dateString).toLocaleString('
           <VaButton preset="primary" size="small" icon="fa4-eye" aria-label="Ver detalles" />
         </RouterLink>
         <VaButton
+          v-if="canEdit"
           preset="primary"
           size="small"
           icon="fa4-edit"
-          :disabled="isDriver"
           @click="$emit('edit-pickup', rowData as Pickup)"
         />
         <VaButton

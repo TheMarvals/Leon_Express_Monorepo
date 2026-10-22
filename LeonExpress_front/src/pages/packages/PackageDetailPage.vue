@@ -434,6 +434,15 @@ const formatCurrency = (value: number | string | undefined) => {
   if (isNaN(num)) return '$0'
   return `$${num.toLocaleString('es-CL')}`
 }
+
+const printThermalLabel = () => {
+  if (!pkg.value?.tracking_code) return
+  const routeResolved = router.resolve({
+    name: 'print-package-label',
+    params: { trackingCode: pkg.value.tracking_code },
+  })
+  window.open(routeResolved.href, '_blank')
+}
 </script>
 
 <template>
@@ -442,7 +451,19 @@ const formatCurrency = (value: number | string | undefined) => {
   </div>
 
   <div v-else-if="pkg">
-    <h1 class="page-title">Detalles del Paquete</h1>
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+      <h1 class="page-title mb-0">Detalles del Paquete</h1>
+      <div class="flex items-center gap-2">
+        <VaButton
+          preset="primary"
+          color="#03323a"
+          icon="print"
+          @click="printThermalLabel"
+        >
+          Imprimir Etiqueta (100x150mm)
+        </VaButton>
+      </div>
+    </div>
 
     <VaCard class="mb-6">
       <VaCardContent class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -585,9 +606,9 @@ const formatCurrency = (value: number | string | undefined) => {
       </VaCardContent>
     </VaCard>
 
-    <VaCard class="mb-6">
+    <VaCard v-if="!userStore.isClient || pkg.is_cod" class="mb-6">
       <VaCardContent class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
+        <div v-if="!userStore.isClient">
           <p class="va-text-secondary">Costo de Entrega</p>
           <p class="font-bold text-lg">{{ formatCurrency(pkg.delivery_cost) }}</p>
         </div>
@@ -601,7 +622,7 @@ const formatCurrency = (value: number | string | undefined) => {
     <VaCard class="mb-6">
       <VaCardTitle class="flex justify-between items-center">
         <span>Gestión de Entregas</span>
-        <div class="flex flex-wrap justify-end gap-2">
+        <div v-if="!userStore.isClient" class="flex flex-wrap justify-end gap-2">
           <VaButton
             v-if="canReturnToClient"
             color="warning"
@@ -780,7 +801,10 @@ const formatCurrency = (value: number | string | undefined) => {
 
   <VaModal v-model="doShowMapModal" size="large" close-button hide-default-actions :max-width="800">
     <template #header>
-      <h1 class="va-h5">📍 Ubicación de la Entrega</h1>
+      <h1 class="va-h5 flex items-center gap-2">
+        <VaIcon name="location_on" color="primary" />
+        Ubicación de la Entrega
+      </h1>
     </template>
 
     <div v-if="selectedMapUrl" style="width: 100%; height: 500px">

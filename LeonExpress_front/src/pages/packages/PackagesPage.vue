@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useModal, useToast } from 'vuestic-ui'
+import { useToast } from 'vuestic-ui'
 import api from '../../services/api'
 import PackagesTable from './widgets/PackagesTable.vue'
 import EditPackageForm from './widgets/EditPackageForm.vue'
+import ManualPackageButton from './widgets/ManualPackageButton.vue'
 import ChangeManagementModal from './widgets/ChangeManagementModal.vue'
 import { Package } from './types'
 import { usePackages } from './composables/usePackages'
+import { useUserStore } from '../../stores/user-store'
 
+const userStore = useUserStore()
 const { packages, isLoading, filters, sorting, pagination, remove, add, update, fetch } = usePackages()
 
 const showPendingChanges = computed({
@@ -25,6 +28,14 @@ const { init: notify } = useToast()
 
 const resetPagination = () => {
   pagination.value.page = 1
+}
+
+const onManualPackageCreated = async () => {
+  filters.value.search = ''
+  filters.value.status = undefined
+  filters.value.changeFilter = undefined
+  resetPagination()
+  await fetch()
 }
 
 const onSearchInput = (val: string) => {
@@ -87,6 +98,7 @@ const handleConfirmReception = async (packageId: string) => {
 
 const statusOptions = [
   { text: 'Todos los estados', value: undefined },
+  { text: 'Pendiente de recolección', value: 'PENDIENTE_RECOLECCION' },
   { text: 'Recolectado en Origen', value: 'RECOLECTADO_EN_ORIGEN' },
   { text: 'Recibido en Almacén', value: 'RECIBIDO_EN_ALMACEN' },
   { text: 'Asignado a Ruta', value: 'ASIGNADO_A_RUTA' },
@@ -102,11 +114,11 @@ const statusOptions = [
 </script>
 
 <template>
-  <h1 class="page-title">Gestión de Paquetes</h1>
+  <h1 class="page-title">{{ userStore.isClient ? 'Mis envíos' : 'Gestión de Paquetes' }}</h1>
   <VaCard>
     <VaCardContent>
-      <div class="flex flex-col md:flex-row gap-2 mb-2 justify-between">
-        <div class="flex flex-col md:flex-row gap-2 justify-start items-center">
+      <div class="packages-toolbar">
+        <div class="packages-filters">
           <VaInput
             v-model="filters.search"
             placeholder="Buscar por código o destinatario..."
@@ -133,7 +145,8 @@ const statusOptions = [
             @change="resetPagination"
           />
         </div>
-        <VaButton @click="showModal(null)">Crear Paquete</VaButton>
+        <ManualPackageButton v-if="userStore.isClient" @created="onManualPackageCreated" />
+        <VaButton v-else @click="showModal(null)">Crear Paquete</VaButton>
       </div>
 
       <div class="table-wrapper">
@@ -178,6 +191,34 @@ const statusOptions = [
 </template>
 
 <style scoped>
+.packages-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.packages-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .packages-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .packages-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 .page-title {
   font-size: 1.5rem;
   font-weight: bold;

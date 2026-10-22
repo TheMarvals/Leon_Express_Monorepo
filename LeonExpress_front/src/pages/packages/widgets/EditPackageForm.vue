@@ -6,10 +6,12 @@ import { validators } from '../../../services/utils'
 import api from '../../../services/api'
 import { uploadBatchChunked } from '../../../composables/useChunkedUpload'
 import { Package } from '../types'
+import { useUserStore } from '../../../stores/user-store'
 import axios from 'axios'
 import { debounce } from 'lodash'
 const MAPBOX_API_KEY = import.meta.env.VITE_MAPBOX_API_KEY
 const router = useRouter()
+const userStore = useUserStore()
 // --- DEFINICIÓN DE PROPS Y EMITS ---
 const props = defineProps({
   pkg: { type: Object as PropType<Package | null>, default: null },
@@ -1514,7 +1516,7 @@ const startBatchMode = async () => {
         console.error('❌ Video element no disponible en iOS')
         isCameraActive.value = false
         stream.getTracks().forEach((track) => track.stop())
-        notify({ message: '❌ Error: No se pudo inicializar la cámara', color: 'danger' })
+        notify({ message: 'Error: No se pudo inicializar la cámara', color: 'danger' })
         return
       }
 
@@ -1539,7 +1541,7 @@ const startBatchMode = async () => {
       setupTapToFocus()
 
       notify({
-        message: `✅ Cámara activa - ${settings.width}x${settings.height}`,
+        message: `Cámara activa - ${settings.width}x${settings.height}`,
         color: 'success',
         duration: 3000,
       })
@@ -1754,7 +1756,7 @@ const startBatchMode = async () => {
       console.error('❌ Video element no disponible')
       isCameraActive.value = false
       stream.getTracks().forEach((track) => track.stop())
-      notify({ message: '❌ Error: No se pudo inicializar la cámara', color: 'danger' })
+      notify({ message: 'Error: No se pudo inicializar la cámara', color: 'danger' })
       return
     }
     // Asignar stream y reproducir
@@ -1832,20 +1834,20 @@ const startBatchMode = async () => {
     await applyImprovedFocus(videoTrack, capabilities)
 
     notify({
-      message: `✅ Cámara trasera lista - ${settings.width}x${settings.height}`,
+      message: `Cámara trasera lista - ${settings.width}x${settings.height}`,
       color: 'success',
       duration: 2000,
     })
   } catch (error: any) {
     console.error('❌ Error al iniciar cámara:', error)
     isCameraActive.value = false
-    let errorMsg = '❌ No se pudo acceder a la cámara'
+    let errorMsg = 'No se pudo acceder a la cámara'
     if (error.name === 'NotAllowedError') {
-      errorMsg = '❌ Permiso denegado. Permite el acceso a la cámara en la configuración del navegador'
+      errorMsg = 'Permiso denegado. Permite el acceso a la cámara en la configuración del navegador'
     } else if (error.name === 'NotFoundError') {
-      errorMsg = '❌ No se encontró cámara trasera'
+      errorMsg = 'No se encontró cámara trasera'
     } else if (error.name === 'OverconstrainedError') {
-      errorMsg = '❌ Tu dispositivo no soporta la configuración solicitada'
+      errorMsg = 'Tu dispositivo no soporta la configuración solicitada'
     }
     notify({ message: errorMsg, color: 'danger' })
   }
@@ -1977,7 +1979,7 @@ const connectToBatchCamera = async (deviceId: string, deviceLabel: string) => {
       console.error('❌ Video element no disponible')
       isCameraActive.value = false
       stream.getTracks().forEach((track) => track.stop())
-      notify({ message: '❌ Error: No se pudo inicializar la cámara', color: 'danger' })
+      notify({ message: 'Error: No se pudo inicializar la cámara', color: 'danger' })
       return
     }
 
@@ -2075,7 +2077,7 @@ const connectToBatchCamera = async (deviceId: string, deviceLabel: string) => {
     setupTapToFocus()
 
     notify({
-      message: `✅ ${deviceLabel} - ${settings.width}x${settings.height}`,
+      message: `${deviceLabel} - ${settings.width}x${settings.height}`,
       color: 'success',
       duration: 3000,
     })
@@ -2083,7 +2085,7 @@ const connectToBatchCamera = async (deviceId: string, deviceLabel: string) => {
     console.error('❌ Error al conectar cámara:', error)
     isCameraActive.value = false
     notify({
-      message: `❌ Error al conectar con ${deviceLabel}: ${error.message}`,
+      message: `Error al conectar con ${deviceLabel}: ${error.message}`,
       color: 'danger',
     })
   }
@@ -2099,7 +2101,7 @@ ${cameraList}
     // Por ahora, usar la primera automáticamente
     // TODO: Implementar selector visual con VaModal
     console.log('📹 Usando cámara:', cameras[0].label)
-    notify({ message: `📹 Usando: ${cameras[0].label}`, color: 'info' })
+    notify({ message: `Usando: ${cameras[0].label}`, color: 'info' })
     resolve(cameras[0].deviceId)
   })
 }
@@ -2159,18 +2161,18 @@ const connectToCamera = async (deviceId: string) => {
     const settings = videoTrack.getSettings()
     console.log('✅ Cámara conectada:', videoTrack.label)
     console.log('📐 Resolución:', settings.width + 'x' + settings.height)
-    notify({ message: `✅ ${videoTrack.label} activa`, color: 'success' })
+    notify({ message: `${videoTrack.label} activa`, color: 'success' })
   } catch (error: any) {
     console.error('❌ Error al conectar cámara:', error)
     console.error('Error name:', error.name)
     console.error('Error message:', error.message)
-    let errorMsg = '❌ No se pudo conectar a la cámara'
+    let errorMsg = 'No se pudo conectar a la cámara'
     if (error.name === 'NotAllowedError') {
-      errorMsg = '❌ Permiso denegado. Permite el acceso a la cámara'
+      errorMsg = 'Permiso denegado. Permite el acceso a la cámara'
     } else if (error.name === 'NotFoundError') {
-      errorMsg = '❌ No se encontró ninguna cámara'
+      errorMsg = 'No se encontró ninguna cámara'
     } else if (error.name === 'NotReadableError') {
-      errorMsg = '❌ Cámara en uso por otra aplicación'
+      errorMsg = 'Cámara en uso por otra aplicación'
     }
     notify({ message: errorMsg, color: 'danger' })
   }
@@ -2647,7 +2649,7 @@ const handleSubmit = async () => {
         :rules="[validators.required, (v) => (v && v > 0) || 'El monto COD debe ser mayor a 0']" class="ml-6" />
     </div> -->
     <VaDateInput v-model="scanned_at_origin_datetime" label="Fecha de Escaneo" with-time />
-    <div class="camera-container mt-4 border-t pt-4">
+    <div v-if="!userStore.isClient" class="camera-container mt-4 border-t pt-4">
       <div v-if="isCameraActive" class="video-wrapper">
         <video ref="video" autoplay playsinline></video>
         <div class="camera-overlay">
@@ -2658,7 +2660,7 @@ const handleSubmit = async () => {
         <div class="camera-orientation-hint">
           <div class="bg-blue-600 bg-opacity-90 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-2">
             <VaIcon name="mobile-alt" size="14px" />
-            <span>📱 Toma la foto en <strong>vertical</strong></span>
+            <span>Toma la foto en <strong>vertical</strong></span>
           </div>
         </div>
 
@@ -2769,7 +2771,7 @@ const handleSubmit = async () => {
       <!-- UI para batch Smart OCR -->
       <div v-if="isBatchMode" class="w-full mt-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
         <div class="flex items-center justify-between mb-3">
-          <div class="text-sm font-semibold text-blue-900">📦 Batch OCR Inteligente</div>
+          <div class="text-sm font-semibold text-blue-900">Batch OCR Inteligente</div>
           <VaBadge :text="`${batchImagesCount} fotos`" color="primary" />
         </div>
         <div class="flex gap-2 mb-3">
@@ -2780,14 +2782,14 @@ const handleSubmit = async () => {
             class="flex-1"
             @click="processBatchOcr"
           >
-            {{ isBatchProcessing ? 'Procesando...' : '🚀 Procesar Todo' }}
+            {{ isBatchProcessing ? 'Procesando...' : 'Procesar Todo' }}
           </VaButton>
           <VaButton :disabled="batchImagesCount === 0" color="danger" icon="fa4-trash" @click="clearBatch" />
         </div>
         <div v-if="isBatchProcessing" class="text-blue-700 text-sm text-center mb-2">
-          ⏳ El sistema está analizando las etiquetas...
+          El sistema está analizando las etiquetas...
         </div>
-        <div v-if="batchError" class="bg-red-100 text-red-700 p-2 rounded text-sm mb-2">❌ {{ batchError }}</div>
+        <div v-if="batchError" class="bg-red-100 text-red-700 p-2 rounded text-sm mb-2">{{ batchError }}</div>
         <!-- Resultados simplificados -->
         <div v-if="batchImagesCount > 0" class="mt-3">
           <div class="flex items-center gap-2 mb-2">
@@ -2804,7 +2806,7 @@ const handleSubmit = async () => {
               class="flex-1"
               @click="processBatchOcr"
             >
-              {{ isBatchProcessing ? 'Procesando...' : '🚀 Procesar Fotos' }}
+              {{ isBatchProcessing ? 'Procesando...' : 'Procesar Fotos' }}
             </VaButton>
             <VaButton 
               :disabled="batchImages.length === 0" 
@@ -2843,7 +2845,7 @@ const handleSubmit = async () => {
             <div class="flex items-center justify-between mb-1">
               <span class="text-xs font-mono text-gray-500">Foto #{{ idx + 1 }}</span>
               <VaBadge
-                :text="result.status === 'success' ? '✓ Detectado' : '⚠ Error'"
+                :text="result.status === 'success' ? 'Detectado' : 'Error'"
                 :color="result.status === 'success' ? 'success' : 'danger'"
                 size="small"
               />
@@ -2857,7 +2859,7 @@ const handleSubmit = async () => {
               color="primary"
               @click="rellenarDesdeBatch(idx)"
             >
-              📝 Usar estos datos
+              Usar estos datos
             </VaButton>
           </div>
         </div>
@@ -2871,6 +2873,7 @@ const handleSubmit = async () => {
     </div>
     <!-- Hidden capture input always available to open native rear camera on mobile -->
     <input
+      v-if="!userStore.isClient"
       ref="fileCaptureInput"
       type="file"
       accept="image/*"

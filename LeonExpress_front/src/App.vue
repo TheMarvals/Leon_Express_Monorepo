@@ -49,7 +49,15 @@ const clearServiceWorkerCache = async () => {
 }
 
 // Auto-actualizar cuando hay una nueva versión
+const isUpdating = ref(false)
 const handleUpdate = async () => {
+  if (import.meta.env.DEV) {
+    console.log('ℹ️ Modo desarrollo: se omite recarga automática del Service Worker')
+    return
+  }
+  if (isUpdating.value) return
+  isUpdating.value = true
+
   console.log('🆕 Nueva versión detectada, limpiando caché y actualizando...')
   updateAvailable.value = true
 
@@ -76,7 +84,7 @@ const handleUpdate = async () => {
 // Observar cambios en needRefresh para auto-actualizar
 import { watch } from 'vue'
 watch(needRefresh, (newValue) => {
-  if (newValue) {
+  if (newValue && !import.meta.env.DEV) {
     handleUpdate()
   }
 })

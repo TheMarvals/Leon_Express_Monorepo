@@ -1,8 +1,8 @@
 <template>
   <VaLayout v-if="breakpoint.lgUp" class="h-screen bg-white">
     <template #left>
-      <div class="h-screen bg-[var(--va-leon-color)] h-full flex items-center justify-center" style="width: 35vw">
-        <RouterLink to="/" aria-label="Visit homepage">
+      <div class="h-screen flex items-center justify-center" style="width: 35vw; background-color: #03323a">
+        <RouterLink to="/" aria-label="Visit homepage" class="flex items-center justify-center w-full">
           <VuesticLogo context="login" />
         </RouterLink>
       </div>
@@ -14,16 +14,16 @@
     </template>
   </VaLayout>
 
-  <VaLayout v-else class="h-screen bg-[var(--va-leon-color)]">
+  <VaLayout v-else class="min-h-screen" style="background-color: #03323a">
     <template #content>
-      <div class="p-4">
-        <main class="h-full flex flex-row items-center justify-start mx-auto max-w-[420px]">
-          <div class="flex flex-col items-start">
-            <RouterLink class="py-4" to="/" aria-label="Visit homepage">
-              <VuesticLogo context="navbar" />
-            </RouterLink>
-            <RouterView />
-          </div>
+      <div class="p-4 py-8 min-h-screen flex flex-col justify-center items-center">
+        <div class="mb-6 flex justify-center">
+          <RouterLink to="/" aria-label="Visit homepage" class="flex justify-center">
+            <VuesticLogo context="login" />
+          </RouterLink>
+        </div>
+        <main class="w-full max-w-[420px] bg-white p-6 sm:p-8 rounded-2xl shadow-2xl">
+          <RouterView />
         </main>
       </div>
     </template>

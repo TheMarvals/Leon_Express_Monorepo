@@ -1,21 +1,38 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useToast, defineVaDataTableColumns } from 'vuestic-ui'
-import api from '../../services/api' // Asumo que tienes un servicio api centralizado
+import api from '../../services/api'
 import { Invoice } from './types'
 import PaymentModal from './widgets/PaymentModal.vue'
-
-import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user-store'
 
 const route = useRoute()
 const router = useRouter()
 const { init: notify } = useToast()
+const userStore = useUserStore()
+const isClient = computed(() => userStore.isClient)
 
 const invoice = ref<Invoice | null>(null)
 const isLoading = ref(true)
 const itemsPerPage = ref(50)
 const currentPage = ref(1)
+
+const statusColors: Record<string, string> = {
+  PENDIENTE: 'warning',
+  EN_REVISION: 'info',
+  PAGADA: 'success',
+  VENCIDA: 'danger',
+  CANCELADA: 'secondary',
+}
+
+const statusLabels: Record<string, string> = {
+  PENDIENTE: 'Pendiente',
+  EN_REVISION: 'En Revisión',
+  PAGADA: 'Pagada',
+  VENCIDA: 'Vencida',
+  CANCELADA: 'Cancelada',
+}
 
 const itemColumns = defineVaDataTableColumns([
   { label: 'Descripción', key: 'description' },
@@ -26,13 +43,21 @@ const itemColumns = defineVaDataTableColumns([
   { label: 'Total', key: 'amount', align: 'right' },
 ])
 
-const paymentColumns = defineVaDataTableColumns([
-  { label: 'Fecha de Pago', key: 'payment_date' },
-  { label: 'Método', key: 'payment_method' },
-  { label: 'Referencia', key: 'transaction_reference' },
-  { label: 'Notas', key: 'notes' },
-  { label: 'Monto', key: 'amount', align: 'right' },
-])
+const paymentColumns = computed(() => {
+  const cols = [
+    { label: 'Fecha de Pago', key: 'payment_date' },
+    { label: 'Método', key: 'payment_method' },
+    { label: 'Referencia', key: 'transaction_reference' },
+    { label: 'Comprobante', key: 'receipt_url' },
+    { label: 'Estado', key: 'status' },
+    { label: 'Notas', key: 'notes' },
+    { label: 'Monto', key: 'amount', align: 'right' },
+  ]
+  if (!isClient.value) {
+    cols.push({ label: 'Acciones', key: 'actions', align: 'right' })
+  }
+  return defineVaDataTableColumns(cols)
+})
 
 const fetchInvoiceDetails = async () => {
   isLoading.value = true
@@ -40,8 +65,11 @@ const fetchInvoiceDetails = async () => {
     const invoiceId = route.params.id as string
     const { data } = await api.getInvoiceById(invoiceId)
     invoice.value = data
-  } catch (error) {
-    notify({ message: 'Error al cargar el detalle de la factura', color: 'danger' })
+  } catch (error: any) {
+    notify({
+      message: error.response?.data?.error || 'Error al cargar el detalle de la factura',
+      color: 'danger',
+    })
   } finally {
     isLoading.value = false
   }
@@ -51,12 +79,21 @@ onMounted(fetchInvoiceDetails)
 
 const totalPaid = computed(() => {
   if (!invoice.value?.payments) return 0
-  return invoice.value.payments.reduce((sum, p) => sum + p.amount, 0)
+  return invoice.value.payments
+    .filter((p: any) => !p.status || p.status === 'APROBADO')
+    .reduce((sum: number, p: any) => sum + Number(p.amount), 0)
+})
+
+const pendingReviewAmount = computed(() => {
+  if (!invoice.value?.payments) return 0
+  return invoice.value.payments
+    .filter((p: any) => p.status === 'PENDIENTE_APROBACION')
+    .reduce((sum: number, p: any) => sum + Number(p.amount), 0)
 })
 
 const balanceDue = computed(() => {
   if (!invoice.value) return 0
-  return invoice.value.total_amount - totalPaid.value
+  return Math.max(0, invoice.value.total_amount - totalPaid.value)
 })
 
 const uniquePackageCount = computed(() => {
@@ -99,22 +136,114 @@ const invoiceSummary = computed(() => {
 })
 
 const showPaymentModal = ref(false)
-const showFreePickupModal = ref(false)
+const processingPaymentId = ref<string | null>(null)
+const showRejectModal = ref(false)
+const rejectingPayment = ref<any>(null)
+const rejectReason = ref('')
 
-const formatDate = (date: string) => new Date(date).toLocaleDateString('es-CL')
+const formatDate = (date: string) => {
+  if (!date) return '-'
+  return new Date(date).toLocaleDateString('es-CL')
+}
+
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(val)
+
+const normalizeReceiptUrl = (url?: string) => {
+  if (!url) return ''
+  let cleaned = url.replace(/^\/app\/uploads/, '/uploads')
+  if (!cleaned.startsWith('/uploads')) {
+    if (!cleaned.startsWith('/')) cleaned = '/' + cleaned
+    if (!cleaned.startsWith('/uploads')) cleaned = '/uploads' + cleaned
+  }
+  return cleaned
+}
+
+const paymentStatusColor = (status?: string) => {
+  switch (status) {
+    case 'PENDIENTE_APROBACION':
+      return 'warning'
+    case 'APROBADO':
+      return 'success'
+    case 'RECHAZADO':
+      return 'danger'
+    default:
+      return 'success'
+  }
+}
+
+const paymentStatusLabel = (status?: string) => {
+  switch (status) {
+    case 'PENDIENTE_APROBACION':
+      return 'Pendiente de Revisión'
+    case 'APROBADO':
+      return 'Aprobado'
+    case 'RECHAZADO':
+      return 'Rechazado'
+    default:
+      return 'Aprobado'
+  }
+}
 
 const registerPayment = () => {
   showPaymentModal.value = true
 }
 
+const approvePayment = async (p: any) => {
+  if (!invoice.value) return
+  processingPaymentId.value = p.payment_id
+  try {
+    const { data } = await api.approveInvoicePayment(invoice.value.invoice_id, p.payment_id)
+    notify({ message: data.message || 'Pago aprobado exitosamente', color: 'success' })
+    await fetchInvoiceDetails()
+  } catch (error: any) {
+    notify({
+      message: error.response?.data?.error || 'Error al aprobar pago',
+      color: 'danger',
+    })
+  } finally {
+    processingPaymentId.value = null
+  }
+}
+
+const openRejectModal = (p: any) => {
+  rejectingPayment.value = p
+  rejectReason.value = ''
+  showRejectModal.value = true
+}
+
+const confirmRejectPayment = async () => {
+  if (!invoice.value || !rejectingPayment.value) return
+  if (!rejectReason.value.trim()) {
+    notify({ message: 'Debe ingresar el motivo de rechazo', color: 'warning' })
+    return
+  }
+  processingPaymentId.value = rejectingPayment.value.payment_id
+  try {
+    const { data } = await api.rejectInvoicePayment(
+      invoice.value.invoice_id,
+      rejectingPayment.value.payment_id,
+      rejectReason.value.trim(),
+    )
+    notify({ message: data.message || 'Pago rechazado', color: 'info' })
+    showRejectModal.value = false
+    await fetchInvoiceDetails()
+  } catch (error: any) {
+    notify({
+      message: error.response?.data?.error || 'Error al rechazar pago',
+      color: 'danger',
+    })
+  } finally {
+    processingPaymentId.value = null
+  }
+}
+
 const printInvoice = () => {
-  const route = router.resolve({
+  const routeResolved = router.resolve({
     name: 'print-invoice',
     params: { id: invoice.value!.invoice_id },
   })
-  window.open(route.href, '_blank')
+  window.open(routeResolved.href, '_blank')
 }
 </script>
 
@@ -123,7 +252,18 @@ const printInvoice = () => {
     <VaProgressCircle indeterminate />
   </div>
   <div v-else-if="invoice">
-    <h1 class="page-title">Detalle de Factura #{{ invoice.invoice_number }}</h1>
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+      <div>
+        <h1 class="page-title mb-1">Detalle de Factura #{{ invoice.invoice_number }}</h1>
+        <p class="text-sm text-gray-500">ID: {{ invoice.invoice_id }}</p>
+      </div>
+      <div>
+        <VaBadge
+          :color="statusColors[invoice.status] || 'secondary'"
+          :text="statusLabels[invoice.status] || invoice.status"
+        />
+      </div>
+    </div>
 
     <VaCard class="mb-6">
       <VaCardContent class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -134,6 +274,10 @@ const printInvoice = () => {
         <div>
           <p class="va-text-secondary text-xs uppercase">Fecha Emisión</p>
           <p class="font-bold">{{ formatDate(invoice.invoice_date) }}</p>
+        </div>
+        <div>
+          <p class="va-text-secondary text-xs uppercase">Fecha Vencimiento</p>
+          <p class="font-bold">{{ formatDate(invoice.due_date) }}</p>
         </div>
         <div>
           <p class="va-text-secondary text-xs uppercase">Paquetes</p>
@@ -154,19 +298,86 @@ const printInvoice = () => {
 
     <VaCard class="mb-6">
       <VaCardTitle>
-        <div class="flex justify-between items-center w-full">
-          <span>Pagos Realizados ({{ formatCurrency(balanceDue) }} pendiente)</span>
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center w-full gap-2">
+          <div>
+            <span>Pagos Realizados</span>
+            <span class="text-sm text-gray-500 ml-2">
+              ({{ formatCurrency(balanceDue) }} pendiente
+              <template v-if="pendingReviewAmount > 0">
+                - {{ formatCurrency(pendingReviewAmount) }} en revisión
+              </template>
+              )
+            </span>
+          </div>
           <div class="flex gap-2">
             <VaButton color="secondary" icon="print" @click="printInvoice"> Imprimir / PDF </VaButton>
-            <VaButton v-if="balanceDue > 0" color="primary" size="small" @click="registerPayment">
-              Registrar Pago
+            <VaButton
+              v-if="balanceDue > 0 && invoice.status !== 'CANCELADA'"
+              color="primary"
+              size="small"
+              :icon="isClient ? 'upload_file' : 'add'"
+              @click="registerPayment"
+            >
+              {{ isClient ? 'Informar Pago' : 'Registrar Pago' }}
             </VaButton>
           </div>
         </div>
       </VaCardTitle>
       <VaCardContent>
         <VaDataTable :columns="paymentColumns" :items="invoice.payments || []">
-          <template #cell(amount)="{ value }">{{ formatCurrency(Number(value)) }}</template>
+          <template #cell(payment_date)="{ value }">{{ formatDate(value) }}</template>
+
+          <template #cell(receipt_url)="{ value }">
+            <VaButton
+              v-if="value"
+              preset="secondary"
+              size="small"
+              icon="visibility"
+              :href="normalizeReceiptUrl(value)"
+              target="_blank"
+            >
+              Ver Comprobante
+            </VaButton>
+            <span v-else class="text-gray-400 text-xs">Sin comprobante</span>
+          </template>
+
+          <template #cell(status)="{ value, rowData }">
+            <div>
+              <VaBadge :color="paymentStatusColor(value)" :text="paymentStatusLabel(value)" />
+              <div v-if="value === 'RECHAZADO' && rowData.rejection_reason" class="text-xs text-danger mt-1">
+                Motivo: {{ rowData.rejection_reason }}
+              </div>
+            </div>
+          </template>
+
+          <template #cell(amount)="{ value }">
+            <strong>{{ formatCurrency(Number(value)) }}</strong>
+          </template>
+
+          <template #cell(actions)="{ rowData }">
+            <div v-if="rowData.status === 'PENDIENTE_APROBACION'" class="flex items-center gap-1 justify-end">
+              <VaButton
+                preset="primary"
+                color="success"
+                size="small"
+                icon="check"
+                :loading="processingPaymentId === rowData.payment_id"
+                @click="approvePayment(rowData)"
+              >
+                Aprobar
+              </VaButton>
+              <VaButton
+                preset="secondary"
+                color="danger"
+                size="small"
+                icon="close"
+                :disabled="processingPaymentId === rowData.payment_id"
+                @click="openRejectModal(rowData)"
+              >
+                Rechazar
+              </VaButton>
+            </div>
+          </template>
         </VaDataTable>
       </VaCardContent>
     </VaCard>
@@ -212,14 +423,49 @@ const printInvoice = () => {
     <VaAlert color="danger" class="p-4"> No se pudo cargar la información de la factura. </VaAlert>
   </div>
 
-  <!-- Payment Modal -->
+  <!-- Modal de Pago / Subida de Comprobante -->
   <PaymentModal
     v-if="invoice"
     :show="showPaymentModal"
     :invoice-id="invoice.invoice_id"
+    :invoice-number="invoice.invoice_number"
+    :default-amount="balanceDue"
     @close="showPaymentModal = false"
     @success="fetchInvoiceDetails"
   />
+
+  <!-- Modal de Rechazo de Comprobante -->
+  <VaModal
+    v-model="showRejectModal"
+    title="Rechazar Comprobante de Pago"
+    hide-default-actions
+    size="small"
+  >
+    <div class="space-y-4">
+      <p class="text-sm text-gray-600">
+        Indica el motivo por el cual se rechaza el comprobante de pago presentado por el cliente.
+      </p>
+      <VaInput
+        v-model="rejectReason"
+        label="Motivo del Rechazo"
+        type="textarea"
+        :rows="3"
+        placeholder="Ej: El monto en la transferencia no coincide con el registrado / Comprobante ilegible"
+        required
+      />
+      <div class="flex justify-end gap-2 pt-2">
+        <VaButton preset="secondary" @click="showRejectModal = false">Cancelar</VaButton>
+        <VaButton
+          preset="primary"
+          color="danger"
+          :loading="processingPaymentId !== null"
+          @click="confirmRejectPayment"
+        >
+          Confirmar Rechazo
+        </VaButton>
+      </div>
+    </div>
+  </VaModal>
 </template>
 
 <style>

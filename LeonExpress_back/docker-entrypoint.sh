@@ -1,6 +1,23 @@
 #!/bin/bash
 set -e
 
+# Normalizar DB_HOST si contiene protocolo o puerto
+if [[ "$DB_HOST" =~ ^[a-zA-Z]+:// ]]; then
+    # Extraer host, puerto, etc de una URL
+    DB_HOST_TEMP="${DB_HOST#*://}"
+    DB_HOST_TEMP="${DB_HOST_TEMP#*@}"
+    DB_HOST_TEMP="${DB_HOST_TEMP%%/*}"
+    if [[ "$DB_HOST_TEMP" == *":"* ]]; then
+        DB_PORT="${DB_HOST_TEMP#*:}"
+        DB_HOST="${DB_HOST_TEMP%:*}"
+    else
+        DB_HOST="$DB_HOST_TEMP"
+    fi
+elif [[ "$DB_HOST" == *":"* ]]; then
+    DB_PORT="${DB_HOST#*:}"
+    DB_HOST="${DB_HOST%:*}"
+fi
+
 # Esperar a que la base de datos esté lista
 wait_for_db() {
     echo "⏳ Esperando a que la base de datos en $DB_HOST este lista..."
@@ -135,6 +152,52 @@ run_pending_migrations() {
         } || {
             echo "Error al agregar el rol CUSTOMER_SERVICE"
         }
+    fi
+
+    # --- Migración: Portal de Clientes, OTP y Colectas Solicitadas ---
+    CLIENT_ROLE_EXISTS=$(mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl -D "$DB_NAME" -sN -e "
+        SELECT COUNT(*) FROM roles WHERE role_name = 'CLIENT';
+    " 2>/dev/null || echo "0")
+
+    if [ "$CLIENT_ROLE_EXISTS" = "0" ] && [ -f "/app/migrations/20261021_client_portal_and_otp.sql" ]; then
+        echo "Aplicando migración de Portal de Clientes y OTP..."
+        mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" < "/app/migrations/20261021_client_portal_and_otp.sql" 2>&1 && {
+            echo "Migración de Portal de Clientes aplicada exitosamente"
+        } || {
+            echo "Error al aplicar migración de Portal de Clientes"
+        }
+    fi
+
+    # --- Migración: Invitaciones de Clientes con Token Privado ---
+    INVITATIONS_TABLE_EXISTS=$(mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl -D "$DB_NAME" -sN -e "
+        SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = '$DB_NAME' AND TABLE_NAME = 'client_invitations';
+    " 2>/dev/null || echo "0")
+
+    if [ "$INVITATIONS_TABLE_EXISTS" = "0" ] && [ -f "/app/migrations/20261021_client_invitations.sql" ]; then
+        echo "Aplicando migración de Invitaciones de Clientes..."
+        mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" < "/app/migrations/20261021_client_invitations.sql" 2>&1 && {
+            echo "Migración de Invitaciones de Clientes aplicada exitosamente"
+        } || {
+            echo "Error al aplicar migración de Invitaciones de Clientes"
+        }
+    fi
+
+    # Permitir solicitudes de colecta pendientes de asignación de conductor.
+    if [ -f "/app/migrations/20261021_pickup_request_trigger.sql" ]; then
+        echo "Actualizando validación de solicitudes de colecta..."
+        mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" < "/app/migrations/20261021_pickup_request_trigger.sql"
+    fi
+
+    # --- Migración: Comprobantes de Pago y Estado EN_REVISION ---
+    if [ -f "/app/migrations/20261021_invoice_payment_voucher.sql" ]; then
+        echo "Aplicando migración de Comprobantes de Pago y Estado EN_REVISION..."
+        mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" < "/app/migrations/20261021_invoice_payment_voucher.sql" 2>&1 || true
+    fi
+
+    # --- Migración: Permitir NULL en scanned_at_origin_datetime ---
+    if [ -f "/app/migrations/20261021_allow_null_scanned_at_origin.sql" ]; then
+        echo "Aplicando migración scanned_at_origin_datetime NULL..."
+        mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" < "/app/migrations/20261021_allow_null_scanned_at_origin.sql" 2>&1 || true
     fi
 }
 

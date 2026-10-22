@@ -1,19 +1,50 @@
 const { Sequelize } = require('sequelize');
 const dns = require('dns');
 
+// Robust DB configuration parsing
+let dbHost = (process.env.DB_HOST || '127.0.0.1').trim();
+let dbPort = Number(process.env.DB_PORT) || 3306;
+let dbName = process.env.DB_NAME;
+let dbUser = process.env.DB_USER;
+let dbPassword = process.env.DB_PASSWORD;
+
+// Si DB_HOST viene como URL completa (mysql://user:pass@host:port/db)
+if (dbHost.startsWith('mysql://') || dbHost.startsWith('mariadb://')) {
+    try {
+        const parsedUrl = new URL(dbHost);
+        dbHost = parsedUrl.hostname;
+        if (parsedUrl.port) dbPort = Number(parsedUrl.port);
+        if (parsedUrl.username) dbUser = decodeURIComponent(parsedUrl.username);
+        if (parsedUrl.password) dbPassword = decodeURIComponent(parsedUrl.password);
+        if (parsedUrl.pathname && parsedUrl.pathname.length > 1) {
+            dbName = parsedUrl.pathname.replace(/^\//, '');
+        }
+    } catch (e) {
+        console.warn('⚠️ No se pudo parsear DB_HOST como URL:', e.message);
+    }
+}
+
+// Si dbHost contiene puerto (ej: 65.75.201.175:3306 o db.server:3306)
+if (typeof dbHost === 'string' && dbHost.includes(':')) {
+    const parts = dbHost.split(':');
+    dbHost = parts[0];
+    if (parts[1] && !isNaN(Number(parts[1]))) {
+        dbPort = Number(parts[1]);
+    }
+}
+
 // Forzar resolución IPv4 si el host es localhost o 127.0.0.1
-let dbHost = process.env.DB_HOST;
 if (dbHost === 'localhost' || dbHost === '127.0.0.1') {
-    dbHost = '127.0.0.1'; // Forzar IPv4 explícitamente
+    dbHost = '127.0.0.1';
 }
 
 const sequelize = new Sequelize(
-    process.env.DB_NAME,    
-    process.env.DB_USER,    
-    process.env.DB_PASSWORD,
+    dbName,    
+    dbUser,    
+    dbPassword,
     {
         host: dbHost,
-        port: process.env.DB_PORT || 3306, 
+        port: dbPort, 
         dialect: 'mysql',
         define: {
             timestamps: true,

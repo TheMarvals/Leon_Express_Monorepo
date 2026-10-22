@@ -78,8 +78,9 @@ const colorsComputed = computed(() => {
 }
 
 .logo-login {
-  width: 50% !important;
-  height: 100% !important;
+  width: 240px !important;
+  max-width: 80% !important;
+  height: auto !important;
 }
 
 /* Tamaño pequeño para navbar */

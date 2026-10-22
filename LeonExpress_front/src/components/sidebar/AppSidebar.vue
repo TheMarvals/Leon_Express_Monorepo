@@ -93,6 +93,36 @@ export default defineComponent({
     const visibleNavigationRoutes = computed(() => {
       const userRole = userStore.user?.role
 
+      if (userRole === 'CLIENT') {
+        return [
+          {
+            name: 'dashboard',
+            displayName: 'Dashboard',
+            meta: { icon: 'vuestic-iconset-dashboard' },
+          },
+          {
+            name: 'pickups',
+            displayName: 'Solicitud Colectas',
+            meta: { icon: 'fa4-box' },
+          },
+          {
+            name: 'packages',
+            displayName: 'Mis Envíos',
+            meta: { icon: 'fa4-box' },
+          },
+          {
+            name: 'mercadolibre',
+            displayName: 'Mercado Libre',
+            meta: { icon: 'store' },
+          },
+          {
+            name: 'client-invoicing',
+            displayName: 'Facturación',
+            meta: { icon: 'fa4-money-bill' },
+          },
+        ] as INavigationRoute[]
+      }
+
       if (userRole === 'CUSTOMER_SERVICE') {
         return navigationRoutes.routes.flatMap((navigationRoute) => {
           if (navigationRoute.name === 'deliveries') return [navigationRoute]

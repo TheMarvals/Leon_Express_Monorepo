@@ -3,10 +3,12 @@
 const express = require("express");
 const { body, validationResult } = require("express-validator");
 const { v4: uuidv4 } = require("uuid");
-const { Client, ClientPricing, sequelize } = require("../models"); // Importa sequelize para transacciones
+const crypto = require("crypto");
+const { Client, ClientPricing, ClientInvitation, sequelize } = require("../models"); // Importa sequelize para transacciones
 const { logAudit } = require("../utils/audit");
 const authenticateToken = require("../middlewares/authenticateToken");
 const roleValidator = require("../middlewares/roleValidator");
+const emailService = require("../services/emailService");
 const { Op } = require("sequelize");
 const { isAfter } = require("date-fns");
 
@@ -905,4 +907,124 @@ router.put('/:id/pricing/:pricingId', authenticateToken, roleValidator(['ADMIN']
         res.status(500).json({ error: 'Error interno del servidor' });
     }
 });
+
+/**
+ * POST /clients/invitations - Generar invitación privada para nuevo cliente
+ */
+router.post('/invitations', authenticateToken, roleValidator(['ADMIN']), [
+    body('client_name').trim().notEmpty().withMessage('El nombre del cliente es obligatorio'),
+    body('email').isEmail().normalizeEmail().withMessage('Debe ingresar un correo válido'),
+    body('base_price').isFloat({ min: 0 }).withMessage('La tarifa base debe ser un número mayor o igual a 0'),
+    body('has_free_pickups').optional().isBoolean()
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
+        const { client_name, email, base_price, has_free_pickups } = req.body;
+        const normalizedEmail = email.toLowerCase().trim();
+
+        // Verificar si ya existe un cliente activo con este correo
+        const existingClient = await Client.findOne({ where: { email: normalizedEmail, is_active: true } });
+        if (existingClient) {
+            return res.status(409).json({ error: 'Ya existe un cliente activo registrado con este correo electrónico.' });
+        }
+
+        // Generar token seguro de 32 bytes (64 caracteres hex)
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 días
+
+        const invitation = await ClientInvitation.create({
+            invitation_id: uuidv4(),
+            client_name: client_name.trim(),
+            email: normalizedEmail,
+            base_price: parseFloat(base_price),
+            has_free_pickups: Boolean(has_free_pickups),
+            token,
+            expires_at: expiresAt,
+            is_used: false,
+            created_by: req.user.user_id
+        });
+
+        const appUrl = process.env.FRONTEND_URL || 'https://app.leonexpress.cl';
+        const inviteUrl = `${appUrl}/portal/registro?token=${token}`;
+
+        // Enviar correo de invitación en segundo plano
+        emailService.sendClientInvitationEmail({
+            to: normalizedEmail,
+            clientName: invitation.client_name,
+            basePrice: invitation.base_price,
+            hasFreePickups: invitation.has_free_pickups,
+            inviteUrl
+        }).catch(err => console.error('Error enviando email de invitación:', err));
+
+        await logAudit(req.user.user_id, 'CREATE_CLIENT_INVITATION', {
+            invitation_id: invitation.invitation_id,
+            email: normalizedEmail,
+            client_name: invitation.client_name,
+            base_price: invitation.base_price
+        });
+
+        res.status(201).json({
+            message: 'Invitación creada exitosamente',
+            invitation: {
+                invitation_id: invitation.invitation_id,
+                client_name: invitation.client_name,
+                email: invitation.email,
+                base_price: invitation.base_price,
+                has_free_pickups: invitation.has_free_pickups,
+                token: invitation.token,
+                expires_at: invitation.expires_at,
+                invite_url: inviteUrl
+            }
+        });
+    } catch (error) {
+        console.error('Error al crear invitación de cliente:', error);
+        res.status(500).json({ error: 'Error del servidor al crear invitación', details: error.message });
+    }
+});
+
+/**
+ * GET /clients/invitations - Listar invitaciones
+ */
+router.get('/invitations', authenticateToken, roleValidator(['ADMIN']), async (req, res) => {
+    try {
+        const invitations = await ClientInvitation.findAll({
+            order: [['created_at', 'DESC']],
+            limit: 50
+        });
+
+        const appUrl = process.env.FRONTEND_URL || 'https://app.leonexpress.cl';
+        const formatted = invitations.map(inv => ({
+            ...inv.toJSON(),
+            invite_url: `${appUrl}/portal/registro?token=${inv.token}`,
+            is_expired: new Date(inv.expires_at) < new Date()
+        }));
+
+        res.json({ invitations: formatted });
+    } catch (error) {
+        console.error('Error al listar invitaciones:', error);
+        res.status(500).json({ error: 'Error al listar invitaciones', details: error.message });
+    }
+});
+
+/**
+ * DELETE /clients/invitations/:id - Cancelar invitación
+ */
+router.delete('/invitations/:id', authenticateToken, roleValidator(['ADMIN']), async (req, res) => {
+    try {
+        const invitation = await ClientInvitation.findByPk(req.params.id);
+        if (!invitation) {
+            return res.status(404).json({ error: 'Invitación no encontrada' });
+        }
+        await invitation.destroy();
+        res.json({ message: 'Invitación eliminada exitosamente' });
+    } catch (error) {
+        console.error('Error al eliminar invitación:', error);
+        res.status(500).json({ error: 'Error al eliminar invitación' });
+    }
+});
+
 module.exports = router;

@@ -62,6 +62,7 @@ export const usePickups = (options?: {
     filters,
     sorting,
     pagination,
+    refresh: fetch,
     pickups: computed(() => pickupsStore.items),
 
     async add(pickup: Omit<Pickup, 'pickup_id' | 'status'>) {

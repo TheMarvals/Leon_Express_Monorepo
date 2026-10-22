@@ -56,7 +56,7 @@ export const useInvoicesStore = defineStore('invoices', {
         const index = this.items.findIndex((i) => i.invoice_id === invoiceId)
         if (index !== -1) {
           // TypeScript necesita que nos aseguremos de que el estado es válido para el tipo
-          const validStatus = newStatus as 'PENDIENTE' | 'PAGADA' | 'VENCIDA' | 'CANCELADA'
+          const validStatus = newStatus as 'PENDIENTE' | 'EN_REVISION' | 'PAGADA' | 'VENCIDA' | 'CANCELADA'
           this.items[index].status = validStatus
         }
       } catch (error) {

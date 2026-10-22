@@ -21,7 +21,8 @@ const User = sequelize.define('User', {
   username: { type: DataTypes.STRING(50), allowNull: false, unique: true },
   password_hash: { type: DataTypes.STRING(255), allowNull: false },
   role_id: { type: DataTypes.STRING(36), allowNull: false },
-  warehouse_id: { type: DataTypes.STRING(36), allowNull: false },
+  client_id: { type: DataTypes.STRING(36), allowNull: true },
+  warehouse_id: { type: DataTypes.STRING(36), allowNull: true },
   full_name: { type: DataTypes.STRING(100), allowNull: false },
   email: { type: DataTypes.STRING(100) }, // unique: true removed
   phone: { type: DataTypes.STRING(20) },
@@ -68,13 +69,36 @@ const ClientPricing = sequelize.define('ClientPricing', {
   valid_to: { type: DataTypes.DATEONLY },
 }, { tableName: 'client_pricing', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
 
+const ClientOtp = sequelize.define('ClientOtp', {
+  otp_id: { type: DataTypes.STRING(36), primaryKey: true },
+  email: { type: DataTypes.STRING(100), allowNull: false },
+  code_hash: { type: DataTypes.STRING(255), allowNull: false },
+  expires_at: { type: DataTypes.DATE, allowNull: false },
+  attempts: { type: DataTypes.INTEGER, defaultValue: 0 },
+  is_used: { type: DataTypes.BOOLEAN, defaultValue: false },
+}, { tableName: 'client_otps', timestamps: true, createdAt: 'created_at', updatedAt: false });
+
+const ClientInvitation = sequelize.define('ClientInvitation', {
+  invitation_id: { type: DataTypes.STRING(36), primaryKey: true },
+  client_name: { type: DataTypes.STRING(100), allowNull: false },
+  email: { type: DataTypes.STRING(100), allowNull: false },
+  base_price: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+  has_free_pickups: { type: DataTypes.BOOLEAN, defaultValue: false },
+  token: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+  expires_at: { type: DataTypes.DATE, allowNull: false },
+  is_used: { type: DataTypes.BOOLEAN, defaultValue: false },
+  used_at: { type: DataTypes.DATE },
+  created_by: { type: DataTypes.STRING(36) },
+  client_id: { type: DataTypes.STRING(36) },
+}, { tableName: 'client_invitations', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
+
 const Pickup = sequelize.define('Pickup', {
   pickup_id: { type: DataTypes.STRING(36), primaryKey: true },
-  user_id: { type: DataTypes.STRING(36), allowNull: false },
+  user_id: { type: DataTypes.STRING(36), allowNull: true },
   client_id: { type: DataTypes.STRING(36), allowNull: false },
   pickup_scheduled_date: { type: DataTypes.DATE, allowNull: false },
   status: {
-    type: DataTypes.ENUM('ASIGNADO_A_RECOLECTOR', 'EN_PROCESO_RECOLECCION', 'RECOLECCION_FINALIZADA_DRIVER', 'ENTREGADO_EN_ALMACEN', 'VERIFICADO_EN_ALMACEN', 'CANCELADO'),
+    type: DataTypes.ENUM('SOLICITADA', 'ASIGNADO_A_RECOLECTOR', 'EN_PROCESO_RECOLECCION', 'RECOLECCION_FINALIZADA_DRIVER', 'ENTREGADO_EN_ALMACEN', 'VERIFICADO_EN_ALMACEN', 'CANCELADO'),
     defaultValue: 'ASIGNADO_A_RECOLECTOR',
     allowNull: false,
   },
@@ -96,7 +120,7 @@ const Package = sequelize.define('Package', {
   duplicate_notes: { type: DataTypes.TEXT },
   duplicate_reviewed_by: { type: DataTypes.STRING(36) },
   duplicate_reviewed_at: { type: DataTypes.DATE },
-  pickup_id: { type: DataTypes.STRING(36), allowNull: false },
+  pickup_id: { type: DataTypes.STRING(36), allowNull: true },
   client_id: { type: DataTypes.STRING(36), allowNull: false },
   status: {
     type: DataTypes.ENUM('PENDIENTE_RECOLECCION', 'RECOLECTADO_EN_ORIGEN', 'RECIBIDO_EN_ALMACEN', 'ASIGNADO_A_RUTA', 'EN_RUTA_ENTREGA', 'ENTREGADO', 'INCIDENCIA_ENTREGA', 'REPROGRAMADO', 'DEVUELTO_ALMACEN', 'EN_RUTA_DEVOLUCION', 'DEVUELTO_A_CLIENTE', 'CANCELADO'),
@@ -280,7 +304,7 @@ const Invoice = sequelize.define('Invoice', {
   invoice_date: { type: DataTypes.DATEONLY, allowNull: false },
   due_date: { type: DataTypes.DATEONLY, allowNull: false },
   total_amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0.00 },
-  status: { type: DataTypes.ENUM('PENDIENTE', 'PAGADA', 'VENCIDA', 'CANCELADA'), defaultValue: 'PENDIENTE', allowNull: false },
+  status: { type: DataTypes.ENUM('PENDIENTE', 'EN_REVISION', 'PAGADA', 'VENCIDA', 'CANCELADA'), defaultValue: 'PENDIENTE', allowNull: false },
   paid_at: { type: DataTypes.DATE },
   invoice_number: { type: DataTypes.INTEGER, allowNull: true },
 }, { tableName: 'invoices', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
@@ -301,7 +325,13 @@ const Payment = sequelize.define('Payment', {
   payment_method: { type: DataTypes.ENUM('TRANSFERENCIA', 'EFECTIVO', 'TARJETA'), allowNull: false },
   transaction_reference: { type: DataTypes.STRING(100) },
   notes: { type: DataTypes.TEXT },
-}, { tableName: 'payments', timestamps: true, createdAt: 'created_at', updatedAt: false });
+  receipt_url: { type: DataTypes.STRING(255), allowNull: true },
+  status: { type: DataTypes.ENUM('PENDIENTE_APROBACION', 'APROBADO', 'RECHAZADO'), defaultValue: 'APROBADO', allowNull: false },
+  created_by: { type: DataTypes.STRING(36), allowNull: true },
+  approved_by: { type: DataTypes.STRING(36), allowNull: true },
+  approved_at: { type: DataTypes.DATE, allowNull: true },
+  rejection_reason: { type: DataTypes.TEXT, allowNull: true },
+}, { tableName: 'payments', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
 
 const DriverPayment = sequelize.define('DriverPayment', {
   payment_id: { type: DataTypes.STRING(36), primaryKey: true },
@@ -413,6 +443,8 @@ User.hasMany(AuditLog, { foreignKey: 'user_id', as: 'auditLogs' });
 User.hasMany(Notification, { foreignKey: 'user_id', as: 'notifications' });
 
 // Client
+Client.hasMany(User, { foreignKey: 'client_id', as: 'users' });
+User.belongsTo(Client, { foreignKey: 'client_id', onDelete: 'SET NULL', as: 'client' });
 Client.hasMany(ClientPricing, { foreignKey: 'client_id', as: 'clientPricings' });
 Client.hasMany(Pickup, { foreignKey: 'client_id', as: 'pickups' });
 Client.hasMany(Package, { foreignKey: 'client_id', as: 'packages' });
@@ -560,7 +592,9 @@ const db = {
   PayoutItem,
   SystemConfig,
   PushSubscription,
-  Notification
+  Notification,
+  ClientOtp,
+  ClientInvitation
 };
 
 db.sequelize = sequelize;

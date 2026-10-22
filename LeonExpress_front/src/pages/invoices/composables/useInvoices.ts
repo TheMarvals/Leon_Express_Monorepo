@@ -46,6 +46,7 @@ export const useInvoices = (options?: { pagination?: Ref<Pagination>; filters?: 
     filters,
     pagination,
     invoices: computed(() => invoicesStore.items),
+    fetch,
 
     async updateStatus(invoice: Invoice, newStatus: string) {
       // Asume que el store tendrá un método para actualizar el estado

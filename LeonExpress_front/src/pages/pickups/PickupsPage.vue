@@ -3,17 +3,24 @@ import { ref } from 'vue'
 import { useModal, useToast } from 'vuestic-ui'
 import PickupsTable from './widgets/PickupsTable.vue'
 import EditPickupForm from './widgets/EditPickupForm.vue'
+import RequestPickupButton from './widgets/RequestPickupButton.vue'
 import { Pickup } from './types'
 import { usePickups } from './composables/usePickups'
 import { useUserStore } from '../../stores/user-store' // 1. Importa el userStore
 
-const { pickups, isLoading, filters, sorting, pagination, add, update, updateStatus, remove } = usePickups()
+const { pickups, isLoading, error, filters, pagination, refresh, add, update, remove } = usePickups()
 const userStore = useUserStore() // 2. Obtén una instancia del store
 
 const doShowModal = ref(false)
 const pickupToEdit = ref<Pickup | null>(null)
 const { init: notify } = useToast()
 const { confirm } = useModal()
+
+const onPickupRequested = async () => {
+  filters.value.search = ''
+  pagination.value.page = 1
+  await refresh()
+}
 
 const showModal = (pickup: Pickup | null) => {
   pickupToEdit.value = pickup
@@ -32,15 +39,6 @@ const onFormSave = async (payload: any) => {
     }
   } catch (e: any) {
     notify({ message: e.message || 'Error al guardar la recolección', color: 'danger' })
-  }
-}
-
-const onPickupCancel = async (pickup: Pickup) => {
-  try {
-    await updateStatus(pickup, 'CANCELADO')
-    notify({ message: `Recolección para "${pickup.client?.client_name}" ha sido cancelada.`, color: 'success' })
-  } catch (e: any) {
-    notify({ message: e.message || 'Error al cancelar la recolección', color: 'danger' })
   }
 }
 
@@ -70,16 +68,24 @@ const onDeletePickup = async (pickup: Pickup) => {
 </script>
 
 <template>
-  <h1 class="page-title">Gestión de Recolecciones</h1>
+  <h1 class="page-title">{{ userStore.isClient ? 'Mis solicitudes de colecta' : 'Gestión de Recolecciones' }}</h1>
+  <p v-if="userStore.isClient" class="mb-4">Solicita el retiro de tus paquetes y consulta el estado de tus colectas.</p>
+  <VaAlert v-if="error" color="danger" class="mb-4">{{ error }}</VaAlert>
   <VaCard>
     <VaCardContent>
-      <div class="flex flex-col md:flex-row gap-2 mb-2 justify-between">
+      <div class="flex flex-col md:flex-row md:items-center gap-2 mb-2 justify-between">
         <div class="flex flex-col md:flex-row gap-2 justify-start">
-          <VaInput v-model="filters.search" placeholder="Buscar por cliente, driver o #ID...">
+          <VaInput
+            v-model="filters.search"
+            :placeholder="userStore.isClient ? 'Buscar por #ID de colecta...' : 'Buscar por cliente, driver o #ID...'"
+          >
             <template #prependInner>
               <FontAwesomeIcon icon="search" style="color: #6c757d; font-size: 1rem; margin-right: 4px" />
             </template>
           </VaInput>
+        </div>
+        <div v-if="userStore.isClient" class="pickup-request-action">
+          <RequestPickupButton @created="onPickupRequested" />
         </div>
         <VaButton v-if="userStore.isAdmin || userStore.isWarehouseStaff" @click="showModal(null)">
           Crear Recolección
@@ -106,7 +112,13 @@ const onDeletePickup = async (pickup: Pickup) => {
     </VaCardContent>
   </VaCard>
 
-  <VaModal v-model="doShowModal" size="small" close-button hide-default-actions>
+  <VaModal
+    v-if="userStore.isAdmin || userStore.isWarehouseStaff"
+    v-model="doShowModal"
+    size="small"
+    close-button
+    hide-default-actions
+  >
     <h1 class="va-h5">{{ pickupToEdit ? 'Editar' : 'Nueva' }} Recolección</h1>
     <EditPickupForm
       :key="`pickup-form-${pickupToEdit?.pickup_id || 'new'}`"
@@ -118,6 +130,13 @@ const onDeletePickup = async (pickup: Pickup) => {
 </template>
 
 <style scoped>
+.pickup-request-action {
+  display: flex;
+  justify-content: flex-end;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .page-title {
   font-size: 1.5rem;
   font-weight: bold;

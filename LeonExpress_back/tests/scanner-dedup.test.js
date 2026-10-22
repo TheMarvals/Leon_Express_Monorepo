@@ -86,7 +86,7 @@ async function scanner(t, options = {}) {
     getPendingShipments: async ({ search }) => {
       gatewayCalls++;
       return { shipments: options.missingShipment ? [] : [{ ml_shipment_external_id: search,
-        ml_shipment_id: 'shipment-1', ml_account_id: 'account-1', buyer_name: 'Destinatario' }] };
+        ml_shipment_id: 'shipment-1', ml_account_id: options.shipmentAccountId ?? 'account-1', buyer_name: 'Destinatario' }] };
     },
     markShipmentAsImported: async () => {
       if (options.gatewayFailure) throw new Error('Gateway unavailable after local commit');
@@ -96,7 +96,7 @@ async function scanner(t, options = {}) {
     '../models': models,
     '../middlewares/authenticateToken': (req, res, next) => { req.user = { role: 'ADMIN', user_id: 'admin-1' }; next(); },
     '../services/mlGatewayClient': gateway,
-    '../services/mlAccountAccessService': { getAccounts: async () => options.otherClient ? [] : [{ client_id: pickup.client_id, ml_account_id: 'account-1' }] },
+    '../services/mlAccountAccessService': { getAccounts: async () => options.otherClient ? [] : [{ client_id: pickup.client_id, ml_account_id: options.accountId ?? 'account-1' }] },
     '../utils/uuidUtils': { generateUniqueTrackingCode: async () => `LE${++nextId}` },
     '../utils/ocrLearningEngine': { recordCorrections: async () => ({ recorded: 0 }) }
   };
@@ -125,7 +125,7 @@ async function scanner(t, options = {}) {
   const ocr = load('utils/ocrProcessingQueue.js', { ...overrides,
     './smartOcrParser': {}, './qrDecoder': {}, sharp: {}, axios: {}, 'form-data': {}, fs: { promises: { mkdir: async () => {}, writeFile: async () => {} } } });
   ocr.generateUniqueTrackingCode = async () => `LE${++nextId}`;
-  return { packages, items, post, scan, approve, addPhoto, ocr, gatewayCalls: () => gatewayCalls };
+  return { packages, seedPackage: (data) => packages.push(row(data)), items, post, scan, approve, addPhoto, ocr, gatewayCalls: () => gatewayCalls };
 }
 
 for (const [code, scans] of [['48233839764', 4], ['48233999392', 2], ['48233079796', 2],
@@ -252,4 +252,30 @@ test('a failed image upload remains retryable without publishing a partial batch
   const result = await ocr.addBatch(batch);
   assert.equal(result.batch_id, 'batch-1');
   assert.equal(ocr.queue.length, 2);
+});
+
+
+test('ML account IDs represented as numbers and strings refer to the same owner', async (t) => {
+  const fixture = await scanner(t, { accountId: 123, shipmentAccountId: '123' });
+  const result = await fixture.scan('48233839764');
+  assert.equal(result.status, 200);
+  assert.equal(fixture.packages.length, 1);
+  assert.equal(fixture.packages[0].pickup_id, 'pickup-1');
+  assert.equal(fixture.packages[0].client_id, 'client-1');
+  assert.equal(fixture.packages[0].status, 'RECOLECTADO_EN_ORIGEN');
+});
+
+test('scanning a pending manual package assigns the existing record to the collection', async (t) => {
+  const fixture = await scanner(t);
+  fixture.seedPackage({ package_id: 'manual-1', tracking_code: 'LEMANUAL123', client_id: 'client-1',
+    pickup_id: null, status: 'PENDIENTE_RECOLECCION', recipient_name: 'Destinatario' });
+  assert.equal((await fixture.scan('LEMANUAL123')).status, 200);
+  const repeated = await fixture.scan('LEMANUAL123');
+  assert.equal(repeated.status, 200);
+  assert.equal(repeated.body.already_confirmed, true);
+  assert.equal(fixture.packages.length, 1);
+  assert.equal(fixture.packages[0].package_id, 'manual-1');
+  assert.equal(fixture.packages[0].pickup_id, 'pickup-1');
+  assert.equal(fixture.packages[0].status, 'RECOLECTADO_EN_ORIGEN');
+  assert.equal(fixture.gatewayCalls(), 0);
 });

@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useToast, useModal, defineVaDataTableColumns } from 'vuestic-ui'
+import { useUserStore } from '@/stores/user-store'
+import ClientMercadoLibre from './ClientMercadoLibre.vue'
 import mercadolibreService, { MlAccount, MlPendingShipment } from '../../services/mercadolibreService'
 import { useClients } from '../clients/composables/useClients'
 import api from '../../services/api'
+
+const userStore = useUserStore()
 
 // Toast & Modal
 const { init: notify } = useToast()
@@ -346,7 +350,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <h1 class="page-title">Integración MercadoLibre</h1>
+  <ClientMercadoLibre v-if="userStore.isClient" />
+  <div v-else>
+    <h1 class="page-title">Integración MercadoLibre</h1>
 
   <!-- Top Cards -->
   <div class="cards-container grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -539,7 +545,8 @@ onUnmounted(() => {
         :disabled="!selectedClientForLink"
         color="success"
         @click="linkExistingAccount"
-      >Vincular cuenta disponible</VaButton>
+        >Vincular cuenta disponible</VaButton
+      >
       <div v-if="availableAccounts.length" class="text-center text-sm text-secondary">o autoriza una cuenta nueva</div>
 
       <VaButton v-if="!generatedLink" :disabled="!selectedClientForLink" @click="generateLink">Generar</VaButton>
@@ -572,6 +579,7 @@ onUnmounted(() => {
       />
     </div>
   </VaModal>
+  </div>
 </template>
 
 <style scoped>

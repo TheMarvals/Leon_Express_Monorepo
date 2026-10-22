@@ -3,6 +3,9 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { Invoice, InvoiceItem, Payment, Client, Package, sequelize } = require('../models');
 const authenticateToken = require('../middlewares/authenticateToken');
 const roleValidator = require('../middlewares/roleValidator');
@@ -11,18 +14,36 @@ const { queueNotificationForRole } = require('../utils/notificationService');
 
 const router = express.Router();
 
+// Configuración de Multer para comprobantes de pago
+const receiptStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, '../uploads/receipts');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `recibo_${Date.now()}_${uuidv4().substring(0, 8)}${ext}`);
+  }
+});
+const uploadReceipt = multer({
+  storage: receiptStorage,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+});
+
 // --- Validadores ---
 const validatePayment = [
     body('amount').isFloat({ gt: 0 }).withMessage('El monto debe ser un número positivo'),
-    body('payment_date').isISO8601().toDate().withMessage('Fecha de pago inválida'),
-    body('payment_method').isIn(['TRANSFERENCIA', 'EFECTIVO', 'TARJETA']).withMessage('Método de pago inválido')
+    body('payment_date').optional().isISO8601().toDate().withMessage('Fecha de pago inválida'),
+    body('payment_method').optional().isIn(['TRANSFERENCIA', 'EFECTIVO', 'TARJETA']).withMessage('Método de pago inválido')
 ];
 
-
 // PATCH /invoices/:id/status - Actualizar el estado de una factura
-router.patch('/:id/status', authenticateToken, roleValidator(['ADMIN']), async (req, res) => {
+router.patch('/:id/status', authenticateToken, roleValidator(['ADMIN', 'FINANCE']), async (req, res) => {
     const { status } = req.body;
-    const validStatuses = ['PENDIENTE', 'PAGADA', 'VENCIDA', 'CANCELADA'];
+    const validStatuses = ['PENDIENTE', 'EN_REVISION', 'PAGADA', 'VENCIDA', 'CANCELADA'];
     if (!validStatuses.includes(status)) {
         return res.status(400).json({ error: 'Estado de factura no válido.' });
     }
@@ -375,11 +396,17 @@ router.get('/', authenticateToken, async (req, res) => {
         const { page = 1, pageSize = 10, status, clientId, userId } = req.query;
         const whereClause = {};
 
-        // LOG para depuración: ver qué llega en la query y cómo se construye el whereClause
-        console.log('GET /invoices req.query:', req.query);
+        // SEGURIDAD: Si el usuario es CLIENT, filtrar estrictamente solo por sus facturas
+        if (req.user.role === 'CLIENT') {
+            if (!req.user.client_id) {
+                return res.json({ total: 0, invoices: [] });
+            }
+            whereClause.client_id = req.user.client_id;
+        } else if (clientId) {
+            whereClause.client_id = clientId;
+        }
 
         if (status) whereClause.status = status.toUpperCase();
-        if (clientId) whereClause.client_id = clientId;
 
         // Si viene userId, filtrar por facturas asociadas a paquetes entregados por ese driver
         if (userId) {
@@ -402,16 +429,12 @@ router.get('/', authenticateToken, async (req, res) => {
                 if (invoiceIds.length > 0) {
                     whereClause.invoice_id = invoiceIds;
                 } else {
-                    // Si no hay facturas, devolver vacío
                     return res.json({ total: 0, invoices: [] });
                 }
             } else {
-                // Si no hay paquetes entregados, devolver vacío
                 return res.json({ total: 0, invoices: [] });
             }
         }
-
-        console.log('GET /invoices whereClause:', whereClause);
 
         const { count, rows } = await Invoice.findAndCountAll({
             where: whereClause,
@@ -438,7 +461,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
                 {
                     model: InvoiceItem,
                     as: 'invoiceItems',
-                    order: [['created_at', 'ASC']], // Ordenar items por creación para que sigan una secuencia lógica
+                    order: [['created_at', 'ASC']],
                     include: [{
                         model: Package,
                         as: 'package',
@@ -451,10 +474,15 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
         if (!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
 
+        // SEGURIDAD: Si el usuario es CLIENT, solo puede consultar su propia factura
+        if (req.user.role === 'CLIENT' && invoice.client_id !== req.user.client_id) {
+            return res.status(403).json({ error: 'No tienes permiso para ver esta factura.' });
+        }
+
         // Mapear los items a la estructura esperada por el frontend
         const mappedInvoice = {
             invoice_id: invoice.invoice_id,
-            invoice_number: invoice.invoice_id, // Si tienes un campo específico, cámbialo aquí
+            invoice_number: invoice.invoice_number || invoice.invoice_id,
             invoice_date: invoice.invoice_date,
             due_date: invoice.due_date,
             total_amount: Number(invoice.total_amount),
@@ -472,13 +500,19 @@ router.get('/:id', authenticateToken, async (req, res) => {
                 amount: Number(p.amount),
                 payment_method: p.payment_method,
                 transaction_reference: p.transaction_reference,
-                notes: p.notes
+                notes: p.notes,
+                receipt_url: p.receipt_url,
+                status: p.status,
+                created_by: p.created_by,
+                approved_by: p.approved_by,
+                approved_at: p.approved_at,
+                rejection_reason: p.rejection_reason
             })) : [],
             invoiceItems: invoice.invoiceItems ? invoice.invoiceItems.map(item => ({
                 item_id: item.invoice_item_id,
                 description: item.item_description,
-                quantity: (item.package_id && !item.item_description.includes('Envío')) ? 0 : 1, // Si es un ítem extra de un paquete (COD, cargo) es 0, de lo contrario 1
-                unit_price: Number(item.amount), // No hay campo en BD, igual a amount
+                quantity: (item.package_id && !item.item_description.includes('Envío')) ? 0 : 1,
+                unit_price: Number(item.amount),
                 amount: Number(item.amount),
                 package: item.package ? {
                     tracking_code: item.package.tracking_code,
@@ -499,15 +533,17 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 
-// POST /:id/payments - Registrar un pago a una factura
-router.post('/:id/payments', authenticateToken, roleValidator(['ADMIN']), validatePayment, async (req, res) => {
+// POST /:id/payments - Registrar un pago o comprobante a una factura
+router.post('/:id/payments', authenticateToken, roleValidator(['ADMIN', 'FINANCE', 'CLIENT']), uploadReceipt.single('receipt'), validatePayment, async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
     const t = await sequelize.transaction();
     try {
         const invoiceId = req.params.id;
-        const { amount, payment_date, payment_method, transaction_reference, notes } = req.body;
+        const { amount, transaction_reference, notes } = req.body;
+        const payment_date = req.body.payment_date || new Date();
+        const payment_method = req.body.payment_method || 'TRANSFERENCIA';
 
         const invoice = await Invoice.findByPk(invoiceId, {
             include: [{ model: Payment, as: 'payments' }],
@@ -518,10 +554,21 @@ router.post('/:id/payments', authenticateToken, roleValidator(['ADMIN']), valida
             await t.rollback();
             return res.status(404).json({ error: 'Factura no encontrada' });
         }
+
+        // Seguridad: Si es CLIENT, solo puede registrar pago de su propia factura
+        if (req.user.role === 'CLIENT' && invoice.client_id !== req.user.client_id) {
+            await t.rollback();
+            return res.status(403).json({ error: 'No tienes permiso para reportar pagos en esta factura.' });
+        }
+
         if (invoice.status === 'PAGADA' || invoice.status === 'CANCELADA') {
             await t.rollback();
             return res.status(409).json({ error: `La factura ya está en estado '${invoice.status}'.` });
         }
+
+        const receipt_url = req.file ? `/uploads/receipts/${req.file.filename}` : null;
+        const isClient = req.user.role === 'CLIENT';
+        const initialStatus = isClient ? 'PENDIENTE_APROBACION' : 'APROBADO';
 
         const newPayment = await Payment.create({
             payment_id: uuidv4(),
@@ -530,40 +577,66 @@ router.post('/:id/payments', authenticateToken, roleValidator(['ADMIN']), valida
             payment_date,
             payment_method,
             transaction_reference,
-            notes
+            notes,
+            receipt_url,
+            status: initialStatus,
+            created_by: req.user.user_id,
+            approved_by: isClient ? null : req.user.user_id,
+            approved_at: isClient ? null : new Date()
         }, { transaction: t });
 
-        await require('../utils/audit').logAudit(req.user.user_id, 'CREATE_PAYMENT', { invoice_id: invoiceId, payment_id: newPayment.payment_id, amount });
-
-        // Verificar si la factura está completamente pagada
-        const totalPaid = invoice.payments.reduce((sum, p) => sum + parseFloat(p.amount), 0) + parseFloat(amount);
-
-        if (totalPaid >= parseFloat(invoice.total_amount)) {
-            invoice.status = 'PAGADA';
-            invoice.paid_at = new Date();
-            await invoice.save({ transaction: t });
-        }
+        await require('../utils/audit').logAudit(req.user.user_id, isClient ? 'SUBMIT_PAYMENT_PROOF' : 'CREATE_PAYMENT', {
+            invoice_id: invoiceId,
+            payment_id: newPayment.payment_id,
+            amount,
+            status: initialStatus
+        });
 
         const client = await Client.findByPk(invoice.client_id, { transaction: t, attributes: ['client_name'] });
         const invoiceLink = `/invoices/${invoice.invoice_id}`;
-
         const formattedAmount = Number.parseFloat(amount).toFixed(2);
-        if (invoice.status === 'PAGADA') {
+
+        if (isClient) {
+            // El cliente subió comprobante: la factura pasa a revisión
+            invoice.status = 'EN_REVISION';
+            await invoice.save({ transaction: t });
+
             queueNotificationForRole('ADMIN', {
-                title: 'Factura pagada',
-                message: `La factura ${invoice.invoice_id}${client ? ` del cliente ${client.client_name}` : ''} fue pagada en su totalidad.`,
+                title: 'Comprobante de pago informado',
+                message: `El cliente ${client ? client.client_name : ''} informó un pago de $${formattedAmount} para la factura ${invoice.invoice_number || invoice.invoice_id}. Pendiente de revisión.`,
                 link: invoiceLink
             }, { transaction: t });
         } else {
-            queueNotificationForRole('ADMIN', {
-                title: 'Pago registrado en factura',
-                message: `Se registró un pago de $${formattedAmount} en la factura ${invoice.invoice_id}${client ? ` del cliente ${client.client_name}` : ''}.`,
-                link: invoiceLink
-            }, { transaction: t });
+            // Admin o Finanzas registrando pago directamente (queda APROBADO)
+            const totalApproved = invoice.payments
+                .filter(p => p.status === 'APROBADO')
+                .reduce((sum, p) => sum + parseFloat(p.amount), 0) + parseFloat(amount);
+
+            if (totalApproved >= parseFloat(invoice.total_amount)) {
+                invoice.status = 'PAGADA';
+                invoice.paid_at = new Date();
+                await invoice.save({ transaction: t });
+
+                queueNotificationForRole('ADMIN', {
+                    title: 'Factura pagada',
+                    message: `La factura ${invoice.invoice_number || invoice.invoice_id}${client ? ` del cliente ${client.client_name}` : ''} fue pagada en su totalidad.`,
+                    link: invoiceLink
+                }, { transaction: t });
+            } else {
+                queueNotificationForRole('ADMIN', {
+                    title: 'Pago registrado en factura',
+                    message: `Se registró un pago de $${formattedAmount} en la factura ${invoice.invoice_number || invoice.invoice_id}${client ? ` del cliente ${client.client_name}` : ''}.`,
+                    link: invoiceLink
+                }, { transaction: t });
+            }
         }
 
         await t.commit();
-        res.status(201).json({ message: 'Pago registrado exitosamente', payment: newPayment, invoice_status: invoice.status });
+        res.status(201).json({
+            message: isClient ? 'Comprobante de pago informado exitosamente. Queda pendiente de revisión.' : 'Pago registrado exitosamente.',
+            payment: newPayment,
+            invoice_status: invoice.status
+        });
 
     } catch (error) {
         await t.rollback();
@@ -572,5 +645,149 @@ router.post('/:id/payments', authenticateToken, roleValidator(['ADMIN']), valida
     }
 });
 
+// POST /:id/payments/:paymentId/approve - Aprobar un comprobante de pago informado
+router.post('/:id/payments/:paymentId/approve', authenticateToken, roleValidator(['ADMIN', 'FINANCE']), async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        const { id: invoiceId, paymentId } = req.params;
+
+        const invoice = await Invoice.findByPk(invoiceId, {
+            include: [{ model: Payment, as: 'payments' }, { model: Client, as: 'client' }],
+            transaction: t
+        });
+
+        if (!invoice) {
+            await t.rollback();
+            return res.status(404).json({ error: 'Factura no encontrada' });
+        }
+
+        const payment = invoice.payments.find(p => p.payment_id === paymentId);
+        if (!payment) {
+            await t.rollback();
+            return res.status(404).json({ error: 'Pago no encontrado en esta factura' });
+        }
+
+        if (payment.status !== 'PENDIENTE_APROBACION') {
+            await t.rollback();
+            return res.status(400).json({ error: `El pago ya está en estado '${payment.status}'. Solo se pueden aprobar pagos pendientes.` });
+        }
+
+        payment.status = 'APROBADO';
+        payment.approved_by = req.user.user_id;
+        payment.approved_at = new Date();
+        payment.rejection_reason = null;
+        await payment.save({ transaction: t });
+
+        await require('../utils/audit').logAudit(req.user.user_id, 'APPROVE_PAYMENT', {
+            invoice_id: invoiceId,
+            payment_id: paymentId,
+            amount: payment.amount
+        });
+
+        // Recalcular estado de la factura
+        const allPayments = await Payment.findAll({ where: { invoice_id: invoiceId }, transaction: t });
+        const totalApproved = allPayments
+            .filter(p => p.status === 'APROBADO')
+            .reduce((sum, p) => sum + parseFloat(p.amount), 0);
+        const hasOtherPending = allPayments.some(p => p.status === 'PENDIENTE_APROBACION');
+
+        if (totalApproved >= parseFloat(invoice.total_amount)) {
+            invoice.status = 'PAGADA';
+            invoice.paid_at = new Date();
+        } else if (hasOtherPending) {
+            invoice.status = 'EN_REVISION';
+        } else {
+            const isOverdue = invoice.due_date && new Date(invoice.due_date) < new Date();
+            invoice.status = isOverdue ? 'VENCIDA' : 'PENDIENTE';
+        }
+        await invoice.save({ transaction: t });
+
+        await t.commit();
+        res.json({
+            message: 'Pago aprobado exitosamente.',
+            payment,
+            invoice_status: invoice.status
+        });
+    } catch (error) {
+        await t.rollback();
+        console.error("Error al aprobar pago:", error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// POST /:id/payments/:paymentId/reject - Rechazar un comprobante de pago informado
+router.post('/:id/payments/:paymentId/reject', authenticateToken, roleValidator(['ADMIN', 'FINANCE']), [
+    body('reason').notEmpty().withMessage('Debe indicar el motivo del rechazo')
+], async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    const t = await sequelize.transaction();
+    try {
+        const { id: invoiceId, paymentId } = req.params;
+        const { reason } = req.body;
+
+        const invoice = await Invoice.findByPk(invoiceId, {
+            include: [{ model: Payment, as: 'payments' }, { model: Client, as: 'client' }],
+            transaction: t
+        });
+
+        if (!invoice) {
+            await t.rollback();
+            return res.status(404).json({ error: 'Factura no encontrada' });
+        }
+
+        const payment = invoice.payments.find(p => p.payment_id === paymentId);
+        if (!payment) {
+            await t.rollback();
+            return res.status(404).json({ error: 'Pago no encontrado en esta factura' });
+        }
+
+        if (payment.status !== 'PENDIENTE_APROBACION') {
+            await t.rollback();
+            return res.status(400).json({ error: `El pago ya está en estado '${payment.status}'. Solo se pueden rechazar pagos pendientes.` });
+        }
+
+        payment.status = 'RECHAZADO';
+        payment.rejection_reason = reason;
+        payment.approved_by = req.user.user_id;
+        payment.approved_at = new Date();
+        await payment.save({ transaction: t });
+
+        await require('../utils/audit').logAudit(req.user.user_id, 'REJECT_PAYMENT', {
+            invoice_id: invoiceId,
+            payment_id: paymentId,
+            reason
+        });
+
+        // Recalcular estado de la factura
+        const allPayments = await Payment.findAll({ where: { invoice_id: invoiceId }, transaction: t });
+        const hasOtherPending = allPayments.some(p => p.status === 'PENDIENTE_APROBACION');
+        const totalApproved = allPayments
+            .filter(p => p.status === 'APROBADO')
+            .reduce((sum, p) => sum + parseFloat(p.amount), 0);
+
+        if (totalApproved >= parseFloat(invoice.total_amount)) {
+            invoice.status = 'PAGADA';
+        } else if (hasOtherPending) {
+            invoice.status = 'EN_REVISION';
+        } else {
+            const isOverdue = invoice.due_date && new Date(invoice.due_date) < new Date();
+            invoice.status = isOverdue ? 'VENCIDA' : 'PENDIENTE';
+        }
+        await invoice.save({ transaction: t });
+
+        await t.commit();
+        res.json({
+            message: 'Pago rechazado.',
+            payment,
+            invoice_status: invoice.status
+        });
+    } catch (error) {
+        await t.rollback();
+        console.error("Error al rechazar pago:", error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
 
 module.exports = router;
