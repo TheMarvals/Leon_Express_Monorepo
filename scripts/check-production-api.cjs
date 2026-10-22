@@ -117,7 +117,13 @@ const inventory = require(root + "/scripts/audit-api-contracts.cjs");
   jobs.length = 0;
   const first = (endpoint, key) => {
     const data = dataCache.get(endpoint);
-    return (Array.isArray(data) ? data : data?.[key] || [])[0];
+    return (
+      Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+          ? data.data
+          : data?.[key] || []
+    )[0];
   };
   const client = first("/api/clients", "clients");
   const pkg = first("/api/packages", "packages");

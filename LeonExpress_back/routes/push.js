@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authenticateToken = require('../middlewares/authenticateToken');
+const roleValidator = require('../middlewares/roleValidator');
 const { PushSubscription } = require('../models');
 const webpush = require('web-push');
 const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT } = require('../config/push');
@@ -42,7 +43,7 @@ router.post('/subscribe', authenticateToken, async (req, res) => {
 });
 
 // Endpoint para enviar una notificación de prueba a todas las suscripciones
-router.post('/test', async (req, res) => {
+router.post('/test', authenticateToken, roleValidator(['ADMIN']), async (req, res) => {
   try {
     const subs = await PushSubscription.findAll();
     if (!subs.length) return res.status(404).json({ error: 'No hay suscripciones push registradas.' });

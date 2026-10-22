@@ -47,6 +47,8 @@ async function fixture(t, file, options = {}) {
       };
       if (id === '../utils/audit') return { logAudit: async () => {} };
       if (id === '../services/emailService') return {};
+      if (id === '../config/push') return {};
+      if (id === 'web-push') return { setVapidDetails() {}, sendNotification() { throw Error('Unexpected notification'); } };
       if (id === '../utils/uuidUtils') return {};
       if (id === '../utils/notificationService') return {};
       if (id === '../utils/qrDecoder' || id === '../utils/smartOcrParser' || id === '../services/routeAssignments') return {};
@@ -178,5 +180,11 @@ for (const [file, role] of [['driver-payouts', 'CLIENT'], ['invoice', 'CUSTOMER_
   test(`${role} cannot list restricted financial or audit data through ${file}`, async t => {
     const f = await fixture(t, file, { role });
     assert.equal((await f.request('GET', '/')).status, 403);
+  });
+}
+for (const options of [{ anonymous: true }, { role: 'CLIENT' }, { role: 'DRIVER' }]) {
+  test(`push test notifications require an authenticated administrator: ${JSON.stringify(options)}`, async t => {
+    const f = await fixture(t, 'push', options);
+    assert.equal((await f.request('POST', '/test', {})).status, options.anonymous ? 401 : 403);
   });
 }
