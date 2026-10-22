@@ -19,7 +19,7 @@ async function fixture(t, options = {}) {
       if (options.gatewayFailure) throw Error('Gateway unavailable');
       return { url: 'https://gateway.example.test/connect/test-token', token_id: 'link-1' };
     },
-    forceSyncNow: async accountId => { calls.synced.push(accountId); return { message: 'Sincronización iniciada' }; },
+    forceSyncNow: async accountId => { calls.synced.push(accountId); if (options.failedAccount === accountId) throw Error('Gateway failure'); return { message: 'Sincronización iniciada' }; },
   };
   const access = {
     getAccounts: async () => { if (options.gatewayFailure) throw Error('Gateway unavailable'); return accounts; },
@@ -101,8 +101,8 @@ test('gateway outages are distinguished from an unlinked account', async t => {
 
 test('sync and unlink operate on the authenticated client account only', async t => {
   const f = await fixture(t);
-  assert.equal((await f.request('POST', '/my-account/sync', { ml_account_id: 'other-account' })).status, 200);
-  assert.equal((await f.request('DELETE', '/my-account', { ml_account_id: 'other-account' })).status, 200);
+  assert.equal((await f.request('POST', '/my-account/sync', { ml_account_id: 'own-account' })).status, 200);
+  assert.equal((await f.request('DELETE', '/my-account?ml_account_id=own-account')).status, 200);
   assert.deepEqual(f.calls.synced, ['own-account']);
   assert.deepEqual(f.calls.excluded, ['own-account']);
 });
@@ -119,4 +119,45 @@ test('drivers cannot generate customer authorization links', async t => {
   const f = await fixture(t, { user: { role: 'DRIVER' } });
   assert.equal((await f.request('POST', '/my-account/link')).status, 403);
   assert.equal(f.calls.links.length, 0);
+});
+
+const multipleAccounts = [
+  { ml_account_id: 'own-1', client_id: 'client-1' },
+  { ml_account_id: 'foreign', client_id: 'client-2' },
+  { ml_account_id: 'own-2', client_id: 'client-1' },
+];
+test('returns every owned account without exposing other clients', async t => {
+  const f = await fixture(t, { accounts: multipleAccounts });
+  const result = await f.request('GET', '/my-account');
+  assert.deepEqual(result.body.accounts.map(a => a.ml_account_id), ['own-1', 'own-2']);
+  assert.equal(result.body.account.ml_account_id, 'own-1');
+});
+test('syncs all owned accounts or one selected account', async t => {
+  const f = await fixture(t, { accounts: multipleAccounts });
+  assert.equal((await f.request('POST', '/my-account/sync')).status, 200);
+  assert.deepEqual(f.calls.synced, ['own-1', 'own-2']);
+  f.calls.synced.length = 0;
+  assert.equal((await f.request('POST', '/my-account/sync', { ml_account_id: 'own-2' })).status, 200);
+  assert.deepEqual(f.calls.synced, ['own-2']);
+});
+test('foreign account identifiers cannot sync or unlink accounts', async t => {
+  const f = await fixture(t, { accounts: multipleAccounts });
+  assert.equal((await f.request('POST', '/my-account/sync', { ml_account_id: 'foreign' })).status, 404);
+  assert.equal((await f.request('DELETE', '/my-account?ml_account_id=foreign')).status, 404);
+  assert.deepEqual(f.calls.synced, []);
+  assert.deepEqual(f.calls.excluded, []);
+});
+test('unlink requires selection for multiple accounts and only removes that account', async t => {
+  const f = await fixture(t, { accounts: multipleAccounts });
+  assert.equal((await f.request('DELETE', '/my-account')).status, 400);
+  assert.deepEqual(f.calls.excluded, []);
+  assert.equal((await f.request('DELETE', '/my-account?ml_account_id=own-2')).status, 200);
+  assert.deepEqual(f.calls.excluded, ['own-2']);
+});
+test('partial sync failures are reported instead of claiming all accounts synced', async t => {
+  const f = await fixture(t, { accounts: multipleAccounts, failedAccount: 'own-1' });
+  const result = await f.request('POST', '/my-account/sync');
+  assert.equal(result.status, 502);
+  assert.deepEqual(result.body.failed_account_ids, ['own-1']);
+  assert.deepEqual(f.calls.synced, ['own-1', 'own-2']);
 });

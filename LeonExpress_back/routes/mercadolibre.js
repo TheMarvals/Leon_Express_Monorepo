@@ -209,7 +209,7 @@ router.post('/webhook/cancel', async (req, res) => {
 // ==========================================
 
 // GET /api/mercadolibre/my-account
-// Obtiene el estado de la cuenta ML vinculada al cliente actual
+// Lista todas las cuentas del cliente; conserva account para consumidores anteriores.
 router.get('/my-account', authMiddleware, hasRole(['CLIENT']), async (req, res) => {
   try {
     const clientId = req.user.client_id;
@@ -218,11 +218,11 @@ router.get('/my-account', authMiddleware, hasRole(['CLIENT']), async (req, res) 
     }
     try {
       const accounts = await mlAccountAccess.getAccounts();
-      const account = accounts.find(a => String(a.client_id) === String(clientId)) || null;
-      return res.json({ account });
+      const ownedAccounts = accounts.filter(a => String(a.client_id) === String(clientId));
+      return res.json({ accounts: ownedAccounts, account: ownedAccounts[0] || null });
     } catch (gatewayError) {
       console.warn('ML Gateway no disponible en /my-account:', gatewayError.message);
-      return res.json({ account: null, gateway_status: 'UNAVAILABLE' });
+      return res.json({ accounts: [], account: null, gateway_status: 'UNAVAILABLE' });
     }
   } catch (error) {
     res.status(500).json({ error: 'Error al consultar cuenta de Mercado Libre', details: error.message });
@@ -249,7 +249,7 @@ router.post('/my-account/link', authMiddleware, hasRole(['CLIENT']), async (req,
 });
 
 // POST /api/mercadolibre/my-account/sync
-// Forza la sincronización de la cuenta ML del cliente logueado
+// Sincroniza una cuenta del cliente o todas si no se especifica ml_account_id.
 router.post('/my-account/sync', authMiddleware, hasRole(['CLIENT']), async (req, res) => {
   try {
     const clientId = req.user.client_id;
@@ -257,19 +257,27 @@ router.post('/my-account/sync', authMiddleware, hasRole(['CLIENT']), async (req,
       return res.status(400).json({ error: 'Usuario no tiene cliente asociado' });
     }
     const accounts = await mlAccountAccess.getAccounts();
-    const account = accounts.find(a => String(a.client_id) === String(clientId));
-    if (!account) {
-      return res.status(404).json({ error: 'No tienes una cuenta de Mercado Libre vinculada.' });
+    const ownedAccounts = accounts.filter(a => String(a.client_id) === String(clientId));
+    const accountId = req.body?.ml_account_id;
+    const selected = accountId
+      ? ownedAccounts.filter(a => String(a.ml_account_id) === String(accountId))
+      : ownedAccounts;
+    if (selected.length === 0) {
+      return res.status(404).json({ error: 'No se encontró una cuenta de Mercado Libre vinculada.' });
     }
-    const data = await mlGatewayClient.forceSyncNow(account.ml_account_id);
-    res.json(data);
+    const results = await Promise.allSettled(selected.map(account => mlGatewayClient.forceSyncNow(account.ml_account_id)));
+    const failed = selected.filter((account, index) => results[index].status === 'rejected').map(account => account.ml_account_id);
+    if (failed.length) {
+      return res.status(502).json({ error: 'No se pudieron sincronizar todas las cuentas. Intenta nuevamente.', failed_account_ids: failed });
+    }
+    res.json({ message: `Sincronización iniciada para ${selected.length} cuenta(s) de Mercado Libre.` });
   } catch (error) {
     res.status(500).json({ error: 'Error al forzar la sincronización', details: error.message });
   }
 });
 
 // DELETE /api/mercadolibre/my-account
-// Desvincula la cuenta de Mercado Libre del cliente logueado en Leon Express
+// Desvincula únicamente la cuenta seleccionada del cliente en Leon Express.
 router.delete('/my-account', authMiddleware, hasRole(['CLIENT']), async (req, res) => {
   try {
     const clientId = req.user.client_id;
@@ -277,9 +285,16 @@ router.delete('/my-account', authMiddleware, hasRole(['CLIENT']), async (req, re
       return res.status(400).json({ error: 'Usuario no tiene cliente asociado' });
     }
     const accounts = await mlAccountAccess.getAccounts();
-    const account = accounts.find(a => String(a.client_id) === String(clientId));
+    const ownedAccounts = accounts.filter(a => String(a.client_id) === String(clientId));
+    const accountId = req.query.ml_account_id;
+    if (!accountId && ownedAccounts.length > 1) {
+      return res.status(400).json({ error: 'Debes seleccionar la cuenta que deseas desvincular.' });
+    }
+    const account = accountId
+      ? ownedAccounts.find(a => String(a.ml_account_id) === String(accountId))
+      : ownedAccounts[0];
     if (!account) {
-      return res.status(404).json({ error: 'No tienes una cuenta de Mercado Libre vinculada.' });
+      return res.status(404).json({ error: 'No se encontró una cuenta de Mercado Libre vinculada.' });
     }
     await mlAccountAccess.excludeAccount(account.ml_account_id);
     res.json({ message: 'Cuenta de Mercado Libre desvinculada exitosamente.' });

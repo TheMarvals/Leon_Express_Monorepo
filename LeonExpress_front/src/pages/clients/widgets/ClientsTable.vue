@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { defineVaDataTableColumns, useModal } from 'vuestic-ui'
 import { Client } from '../types'
-import { PropType, computed } from 'vue'
+import { PropType } from 'vue'
 import { RouterLink } from 'vue-router'
 import { Pagination } from '../../../data/pages/clients'
 
@@ -13,7 +13,7 @@ const columns = defineVaDataTableColumns([
   { label: ' ', key: 'actions', align: 'right' },
 ])
 
-const props = defineProps({
+defineProps({
   clients: {
     type: Array as PropType<Client[]>,
     required: true,
@@ -24,6 +24,8 @@ const props = defineProps({
 
 const emit = defineEmits<{
   (event: 'edit-client', client: Client): void
+  (event: 'portal-access', client: Client): void
+  (event: 'update:per-page', perPage: number): void
   (event: 'delete-client', client: Client): void
 }>()
 
@@ -46,7 +48,14 @@ const onClientDelete = async (client: Client) => {
 </script>
 
 <template>
-  <VaDataTable :columns="columns" :items="clients" :loading="loading" :per-page="100" sticky-header>
+  <VaDataTable
+    no-data-html="No se encontraron clientes."
+    :columns="columns"
+    :items="clients"
+    :loading="loading"
+    :per-page="100"
+    sticky-header
+  >
     <template #cell(client_name)="{ rowData }">
       <div class="max-w-[200px] ellipsis">
         {{ rowData.client_name }}
@@ -76,6 +85,14 @@ const onClientDelete = async (client: Client) => {
         <VaButton
           preset="primary"
           size="small"
+          icon="login"
+          aria-label="Acceso al portal"
+          title="Acceso al portal"
+          @click="$emit('portal-access', rowData as Client)"
+        />
+        <VaButton
+          preset="primary"
+          size="small"
           icon="fa4-edit"
           aria-label="Editar cliente"
           @click="$emit('edit-client', rowData as Client)"
@@ -101,7 +118,12 @@ const onClientDelete = async (client: Client) => {
     <div>
       <b>{{ pagination.total }} resultados.</b>
       Resultados por página
-      <VaSelect v-model="pagination.perPage" class="!w-20" :options="[10, 50, 100]" />
+      <VaSelect
+        :model-value="pagination.perPage"
+        @update:model-value="$emit('update:per-page', $event)"
+        class="!w-20"
+        :options="[10, 50, 100]"
+      />
     </div>
   </div>
 </template>

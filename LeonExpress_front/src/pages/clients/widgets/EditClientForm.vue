@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, computed, PropType } from 'vue' // Importar computed y PropType
+import { ref, watch, PropType } from 'vue'
 import { useForm, useToast } from 'vuestic-ui'
 import { validators } from '../../../services/utils'
 import api from '../../../services/api'
 
 interface Client {
-  client_id?: string
+  client_id: string
   client_name: string
   email: string
   phone: string
@@ -14,12 +14,8 @@ interface Client {
 
 const props = defineProps({
   client: {
-    type: Object as PropType<Client | null>,
-    default: null,
-  },
-  actionButtonLabel: {
-    type: String,
-    default: 'Registrar',
+    type: Object as PropType<Client>,
+    required: true,
   },
 })
 
@@ -35,8 +31,6 @@ const client_name = ref('')
 const email = ref('')
 const phone = ref('')
 const address = ref('')
-
-const isEditing = computed(() => !!props.client && !!props.client.client_id)
 
 const populateForm = (client: Client | null) => {
   if (client) {
@@ -61,7 +55,7 @@ watch(
 )
 
 const handleSubmit = async () => {
-  if (!form.validate()) return
+  if (!props.client?.client_id || !form.validate()) return
 
   try {
     const payload = {
@@ -71,14 +65,10 @@ const handleSubmit = async () => {
       address: address.value,
     }
 
-    if (isEditing.value && props.client?.client_id) {
-      await api.updateClient(props.client.client_id, payload)
-    } else {
-      await api.createClient(payload)
-    }
+    await api.updateClient(props.client.client_id, payload)
 
     init({
-      message: isEditing.value ? 'Cliente actualizado correctamente' : 'Cliente registrado correctamente',
+      message: 'Cliente actualizado correctamente',
       color: 'success',
     })
 
@@ -100,9 +90,7 @@ const handleSubmit = async () => {
 
     <div class="flex justify-end gap-2">
       <VaButton color="#03323A" preset="secondary" @click="$emit('success')">Cancelar</VaButton>
-      <VaButton color="#03323A" :disabled="!isValid" @click="handleSubmit">
-        {{ actionButtonLabel }}
-      </VaButton>
+      <VaButton color="#03323A" :disabled="!isValid" @click="handleSubmit"> Guardar </VaButton>
     </div>
   </VaForm>
 </template>

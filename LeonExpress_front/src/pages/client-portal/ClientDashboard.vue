@@ -57,13 +57,13 @@
         <VaCardContent class="flex flex-col gap-1">
           <div>
             <VaBadge
-              :text="mlAccount?.is_linked ? (mlAccount.nickname || 'Vinculada') : 'No vinculada'"
-              :color="mlAccount?.is_linked ? 'success' : 'secondary'"
+              :text="mlAccounts.length ? `${mlAccounts.length} cuenta(s) vinculada(s)` : 'No vinculada'"
+              :color="mlAccounts.length ? 'success' : 'secondary'"
             />
           </div>
           <div class="pt-1">
             <VaButton
-              v-if="mlAccount?.is_linked"
+              v-if="mlAccounts.length"
               preset="plain"
               size="small"
               class="text-xs p-0"
@@ -81,6 +81,13 @@
             >
               + Vincular ahora
             </VaButton>
+            <RouterLink
+              v-if="mlAccounts.length"
+              :to="{ name: 'mercadolibre' }"
+              class="text-xs text-primary mt-2 block"
+            >
+              Gestionar cuentas
+            </RouterLink>
           </div>
         </VaCardContent>
       </VaCard>
@@ -225,7 +232,7 @@ const stats = reactive({
 })
 
 // Mercado Libre
-const mlAccount = ref<any>(null)
+const mlAccounts = ref<any[]>([])
 const isSyncingMl = ref(false)
 
 // Colectas activas
@@ -310,10 +317,7 @@ const loadData = async () => {
     // 3. Cargar estado de cuenta ML
     try {
       const resMl = await api.getMyMlAccount()
-      const account = resMl.data?.account
-      mlAccount.value = account
-        ? { ...account, nickname: account.ml_nickname || account.nickname, is_linked: true }
-        : null
+      mlAccounts.value = resMl.data?.accounts || (resMl.data?.account ? [resMl.data.account] : [])
     } catch (e) {
       // Ignorar si ML aún no está vinculado
     }

@@ -34,15 +34,15 @@ function fixture(api = {}) {
 test('reads a linked account from the API envelope and displays the gateway nickname', async () => {
   const { page } = fixture({ getMyMlAccount: async () => ({ data: { account: { ml_account_id: 'account-1', ml_nickname: 'Mi tienda' } } }) })
   await page.loadAccount()
-  assert.equal(page.mlAccount.value.is_linked, true)
-  assert.equal(page.mlAccount.value.nickname, 'Mi tienda')
+  assert.equal(page.mlAccounts.value.length, 1)
+  assert.equal(page.mlAccounts.value[0].nickname, 'Mi tienda')
   assert.equal(page.gatewayUnavailable.value, false)
 })
 
 test('a missing account remains unlinked', async () => {
   const { page } = fixture({ getMyMlAccount: async () => ({ data: { account: null } }) })
   await page.loadAccount()
-  assert.equal(page.mlAccount.value, null)
+  assert.equal(page.mlAccounts.value.length, 0)
   assert.equal(page.gatewayUnavailable.value, false)
 })
 
@@ -83,3 +83,38 @@ for (const data of [{ link: {} }, { url: {} }, {}, { url: 'javascript:alert(1)' 
     assert.equal(page.isLinking.value, false)
   })
 }
+
+test('loads every account and unlinks only the selected account', async () => {
+  const removed = [];
+  const { page } = fixture({
+    getMyMlAccount: async () => ({ data: { accounts: [
+      { ml_account_id: 'one', ml_nickname: 'Primera tienda' },
+      { ml_account_id: 'two', ml_nickname: 'Segunda tienda' },
+    ] } }),
+    unlinkMyMlAccount: async id => removed.push(id),
+  });
+  await page.loadAccount();
+  assert.equal(page.mlAccounts.value.length, 2);
+  await page.unlinkAccount(page.mlAccounts.value[1]);
+  assert.deepEqual(removed, ['two']);
+  assert.equal(page.mlAccounts.value.length, 1);
+  assert.equal(page.mlAccounts.value[0].ml_account_id, 'one');
+});
+test('sync sends the selected account id or no id for all accounts', async () => {
+  const synced = [];
+  const { page } = fixture({ syncMyMlAccount: async id => { synced.push(id); return { data: {} }; } });
+  await page.syncAccount('two');
+  await page.syncAccount();
+  assert.deepEqual(synced, ['two', undefined]);
+});
+test('a failed unlink preserves every linked account and clears loading state', async () => {
+  const { page, notices } = fixture({
+    getMyMlAccount: async () => ({ data: { accounts: [{ ml_account_id: 'one' }, { ml_account_id: 'two' }] } }),
+    unlinkMyMlAccount: async () => { throw Error('Gateway unavailable'); },
+  });
+  await page.loadAccount();
+  await page.unlinkAccount(page.mlAccounts.value[1]);
+  assert.equal(page.mlAccounts.value.length, 2);
+  assert.equal(page.unlinkingAccountId.value, null);
+  assert.equal(notices[0].color, 'danger');
+});

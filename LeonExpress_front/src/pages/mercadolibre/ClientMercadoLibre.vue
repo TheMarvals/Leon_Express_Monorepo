@@ -5,25 +5,32 @@
       <div>
         <h1 class="page-title">Mercado Libre</h1>
         <p class="page-subtitle">
-          Vincula tu tienda de Mercado Libre para sincronizar automáticamente tus envíos Flex y despacharlos con León
+          Vincula tus cuentas de Mercado Libre para sincronizar automáticamente tus envíos Flex y despacharlos con León
           Express.
         </p>
       </div>
 
       <div class="flex items-center gap-2">
-        <VaButton v-if="mlAccount?.is_linked" color="#03323a" icon="refresh" :loading="isSyncing" @click="syncAccount">
-          Sincronizar Envíos de Hoy
+        <VaButton
+          v-if="mlAccounts.length"
+          color="#03323a"
+          icon="refresh"
+          :loading="isSyncing"
+          :disabled="!!unlinkingAccountId || gatewayUnavailable"
+          @click="syncAccount()"
+        >
+          Sincronizar todas
         </VaButton>
         <VaButton
-          v-else
           color="#ffe600"
           text-color="#2d3277"
           icon="link"
           :loading="isLinking"
           class="font-bold"
+          :disabled="isLoading || isSyncing || !!unlinkingAccountId || gatewayUnavailable"
           @click="linkAccount"
         >
-          Vincular Mercado Libre
+          {{ mlAccounts.length ? 'Vincular otra cuenta' : 'Vincular Mercado Libre' }}
         </VaButton>
       </div>
     </header>
@@ -33,46 +40,47 @@
     </VaAlert>
 
     <!-- Status Card -->
-    <VaCard>
+    <VaCard v-for="account in mlAccounts" :key="account.ml_account_id">
       <VaCardContent>
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2">
           <div class="flex items-center gap-4">
-            <VaIcon
-              :name="mlAccount?.is_linked ? 'check_circle' : 'info'"
-              :color="mlAccount?.is_linked ? 'success' : 'warning'"
-              size="36px"
-            />
+            <VaIcon name="check_circle" color="success" size="36px" />
             <div>
-              <div class="flex items-center gap-2">
-                <h3 class="text-base font-bold text-gray-800">
-                  {{ mlAccount?.is_linked ? `Conectado: ${mlAccount.nickname || 'Cuenta ML'}` : 'Cuenta no vinculada' }}
-                </h3>
-                <VaBadge
-                  :text="mlAccount?.is_linked ? 'ACTIVO' : 'PENDIENTE'"
-                  :color="mlAccount?.is_linked ? 'success' : 'warning'"
-                  class="text-[10px] font-bold"
-                />
-              </div>
+              <h3 class="text-base font-bold">{{ account.nickname || 'Cuenta ML' }}</h3>
               <p class="text-xs text-secondary mt-1">
-                {{
-                  mlAccount?.is_linked
-                    ? `Vinculada el ${formatDate(
-                        mlAccount.created_at || new Date(),
-                      )}. Los envíos se sincronizan desde las 00:00:00 del día.`
-                    : 'Haz clic en "Vincular Mercado Libre" para autorizar a León Express a recibir tus ventas Flex.'
-                }}
+                {{ account.created_at ? `Vinculada el ${formatDate(account.created_at)}.` : 'Cuenta vinculada.' }}
+                Los envíos Flex del día se sincronizan con tu cliente.
               </p>
             </div>
           </div>
 
-          <div v-if="mlAccount?.is_linked" class="flex items-center gap-3">
-            <VaButton preset="secondary" color="danger" size="small" :loading="isUnlinking" @click="unlinkAccount">
+          <div class="flex items-center gap-3">
+            <VaButton
+              preset="secondary"
+              size="small"
+              :disabled="isSyncing || !!unlinkingAccountId || gatewayUnavailable"
+              :loading="syncingAccountId === account.ml_account_id"
+              @click="syncAccount(account.ml_account_id)"
+              >Sincronizar hoy</VaButton
+            >
+            <VaButton
+              preset="secondary"
+              color="danger"
+              size="small"
+              :disabled="isSyncing || !!unlinkingAccountId || gatewayUnavailable"
+              :loading="unlinkingAccountId === account.ml_account_id"
+              @click="unlinkAccount(account)"
+            >
               Desvincular Cuenta
             </VaButton>
           </div>
         </div>
       </VaCardContent>
     </VaCard>
+
+    <VaAlert v-if="!isLoading && !gatewayUnavailable && !mlAccounts.length" color="info">
+      Todavía no tienes cuentas vinculadas. Puedes agregar más de una cuenta de Mercado Libre.
+    </VaAlert>
 
     <!-- Información de Funcionamiento -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -106,11 +114,18 @@ import api from '@/services/api'
 const { init: notify } = useToast()
 const { confirm } = useModal()
 
-const mlAccount = ref<any>(null)
+interface MlAccount {
+  ml_account_id: string
+  ml_nickname?: string
+  nickname?: string
+  created_at?: string
+}
+const mlAccounts = ref<MlAccount[]>([])
 const isLoading = ref(false)
 const isSyncing = ref(false)
 const isLinking = ref(false)
-const isUnlinking = ref(false)
+const unlinkingAccountId = ref<string | null>(null)
+const syncingAccountId = ref<string | null>(null)
 const gatewayUnavailable = ref(false)
 
 const formatDate = (val: any) => {
@@ -122,10 +137,11 @@ const loadAccount = async () => {
   isLoading.value = true
   try {
     const res = await api.getMyMlAccount()
-    const account = res.data?.account
-    mlAccount.value = account
-      ? { ...account, nickname: account.ml_nickname || account.nickname, is_linked: true }
-      : null
+    const accounts = res.data?.accounts || (res.data?.account ? [res.data.account] : [])
+    mlAccounts.value = accounts.map((account: MlAccount) => ({
+      ...account,
+      nickname: account.ml_nickname || account.nickname,
+    }))
     gatewayUnavailable.value = res.data?.gateway_status === 'UNAVAILABLE'
   } catch (error: any) {
     console.error('Error cargando cuenta ML:', error)
@@ -155,10 +171,11 @@ const linkAccount = async () => {
   }
 }
 
-const syncAccount = async () => {
+const syncAccount = async (accountId?: string) => {
   isSyncing.value = true
+  syncingAccountId.value = accountId || null
   try {
-    const res = await api.syncMyMlAccount()
+    const res = await api.syncMyMlAccount(accountId)
     notify({
       message: res.data?.message || 'Envíos sincronizados exitosamente desde Mercado Libre.',
       color: 'success',
@@ -170,34 +187,34 @@ const syncAccount = async () => {
     })
   } finally {
     isSyncing.value = false
+    syncingAccountId.value = null
   }
 }
 
-const unlinkAccount = async () => {
+const unlinkAccount = async (account: MlAccount) => {
   const ok = await confirm({
     title: 'Desvincular cuenta',
-    message:
-      '¿Estás seguro de desvincular tu cuenta de Mercado Libre? Dejarás de recibir sincronización automática de envíos.',
+    message: `¿Desvincular ${account.nickname || 'esta cuenta'}? Tus otras cuentas seguirán vinculadas.`,
     okText: 'Sí, desvincular',
     cancelText: 'Cancelar',
   })
   if (!ok) return
 
-  isUnlinking.value = true
+  unlinkingAccountId.value = account.ml_account_id
   try {
-    await api.unlinkMyMlAccount()
+    await api.unlinkMyMlAccount(account.ml_account_id)
     notify({
       message: 'Cuenta desvinculada exitosamente.',
       color: 'success',
     })
-    mlAccount.value = null
+    mlAccounts.value = mlAccounts.value.filter((item) => item.ml_account_id !== account.ml_account_id)
   } catch (error: any) {
     notify({
       message: error.response?.data?.error || 'Error al desvincular la cuenta.',
       color: 'danger',
     })
   } finally {
-    isUnlinking.value = false
+    unlinkingAccountId.value = null
   }
 }
 

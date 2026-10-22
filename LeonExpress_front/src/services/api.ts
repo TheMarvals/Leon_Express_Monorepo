@@ -119,8 +119,10 @@ const api = {
   // --- Métodos Mercado Libre para Clientes ---
   getMyMlAccount: () => axiosInstance.get('/mercadolibre/my-account'),
   linkMyMlAccount: () => axiosInstance.post('/mercadolibre/my-account/link'),
-  syncMyMlAccount: () => axiosInstance.post('/mercadolibre/my-account/sync'),
-  unlinkMyMlAccount: () => axiosInstance.delete('/mercadolibre/my-account'),
+  syncMyMlAccount: (accountId?: string) =>
+    axiosInstance.post('/mercadolibre/my-account/sync', accountId ? { ml_account_id: accountId } : {}),
+  unlinkMyMlAccount: (accountId: string) =>
+    axiosInstance.delete('/mercadolibre/my-account', { params: { ml_account_id: accountId } }),
 
   // --- Métodos de Roles y Almacenes ---
   getRoles: () => axiosInstance.get('/users/roles'),

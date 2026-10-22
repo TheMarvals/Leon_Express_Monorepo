@@ -4,11 +4,18 @@ import { useModal, useToast } from 'vuestic-ui'
 import ClientsTable from './widgets/ClientsTable.vue'
 import EditClientForm from './widgets/EditClientForm.vue'
 import InviteClientModal from './widgets/InviteClientModal.vue'
+import ClientPortalAccessModal from './widgets/ClientPortalAccessModal.vue'
 import { Client } from './types'
 import { useClients } from './composables/useClients'
 
 const doShowEditClientModal = ref(false)
 const doShowInviteModal = ref(false)
+const portalClient = ref<Client | null>(null)
+const doShowPortalAccess = ref(false)
+const showPortalAccess = (client: Client) => {
+  portalClient.value = client
+  doShowPortalAccess.value = true
+}
 const clientToEdit = ref<Client | null>(null)
 const {
   clients,
@@ -34,7 +41,7 @@ watchEffect(() => {
   }
 })
 
-const showEditClientModal = (client: Client | null) => {
+const showEditClientModal = (client: Client) => {
   clientToEdit.value = client
   doShowEditClientModal.value = true
 }
@@ -101,16 +108,14 @@ const beforeEditFormModalClose = async (hide: () => void) => {
           </VaInput>
         </div>
         <div class="flex items-center gap-2">
-          <VaButton
-            color="primary"
-            icon="mail"
-            @click="doShowInviteModal = true"
-          >
-            Invitar Cliente
-          </VaButton>
-          <VaButton color="#03323A" @click="showEditClientModal(null)">Añadir Partner</VaButton>
+          <VaButton color="primary" icon="mail" @click="doShowInviteModal = true"> Invitar Cliente </VaButton>
         </div>
       </div>
+
+      <p class="text-sm text-secondary mb-4">
+        Invita a los nuevos clientes. Los clientes existentes acceden al portal con su correo registrado y un código de
+        acceso.
+      </p>
 
       <div class="table-wrapper">
         <ClientsTable
@@ -119,14 +124,9 @@ const beforeEditFormModalClose = async (hide: () => void) => {
           :pagination="pagination"
           @editClient="showEditClientModal"
           @deleteClient="onClientDelete"
-        >
-          <template v-if="!isLoading && clients.length === 0" #empty>
-            <div class="text-center py-4">
-              <p>No se encontraron partners.</p>
-              <VaButton preset="primary" @click="showEditClientModal(null)">Añadir Partner</VaButton>
-            </div>
-          </template>
-        </ClientsTable>
+          @portal-access="showPortalAccess"
+          @update:per-page="pagination.perPage = $event"
+        />
       </div>
     </VaCardContent>
   </VaCard>
@@ -140,20 +140,19 @@ const beforeEditFormModalClose = async (hide: () => void) => {
     hide-default-actions
     :before-cancel="beforeEditFormModalClose"
   >
-    <h1 class="va-h5">{{ clientToEdit ? 'Editar cliente' : 'Nuevo cliente' }}</h1>
+    <h1 class="va-h5">Editar cliente</h1>
     <EditClientForm
+      v-if="clientToEdit"
       ref="editFormRef"
       :client="clientToEdit"
-      :action-button-label="clientToEdit ? 'Guardar' : 'Crear'"
       @close="cancel"
       @success="onClientSaved"
     />
   </VaModal>
 
-  <InviteClientModal
-    v-model="doShowInviteModal"
-    @created="debouncedFetch"
-  />
+  <ClientPortalAccessModal v-model="doShowPortalAccess" :client="portalClient" />
+
+  <InviteClientModal v-model="doShowInviteModal" @created="debouncedFetch" />
 </template>
 
 <style scoped>
