@@ -337,8 +337,8 @@ const printPackageLabel = (pkg: any) => {
 const linkMlAccount = async () => {
   try {
     const res = await api.linkMyMlAccount()
-    const targetUrl = res.data?.url || res.data?.authUrl || res.data?.link
-    if (targetUrl) {
+    const targetUrl = res.data?.url || res.data?.authUrl || res.data?.link?.url || res.data?.link
+    if (typeof targetUrl === 'string' && /^https?:\/\//i.test(targetUrl)) {
       window.location.href = targetUrl
     } else {
       throw new Error('No se recibió la URL de autorización')

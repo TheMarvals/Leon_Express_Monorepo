@@ -49,7 +49,13 @@ module.exports = {
         app_id: APP_ID,
         created_by_info: createdByInfo,
       });
-      return response.data; // { token_id, token, url, expires_at }
+      // El gateway envuelve el enlace en { message, link: { url, ... } }.
+      const link = response.data?.link ?? response.data;
+      const url = link?.url;
+      if (typeof url !== 'string' || !['http:', 'https:'].includes(new URL(url).protocol)) {
+        throw new Error('El gateway no devolvió una URL de vinculación válida');
+      }
+      return { ...link, url }; // { token_id, token, url, expires_at }
     } catch (error) {
       console.error('[ML Client] Error generateLink:', error.message);
       throw error;

@@ -89,7 +89,7 @@ const mercadolibreService = {
   /**
    * Genera un enlace de vinculación seguro para enviárselo a un cliente nuevo.
    */
-  async generateLink(clientId: string): Promise<{ link: string }> {
+  async generateLink(clientId: string): Promise<{ url: string }> {
     const response = await apiClient.post(`/mercadolibre/generate-link/${clientId}`)
     return response.data
   },

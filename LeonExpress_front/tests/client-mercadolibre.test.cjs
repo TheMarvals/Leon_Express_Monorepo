@@ -66,3 +66,20 @@ test('link failures explain the error and release the loading button', async () 
   assert.equal(page.isLinking.value, false)
   assert.equal(notices[0].message, 'No se pudo generar el enlace de vinculación')
 })
+
+test('linking reads the URL inside the gateway link object', async () => {
+  const url = 'https://gateway.example.test/ml/vincular/token'
+  const { page, location } = fixture({ linkMyMlAccount: async () => ({ data: { link: { url, token_id: 'link-1' } } }) })
+  await page.linkAccount()
+  assert.equal(location.href, url)
+})
+
+for (const data of [{ link: {} }, { url: {} }, {}, { url: 'javascript:alert(1)' }]) {
+  test(`invalid link responses keep the user on the page: ${JSON.stringify(data)}`, async () => {
+    const { page, notices, location } = fixture({ linkMyMlAccount: async () => ({ data }) })
+    await page.linkAccount()
+    assert.equal(location.href, '')
+    assert.equal(notices[0].color, 'danger')
+    assert.equal(page.isLinking.value, false)
+  })
+}

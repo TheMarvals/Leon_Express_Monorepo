@@ -247,7 +247,7 @@ const generateLink = async () => {
   if (!selectedClientForLink.value) return notify({ message: 'Seleccione un cliente', color: 'warning' })
   try {
     const res = await mercadolibreService.generateLink(selectedClientForLink.value)
-    generatedLink.value = res.link?.url || res.link || ''
+    generatedLink.value = res.url
     notify({ message: 'Enlace generado con éxito', color: 'success' })
   } catch (e) {
     notify({ message: 'Error generando enlace', color: 'danger' })
