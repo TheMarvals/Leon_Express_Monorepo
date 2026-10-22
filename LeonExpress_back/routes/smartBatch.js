@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const ocrQueue = require('../utils/ocrProcessingQueue');
 const { v4: uuidv4 } = require('uuid');
+const authenticateToken = require('../middlewares/authenticateToken');
+const roleValidator = require('../middlewares/roleValidator');
+
+router.use(authenticateToken, roleValidator(['ADMIN', 'WAREHOUSE_STAFF', 'DRIVER']));
 
 /**
  * @swagger

@@ -2,10 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { DriverPayout } = require('../models');
 const { Op } = require('sequelize');
+const authenticateToken = require('../middlewares/authenticateToken');
+const roleValidator = require('../middlewares/roleValidator');
 
 // GET /revenues?userId=xxx
-router.get('/', async (req, res) => {
-  const { userId } = req.query;
+router.get('/', authenticateToken, roleValidator(['ADMIN', 'DRIVER']), async (req, res) => {
+  const userId = req.user.role === 'DRIVER' ? req.user.user_id : req.query.userId;
   if (!userId) {
     return res.status(400).json({ error: 'userId es requerido' });
   }

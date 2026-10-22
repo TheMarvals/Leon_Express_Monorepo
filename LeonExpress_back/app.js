@@ -6,6 +6,9 @@ const { syncDatabase } = require('./models');
 const app = express();
 const axios = require('axios');
 const PORT = process.env.PORT || 4100;
+const authenticateToken = require('./middlewares/authenticateToken');
+const roleValidator = require('./middlewares/roleValidator');
+const requireOcrRole = roleValidator(['ADMIN', 'WAREHOUSE_STAFF', 'DRIVER']);
 
 
 // --- INICIO: DEPENDENCIAS PARA OCR ---
@@ -175,7 +178,7 @@ async function callOcrSpace(image) {
 
 // Nota: Los límites de body ya están configurados arriba (50mb)
 
-app.post('/api/ocr', async (req, res) => {
+app.post('/api/ocr', authenticateToken, requireOcrRole, async (req, res) => {
   try {
     const { image } = req.body;
     if (!image) {
@@ -204,7 +207,7 @@ app.post('/api/ocr', async (req, res) => {
 });
 
 // Nuevo endpoint: Subir fotos para procesamiento diferido
-app.post('/api/batch-photos/upload', async (req, res) => {
+app.post('/api/batch-photos/upload', authenticateToken, requireOcrRole, async (req, res) => {
   try {
     console.log('📸 BATCH UPLOAD: Nueva solicitud de subida de lote');
     const { images, pickup_id, metadata } = req.body;
@@ -278,7 +281,7 @@ app.post('/api/batch-photos/upload', async (req, res) => {
 });
 
 // Endpoint: Consultar estado del procesamiento
-app.get('/api/batch-photos/:batchId/status', async (req, res) => {
+app.get('/api/batch-photos/:batchId/status', authenticateToken, requireOcrRole, async (req, res) => {
   try {
     const { batchId } = req.params;
     const batchDir = path.join(__dirname, 'uploads', 'batch-photos', batchId);
@@ -369,7 +372,7 @@ async function processOcrBatchInBackground(batchId, uploadDir) {
   }
 }
 
-app.post('/api/ocr/batch', async (req, res) => {
+app.post('/api/ocr/batch', authenticateToken, requireOcrRole, async (req, res) => {
   try {
     const { images } = req.body;
 

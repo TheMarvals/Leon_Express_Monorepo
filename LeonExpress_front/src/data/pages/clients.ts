@@ -52,8 +52,13 @@ export const removeClient = async (client: Client) => {
   try {
     await api.deleteClient(client.client_id)
     return true
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting client:', error)
-    throw new Error('Failed to delete client.')
+    throw new Error(
+      error.response?.data?.error ||
+        (error.response?.status === 404
+          ? 'La ruta de eliminación no está disponible. Recarga la página e intenta nuevamente.'
+          : 'No se pudo desactivar el cliente. Intenta nuevamente.'),
+    )
   }
 }

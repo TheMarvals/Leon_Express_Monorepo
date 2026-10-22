@@ -227,6 +227,51 @@ router.post('/', authenticateToken, roleValidator(['ADMIN']), validateRouteCreat
   }
 });
 
+// PUT /:id - Editar la planificación antes de iniciar la ruta.
+router.put('/:id', authenticateToken, roleValidator(['ADMIN']), validateRouteCreation, async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+  const t = await sequelize.transaction();
+  try {
+    const route = await Route.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!route) {
+      await t.rollback();
+      return res.status(404).json({ error: 'Ruta no encontrada' });
+    }
+    if (route.status !== 'PENDIENTE') {
+      await t.rollback();
+      return res.status(409).json({ error: 'Solo se puede editar la planificación de una ruta pendiente.' });
+    }
+    if (req.body.status && req.body.status !== route.status) {
+      await t.rollback();
+      return res.status(400).json({ error: 'Cambia el estado desde el detalle de la ruta.' });
+    }
+    const { user_id, vehicle_id, warehouse_id, start_date, route_type, route_name } = req.body;
+    const [driver, vehicle, warehouse] = await Promise.all([
+      User.findOne({ where: { user_id, is_active: true }, include: ['role'], transaction: t }),
+      Vehicle.findByPk(vehicle_id, { transaction: t }),
+      Warehouse.findByPk(warehouse_id, { transaction: t }),
+    ]);
+    if (!driver || driver.role?.role_name !== 'DRIVER' || !vehicle || String(vehicle.user_id) !== String(user_id) || !warehouse) {
+      await t.rollback();
+      return res.status(400).json({ error: 'Selecciona un conductor activo, su vehículo y un almacén válido.' });
+    }
+    const assignmentChanged = ['user_id', 'vehicle_id', 'warehouse_id', 'route_type'].some(key => String(req.body[key]) !== String(route[key]));
+    if (assignmentChanged && await RoutePackage.count({ where: { route_id: route.route_id }, transaction: t })) {
+      await t.rollback();
+      return res.status(409).json({ error: 'La ruta ya tiene paquetes. Usa el flujo de transferencia para cambiar su asignación.' });
+    }
+    await route.update({ user_id, vehicle_id, warehouse_id, start_date, route_type, route_name: route_name || null }, { transaction: t });
+    await logAudit(req.user.user_id, 'UPDATE_ROUTE', { route_id: route.route_id });
+    await t.commit();
+    res.json(route);
+  } catch (error) {
+    await t.rollback();
+    console.error('Error al actualizar la ruta:', error.message);
+    res.status(500).json({ error: 'No se pudo actualizar la ruta.' });
+  }
+});
+
 // GET /:id - Obtener detalle de una ruta y sus paquetes
 router.get('/:id', authenticateToken, async (req, res) => {
   try {

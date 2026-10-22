@@ -95,6 +95,7 @@ watch(user_id, (newUserId, oldUserId) => {
 })
 
 const handleSubmit = () => {
+  if (!validate()) return
   const payload = {
     route_name: route_name.value,
     user_id: user_id.value,
@@ -146,6 +147,7 @@ const handleSubmit = () => {
     <VaSelect
       v-model="status"
       label="Estado"
+      :disabled="isEditing"
       :options="['PENDIENTE', 'EN_PROGRESO', 'FINALIZADA', 'CANCELADA']"
       :rules="[validators.required]"
     />

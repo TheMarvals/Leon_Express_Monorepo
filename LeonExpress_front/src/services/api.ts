@@ -7,7 +7,7 @@ const { show: showLoading, hide: hideLoading } = useLoading()
 
 // Axios instance
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL?.trim() || '/api',
 })
 
 const handleSessionExpiry = createSessionExpiryHandler({
@@ -125,6 +125,7 @@ const api = {
   // --- Métodos de Roles y Almacenes ---
   getRoles: () => axiosInstance.get('/users/roles'),
   getWarehouses: () => axiosInstance.get('/warehouses'),
+  getCosts: () => axiosInstance.get('/costs'),
 
   // --- Métodos de Vehículo ---
   getVehicles: (params: ApiListParams) => {
@@ -275,7 +276,7 @@ const api = {
 
   // --- Métodos de Paquetes ---
   getDeliveredPackages: (params: ApiListParams) =>
-    axiosInstance.get('/packages/delivered', { params: mapParams(params) }),
+    axiosInstance.get('/packages', { params: mapParams({ ...params, status: 'ENTREGADO' }) }),
   getDriverSummary: (params: any) => axiosInstance.get('/driver/summary', { params }),
 
   // --- Métodos de Notificaciones ---

@@ -3,6 +3,9 @@ const router = express.Router();
 const { queueNotification } = require('../utils/notificationService');
 const { PushSubscription } = require('../models');
 const authenticateToken = require('../middlewares/authenticateToken');
+const roleValidator = require('../middlewares/roleValidator');
+
+router.use(authenticateToken, roleValidator(['ADMIN']));
 
 // Endpoint para probar notificación directa a un usuario específico
 router.post('/test-notification/:userId', authenticateToken, async (req, res) => {
@@ -115,8 +118,8 @@ router.post('/clean-duplicate-subscriptions', authenticateToken, async (req, res
 const createMissingNextPeriod = require('../migrations/fix_missing_period');
 
 // Endpoint para arreglar el periodo faltante
-// Llamar con GET http://ip/api/debug/fix-period
-router.get('/fix-period', async (req, res) => {
+// Las operaciones de mantenimiento requieren una petición explícita de escritura.
+router.post('/fix-period', async (req, res) => {
   try {
     console.log('🛠️ Ejecutando fix-period por HTTP...');
     await createMissingNextPeriod();
