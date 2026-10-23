@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { gsap } from 'gsap'
 import logo from '@/assets/leon-express-light.svg'
 import VaIconArrowUpRight from '@/components/icons/VaIconArrowUpRight.vue'
 import { submitProspect } from '@/services/prospects'
 const route = useRoute()
+const landing = ref<HTMLElement | null>(null)
+const titleLines = ['Tu negocio,', 'más lejos.']
+let motion: gsap.MatchMedia | undefined
 const applicationDialog = ref<HTMLDialogElement | null>(null)
 let previousOverflow = ''
 let bodyLocked = false
@@ -52,9 +56,39 @@ function dismissBackdrop(event: MouseEvent) {
     closeForm()
 }
 onMounted(() => {
+  motion = gsap.matchMedia()
+  motion.add(
+    '(prefers-reduced-motion: no-preference)',
+    () => {
+      const zoom = gsap.to('.city-photo', {
+        scale: 1.075,
+        duration: 24,
+        ease: 'sine.inOut',
+        repeat: -1,
+        yoyo: true,
+      })
+      gsap.set('.title-character', { autoAlpha: 0 })
+      const typing = gsap.timeline({ defaults: { duration: 0, ease: 'none' }, delay: 0.2 })
+      typing
+        .to('.title-line:first-child .title-character', { autoAlpha: 1, stagger: 0.075 })
+        .to('.title-line:last-child .title-character', { autoAlpha: 1, stagger: 0.075 }, '+=0.16')
+
+      const syncVisibility = () => {
+        zoom.paused(document.hidden)
+        typing.paused(document.hidden)
+      }
+      document.addEventListener('visibilitychange', syncVisibility)
+      syncVisibility()
+      return () => document.removeEventListener('visibilitychange', syncVisibility)
+    },
+    landing.value!,
+  )
   if (route.hash === '#trabaja-con-nosotros') openForm()
 })
-onBeforeUnmount(onDialogClose)
+onBeforeUnmount(() => {
+  motion?.revert()
+  onDialogClose()
+})
 async function submit() {
   if (submitting.value) return
   submitting.value = true
@@ -72,9 +106,9 @@ async function submit() {
 </script>
 
 <template>
-  <div class="landing">
+  <div ref="landing" class="landing">
     <img
-      src="/santiago_chile.jpg"
+      src="/santiago_chile.webp"
       alt="Vista nocturna de Santiago con la cordillera de los Andes"
       class="city-photo"
       fetchpriority="high"
@@ -94,7 +128,18 @@ async function submit() {
       </header>
       <main class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <h1 id="hero-title">Tu negocio,<br /><span class="title-accent">más lejos.</span></h1>
+          <h1 id="hero-title" aria-label="Tu negocio, más lejos.">
+            <span
+              v-for="(line, lineIndex) in titleLines"
+              :key="line"
+              class="title-line"
+              :class="{ 'title-accent': lineIndex === 1 }"
+              aria-hidden="true"
+              ><span v-for="(character, index) in Array.from(line)" :key="index" class="title-character">{{
+                character
+              }}</span></span
+            >
+          </h1>
           <div class="hero-details">
             <p class="hero-description">Tú creas las oportunidades.<br />Nosotros llevamos tus paquetes.</p>
             <div class="cta-container">
@@ -382,6 +427,10 @@ async function submit() {
 }
 .title-accent {
   color: var(--accent);
+}
+.title-line {
+  display: block;
+  white-space: pre;
 }
 .hero-description {
   font-size: 15px;
