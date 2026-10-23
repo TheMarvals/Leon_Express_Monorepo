@@ -86,7 +86,7 @@ async function scanner(t, options = {}) {
     getPendingShipments: async ({ search }) => {
       gatewayCalls++;
       return { shipments: options.missingShipment ? [] : [{ ml_shipment_external_id: search,
-        ml_shipment_id: 'shipment-1', ml_account_id: options.shipmentAccountId ?? 'account-1', buyer_name: 'Destinatario' }] };
+        ml_shipment_id: 'shipment-1', ml_account_id: options.shipmentAccountId ?? 'account-1', buyer_name: 'Destinatario', buyer_phone: '+56912345678', buyer_address: JSON.stringify({ address_line: 'Calle 123' }) }] };
     },
     markShipmentAsImported: async () => {
       if (options.gatewayFailure) throw new Error('Gateway unavailable after local commit');

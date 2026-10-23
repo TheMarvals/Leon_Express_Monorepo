@@ -58,14 +58,9 @@ async function importShipments(shipmentIds, targetPickupId, adminUserId) {
     const packageRefs = [];
 
     // 3. Generar los Paquetes bajo ese Pickup
-    for (const ship of targetShipments) {
+    for (const original of targetShipments) {
+      const ship = await require('./mlRecipientService').prepareShipment(original);
       const trackingCode = await generateUniqueTrackingCode();
-      let destinationAddress = ship.buyer_address;
-      
-      try {
-         const parsedJson = JSON.parse(ship.buyer_address);
-         if (parsedJson.address_line) destinationAddress = parsedJson.address_line;
-      } catch(e) {}
 
       const newPackage = await Package.create({
         package_id: uuidv4(),
@@ -74,9 +69,9 @@ async function importShipments(shipmentIds, targetPickupId, adminUserId) {
         pickup_id: targetPickupId,
         client_id: clientId,
         status: 'PENDIENTE_RECOLECCION',  // Estado inicial = pendiente de escáner
-        destination_address: shipmentAddressFormatter(ship),
-        recipient_name: ship.buyer_name || 'Sin Nombre',
-        recipient_phone: ship.buyer_phone || '',
+        destination_address: ship.destination_address,
+        recipient_name: ship.recipient_name,
+        recipient_phone: ship.recipient_phone,
         client_price: clientPrice,
         delivery_cost: 0.00,
         is_cod: false,
@@ -148,63 +143,6 @@ async function importShipments(shipmentIds, targetPickupId, adminUserId) {
     console.error('[ML Import] Transaction rolled back:', error.message);
     throw error;
   }
-}
-
-/**
- * Función auxiliar para formatear la dirección en 1 string
- * El campo buyer_address contiene el raw JSON de receiver_address de ML
- * con campos: street_name, street_number, city.name, state.name, zip_code, neighborhood.name, comment
- */
-function shipmentAddressFormatter(ship) {
-  try {
-    const addr = JSON.parse(ship.buyer_address);
-    
-    // Construir dirección desde los campos nativos de ML
-    const streetName = addr.street_name || '';
-    const streetNumber = addr.street_number || '';
-    const neighborhood = addr.neighborhood?.name || '';
-    const city = addr.city?.name || ship.buyer_city || '';
-    const state = addr.state?.name || ship.buyer_state || '';
-    const zipCode = addr.zip_code || ship.buyer_zip || '';
-    const comment = addr.comment || '';
-    
-    let parts = [];
-    
-    // Calle y número
-    const street = `${streetName} ${streetNumber}`.trim();
-    if (street) parts.push(street);
-    
-    // Barrio/colonia
-    if (neighborhood) parts.push(neighborhood);
-    
-    // Ciudad
-    if (city) parts.push(city);
-    
-    // Estado y CP
-    if (state) parts.push(state);
-    if (zipCode) parts.push(`CP ${zipCode}`);
-    
-    let fullAddress = parts.join(', ');
-    
-    // Agregar comentario del comprador si existe (referencias, depto, etc)
-    if (comment) {
-      fullAddress += ` (${comment})`;
-    }
-    
-    if (fullAddress) return fullAddress;
-  } catch(e) {
-    // Si falla el parsing, intentar con buyer_city directamente
-  }
-  
-  // Fallback: usar los campos planos del shipment
-  const fallbackParts = [];
-  if (ship.buyer_city) fallbackParts.push(ship.buyer_city);
-  if (ship.buyer_state) fallbackParts.push(ship.buyer_state);
-  if (ship.buyer_zip) fallbackParts.push(`CP ${ship.buyer_zip}`);
-  
-  return fallbackParts.length > 0 
-    ? fallbackParts.join(', ')
-    : 'Direccion pendiente de ML';
 }
 
 module.exports = {

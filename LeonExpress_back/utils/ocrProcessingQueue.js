@@ -432,25 +432,24 @@ const { withPickupPackageLock } = require('./pickupPackageLock');
       }
 
       if (isMLAutoImport && mlShipmentData) {
-        let destinationAddress = mlShipmentData.buyer_address || 'Dirección de MercadoLibre';
         try {
-          const parsedJson = JSON.parse(destinationAddress);
-          if (parsedJson.address_line) destinationAddress = parsedJson.address_line;
-        } catch(e) {}
-
-        extracted.data.recipient_name = mlShipmentData.buyer_name || extracted.data.recipient_name || 'Destinatario MercadoLibre';
-        extracted.data.destination_address = destinationAddress;
-        extracted.data.recipient_phone = mlShipmentData.buyer_phone || extracted.data.recipient_phone || '';
-        extracted.data.external_tracking_code = trackingCodeToVerify;
-
-        // Usar datos oficiales y forzar auto-aprobación
-        extracted.overall_confidence = 100;
-        console.log(`   ✅ Datos extraídos sobreescritos con la info oficial y limpia de MercadoLibre.`);
+          const complete = await require('../services/mlRecipientService').prepareShipment(mlShipmentData);
+          extracted.data.recipient_name = complete.recipient_name;
+          extracted.data.destination_address = complete.destination_address;
+          if (complete.recipient_phone) extracted.data.recipient_phone = complete.recipient_phone;
+          extracted.data.external_tracking_code = trackingCodeToVerify;
+          extracted.overall_confidence = 100;
+        } catch {
+          // Conservar lo leído en la etiqueta, pero exigir revisión humana:
+          // una respuesta con XXXXXXX jamás justifica auto-aprobación.
+          isMLAutoImport = false;
+          extracted.requiresMLReview = true;
+        }
       }
 
       // 5. Decisión automática
       console.log(`\n⚖️  [5/6] Evaluando auto-aprobación...`);
-      let autoApprove = shouldAutoApprove(extracted);
+      let autoApprove = !extracted.requiresMLReview && shouldAutoApprove(extracted);
       if (isMLAutoImport) {
         autoApprove = true;
         console.log(`✓ Decisión: ✅ AUTO-APROBAR (Forzado por auto-importación ML)`);

@@ -104,7 +104,7 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
         }
 
         // Buscar coincidencia exacta (la API de gateway puede retornar coincidencias parciales con LIKE)
-        const shipment = pendingData.shipments.find(s => String(s.ml_shipment_external_id) === String(ml_code));
+        let shipment = pendingData.shipments.find(s => String(s.ml_shipment_external_id) === String(ml_code));
         if (!shipment) {
           throw Object.assign(new Error('El paquete no está disponible (quizás ya fue cancelado o importado).'), { status: 404, allowPhoto: true });
         }
@@ -119,6 +119,8 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
           throw Object.assign(new Error('Este paquete pertenece a otro cliente distinto al de esta recolección.'), { status: 403 });
         }
 
+        shipment = await require('../services/mlRecipientService').prepareShipment(shipment);
+
         // Auto-importamos el paquete a LeonExpress
         const newPackageId = uuidv4();
         const { generateUniqueTrackingCode } = require('../utils/uuidUtils');
@@ -131,20 +133,15 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
         });
         const clientPrice = pricing ? parseFloat(pricing.base_price) : 0.00;
 
-        let destinationAddress = shipment.buyer_address || 'Dirección de MercadoLibre';
-        try {
-           const parsedJson = JSON.parse(destinationAddress);
-           if (parsedJson.address_line) destinationAddress = parsedJson.address_line;
-        } catch(e) {}
 
         pkg = await Package.create({
           package_id: newPackageId,
           tracking_code: trackingCode,
           pickup_id: pickup_id,
           client_id: pickup.client_id,
-          recipient_name: shipment.buyer_name || 'Comprador ML',
-          recipient_phone: shipment.buyer_phone || '',
-          destination_address: destinationAddress,
+          recipient_name: shipment.recipient_name,
+          recipient_phone: shipment.recipient_phone,
+          destination_address: shipment.destination_address,
           external_tracking_code: shipment.ml_shipment_external_id,
           status: 'RECOLECTADO_EN_ORIGEN',
           client_price: clientPrice,

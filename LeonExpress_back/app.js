@@ -445,6 +445,7 @@ async function startServer() {
   const billingAutomation = require('./services/billingAutomation');
   billingAutomation.startBillingAutomation();
   require('./services/userRetention').startUserRetention();
+  require('./services/mlRecipientService').startRecipientReconciliation();
   
   // Configuración de timeouts para manejar cargas grandes (10 minutos = 600000ms)
   const serverTimeout = 600000; // 10 minutos en milisegundos

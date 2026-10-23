@@ -16,6 +16,7 @@ const APP_ID = 'leon-express';
  */
 const gatewayApi = axios.create({
   baseURL: GATEWAY_URL,
+  timeout: 30000,
   headers: {
     'X-API-Key': API_KEY,
     'X-App-Id': APP_ID,
@@ -24,6 +25,10 @@ const gatewayApi = axios.create({
 });
 
 module.exports = {
+  async refreshShipmentDetails(externalId, accountId) {
+    const response = await gatewayApi.post(`/api/shipments/external/${encodeURIComponent(externalId)}/refresh-details`, { ml_account_id: accountId });
+    return response.data.shipment;
+  },
   /**
    * Obtiene todas las cuentas vinculadas
    */
