@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useModal, useToast } from 'vuestic-ui'
+import { useToast } from 'vuestic-ui'
 import RoutesTable from './widgets/RoutesTable.vue'
 import EditRouteForm from './widgets/EditRouteForm.vue'
 import { Route } from './types'
@@ -22,7 +22,6 @@ const showModal = (route: Route | null) => {
 }
 
 const onFormSave = async (payload: Omit<Route, 'route_id'>) => {
-  doShowModal.value = false
   try {
     if (routeToEdit.value) {
       await update({ ...routeToEdit.value, ...payload })
@@ -31,8 +30,9 @@ const onFormSave = async (payload: Omit<Route, 'route_id'>) => {
       await add(payload)
       notify({ message: 'Ruta creada', color: 'success' })
     }
+    doShowModal.value = false
   } catch (e: any) {
-    notify({ message: e.message || 'Error al guardar la ruta', color: 'danger' })
+    notify({ message: e.response?.data?.error || e.message || 'Error al guardar la ruta', color: 'danger' })
   }
 }
 

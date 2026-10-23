@@ -18,6 +18,7 @@ export const useUsersStore = defineStore('users', {
           sortOrder: options.sorting.sortOrder,
           search: options.filters.search,
           isActive: options.filters.isActive,
+          archived: options.filters.archived,
         })
 
         this.items = data.users.map((user: any) => ({
@@ -27,6 +28,8 @@ export const useUsersStore = defineStore('users', {
           email: user.email,
           phone: user.phone,
           active: user.is_active,
+          archived_at: user.archived_at,
+          deactivated_at: user.deactivated_at,
           role_id: user.role_id,
           role_name: user.role_name,
           warehouse_id: user.warehouse_id,

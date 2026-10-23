@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Importar los routers de cada recurso
 const authRoutes = require('./auth');
+const prospectRoutes = require('./prospects');
 const userRoutes = require('./user');
 const clientRoutes = require('./client');
 const costRoutes = require('./cost');
@@ -33,6 +34,7 @@ const mlRoutes = require('./mercadolibre');
 const mlConfirmRoutes = require('./ml_confirm');
 
 // Montar los routers en sus rutas base
+router.use('/prospects', prospectRoutes);
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/clients', clientRoutes);

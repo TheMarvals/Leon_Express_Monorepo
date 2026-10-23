@@ -4,6 +4,8 @@ const express = require('express');
 const cors = require('cors');
 const { syncDatabase } = require('./models');
 const app = express();
+// Nginx y el proxy de Coolify están en redes privadas; conserva la IP pública para los límites de solicitudes.
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 const axios = require('axios');
 const PORT = process.env.PORT || 4100;
 const authenticateToken = require('./middlewares/authenticateToken');
@@ -442,6 +444,7 @@ async function startServer() {
   // Iniciar el servicio de automatización de facturación
   const billingAutomation = require('./services/billingAutomation');
   billingAutomation.startBillingAutomation();
+  require('./services/userRetention').startUserRetention();
   
   // Configuración de timeouts para manejar cargas grandes (10 minutos = 600000ms)
   const serverTimeout = 600000; // 10 minutos en milisegundos

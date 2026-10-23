@@ -15,6 +15,8 @@ export interface User {
   email: string
   phone: string
   active?: boolean // Corresponde a is_active (opcional para compatibilidad)
+  archived_at?: string | null
+  deactivated_at?: string | null
   is_active?: boolean // Campo directo del backend
   role_id?: string
   role_name?: string

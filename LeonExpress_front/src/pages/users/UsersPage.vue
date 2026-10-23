@@ -6,7 +6,9 @@ import UsersTable from './widgets/UsersTable.vue'
 import EditUserForm from './widgets/EditUserForm.vue'
 import { User } from './types'
 import { useUsers } from './composables/useUsers'
+import { useUserStore } from '../../stores/user-store'
 
+const userStore = useUserStore()
 const { users, isLoading, filters, sorting, pagination, remove, add, update, reactivate } = useUsers()
 
 const doShowModal = ref(false)
@@ -72,6 +74,7 @@ const onUserDelete = async (user: User) => {
         <div class="flex flex-col md:flex-row gap-2 justify-start">
           <VaButtonToggle
             v-model="filters.isActive"
+            :disabled="filters.archived"
             color="background-element"
             border-color="background-element"
             :options="[
@@ -79,6 +82,12 @@ const onUserDelete = async (user: User) => {
               { label: 'Activos', value: true },
               { label: 'Inactivos', value: false },
             ]"
+          />
+          <VaCheckbox
+            v-if="userStore.isAdmin"
+            v-model="filters.archived"
+            label="Ver archivados"
+            @update:model-value="filters.isActive = undefined"
           />
           <VaInput v-model="filters.search" placeholder="Buscar por nombre...">
             <template #prependInner>
@@ -89,6 +98,10 @@ const onUserDelete = async (user: User) => {
         <VaButton @click="showModal(null)">Añadir Usuario</VaButton>
       </div>
 
+      <p class="text-sm text-secondary mb-4">
+        Tras tres meses desactivado, un usuario sin historial se elimina; si tiene registros asociados, se archiva y
+        conserva su historial.
+      </p>
       <div class="table-wrapper">
         <UsersTable
           v-model:sort-by="sorting.sortBy"
@@ -99,6 +112,7 @@ const onUserDelete = async (user: User) => {
           @editUser="showModal"
           @deleteUser="onUserDelete"
           @reactivateUser="onUserReactivate"
+          @update:per-page="pagination.perPage = $event"
         />
       </div>
     </VaCardContent>

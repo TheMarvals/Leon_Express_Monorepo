@@ -4,14 +4,16 @@ Un conductor puede tener varias rutas pendientes o en progreso. Cada paquete tie
 
 ## Uso
 
-- En una ruta abierta, seleccionar paquetes en «Transferir pendientes», elegir otra ruta de entrega de la misma bodega y confirmar el traspaso físico. El conductor de origen puede transferir a otra ruta propia o de otro conductor; un administrador puede gestionar cualquier ruta de origen. El selector se actualiza al abrirse y solo ofrece rutas de entrega pendientes o en progreso de la misma bodega.
-- Un conductor también puede escanear un paquete pendiente en su ruta. Si está en otra ruta, debe confirmar que lo tiene físicamente. El traspaso se registra con fecha, usuario y ruta de destino.
+- En una ruta abierta, seleccionar paquetes en «Reasignar paquetes sin incidencia», elegir otra ruta de entrega de la misma bodega y confirmar el traspaso físico. El conductor puede reasignar únicamente entre sus propias rutas; solo un administrador puede hacerlo entre conductores distintos. La restricción se valida en la API, incluido el escaneo. El selector se actualiza al abrirse y solo ofrece rutas de entrega pendientes o en progreso de la misma bodega.
+- El conductor puede escanear paquetes disponibles para su ruta abierta y transferir desde otra de sus propias rutas con confirmación física, pero no desde rutas de otro conductor. Los traspasos registran fecha, usuario, origen y destino sin crear una incidencia.
 - Una ruta en progreso admite nuevas cargas. Los paquetes nuevos pasan directamente a «En ruta de entrega». La aprobación inicial de carga se mantiene.
 - La ruta anterior muestra los traspasos en su historial y deja de mostrar esos paquetes como pendientes. La entrega y el pago corresponden al conductor que efectivamente registra la entrega desde la ruta vigente en progreso.
 - El monto por cobrar al cliente (COD) y el precio del cliente se conservan. La remuneración automática se ajusta al vehículo de destino; una tarifa manual se respeta. Al registrar la entrega, la remuneración y la retención del dinero COD cobrado se incluyen en la liquidación del conductor de destino. El traspaso no reasigna pagos de entregas históricas.
 - Bodega puede confirmar la recepción física de paquetes pendientes o con incidencia. Esto libera la asignación anterior sin borrar su historial.
 - «Finalizar ruta» presenta un resumen. Los pendientes deben transferirse o recibirse en bodega antes del cierre. Las incidencias gestionadas pueden quedar pendientes de devolución física a cargo del conductor, como en el flujo existente.
 - Las incidencias no entran en el traspaso de pendientes sin gestionar. Para preparar un reintento, confirmar antes su recepción en bodega.
+
+- Se permiten varias rutas abiertas del mismo día. Al crear, cambiar de conductor o fecha, o iniciar una ruta, se comprueba que no haya rutas anteriores abiertas para ese conductor. La API usa el calendario de `America/Santiago`, rechaza nuevas asignaciones con fechas pasadas y serializa las asignaciones simultáneas. Antes de asignar otro día se deben cerrar todas las rutas anteriores.
 
 ## Puesta en marcha
 

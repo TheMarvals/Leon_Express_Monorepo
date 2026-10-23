@@ -17,7 +17,7 @@ const route = (id, overrides = {}) => ({
   route_id: id, user_id: 'driver-1', warehouse_id: 'warehouse-1', status: 'PENDIENTE',
   route_type: 'ENTREGA', route_name: id, user: { full_name: 'Conductor' }, ...overrides,
 })
-function fixture({ admin = false, destinations = [] } = {}) {
+function fixture({ admin = true, destinations = [] } = {}) {
   let routes = destinations, listRequests = 0
   const transfers = []
   const module = { exports: {} }
@@ -56,7 +56,7 @@ function ids(component) {
   return Array.from(component.targetRouteOptions.value, (option) => option.value)
 }
 
-test('drivers can choose their other pending or in-progress delivery routes in the same warehouse', async () => {
+test('administrators can choose pending or in-progress delivery routes in the same warehouse', async () => {
   const f = fixture({ destinations: [
     route('source'), route('pending'), route('progress', { status: 'EN_PROGRESO' }),
     route('closed', { status: 'FINALIZADA' }), route('cancelled', { status: 'CANCELADA' }),
@@ -131,3 +131,28 @@ test('transfers require a valid destination and explicit physical handoff confir
   assert.equal(f.transfers[0][1], 'destination')
   assert.equal(f.transfers[0][2][0], 'package-1')
 })
+
+test('the assigned driver can add packages on an approved route in progress, never a closed or foreign route', () => {
+  const f = fixture({ admin: false });
+  f.component.routeData.value = route('source', { status: 'EN_PROGRESO', loading_status: 'APPROVED' });
+  assert.equal(f.component.showScanner.value, true);
+  for (const status of ['FINALIZADA', 'CANCELADA']) {
+    f.component.routeData.value = route('source', { status });
+    assert.equal(f.component.showScanner.value, false);
+  }
+  f.component.routeData.value = route('foreign', { status: 'EN_PROGRESO', user_id: 'driver-2' });
+  assert.equal(f.component.showScanner.value, false);
+});
+
+test('drivers only see and submit their own destination routes', async () => {
+  const f = fixture({ admin: false, destinations: [route('own'), route('foreign', { user_id: 'driver-2' })] });
+  await f.component.fetchData();
+  assert.deepEqual(ids(f.component), ['own']);
+  f.component.selectedPending.value = [{ package_id: 'package-1' }];
+  f.component.targetRouteId.value = 'foreign';
+  await f.component.handleTransferPending();
+  assert.equal(f.transfers.length, 0);
+  f.component.targetRouteId.value = 'own';
+  await f.component.handleTransferPending();
+  assert.equal(f.transfers.length, 1);
+});

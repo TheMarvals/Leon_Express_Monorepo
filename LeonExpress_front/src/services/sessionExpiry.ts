@@ -13,10 +13,12 @@ export const createSessionExpiryHandler = ({
   storage,
   redirect,
   loginPath,
+  clientLoginPath,
 }: {
   storage: Pick<Storage, 'getItem' | 'removeItem'>
   redirect: (path: string) => void
   loginPath: string
+  clientLoginPath?: string
 }) => {
   let redirecting = false
 
@@ -27,10 +29,17 @@ export const createSessionExpiryHandler = ({
     // Una respuesta tardía de una sesión anterior no debe cerrar una sesión nueva.
     if (!token || error.config?.headers?.Authorization !== `Bearer ${token}` || redirecting) return
 
+    let destination = loginPath
+    try {
+      if (clientLoginPath && JSON.parse(storage.getItem('user') || '{}').role === 'CLIENT')
+        destination = clientLoginPath
+    } catch {
+      /* Sesión local incompleta: usar el acceso predeterminado. */
+    }
     redirecting = true
     storage.removeItem('token')
     storage.removeItem('user')
     // Recargar también elimina el usuario anterior de los stores en memoria.
-    redirect(`${loginPath}?reason=session-expired`)
+    redirect(`${destination}?reason=session-expired`)
   }
 }

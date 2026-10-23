@@ -18,7 +18,7 @@ async function fixture(t, file, options = {}) {
     update: async data => { calls.updated.push(data); Object.assign(route, data); },
   };
   const models = {
-    Route: { findByPk: async () => options.missing ? null : route },
+    Route: { findByPk: async () => options.missing ? null : route, findAll: async () => [] },
     User: { findOne: async () => ({ role: { role_name: 'DRIVER' } }) },
     Vehicle: { findByPk: async () => ({ user_id: options.wrongVehicle ? 'other-driver' : driverId }) },
     Warehouse: { findByPk: async () => ({}) },

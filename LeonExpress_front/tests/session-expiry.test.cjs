@@ -13,12 +13,12 @@ vm.runInNewContext(ts.transpileModule(source, {
 }).outputText, { module: mod, exports: mod.exports })
 const { createSessionExpiryHandler, SESSION_EXPIRED_MESSAGE } = mod.exports
 
-function fixture() {
-  const data = new Map([['token', 'expired-token'], ['user', '{}'], ['preference', 'keep']])
+function fixture(user = {}, clientLoginPath) {
+  const data = new Map([['token', 'expired-token'], ['user', JSON.stringify(user)], ['preference', 'keep']])
   const redirects = []
   const handler = createSessionExpiryHandler({
     storage: { getItem: (key) => data.get(key) || null, removeItem: (key) => data.delete(key) },
-    redirect: (url) => redirects.push(url), loginPath: '/auth/login',
+    redirect: (url) => redirects.push(url), loginPath: '/auth/login', clientLoginPath,
   })
   return { data, redirects, handler }
 }
@@ -151,4 +151,21 @@ test('the API interceptor redirects expired sessions while preserving the reject
   assert.equal(data.has('token'), false)
   await assert.rejects(module.exports.default.login({ username: 'test-staff', password: 'sensitive-test-password' }))
   assert.deepEqual(requestLogs, [])
+})
+
+
+test('client session expiry returns to OTP while staff returns to its own login', () => {
+  const client = fixture({ role: 'CLIENT' }, '/portal/login')
+  client.handler(error())
+  assert.deepEqual(client.redirects, ['/portal/login?reason=session-expired'])
+  const staff = fixture({ role: 'ADMIN' }, '/portal/login')
+  staff.handler(error())
+  assert.deepEqual(staff.redirects, ['/auth/login?reason=session-expired'])
+})
+test('corrupt local user data still clears the expired session', () => {
+  const f = fixture({}, '/portal/login')
+  f.data.set('user', '{invalid')
+  f.handler(error())
+  assert.deepEqual(f.redirects, ['/auth/login?reason=session-expired'])
+  assert.equal(f.data.has('token'), false)
 })

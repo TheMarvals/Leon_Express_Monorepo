@@ -12,7 +12,7 @@ function conflict(message, details = {}) {
 
 // Caller locks the destination route and the package before invoking this helper.
 // Historical assignments remain intact, including their delivery attempts.
-async function assignPackage(pkg, route, transaction, { confirmTransfer = false, sourceRouteId, actorId } = {}) {
+async function assignPackage(pkg, route, transaction, { confirmTransfer = false, sourceRouteId, actorId, actorRole } = {}) {
   if (!OPEN_ROUTE_STATUSES.includes(route.status)) throw conflict('La ruta de destino debe estar abierta.');
   if (!['RECOLECTADO_EN_ORIGEN', 'RECIBIDO_EN_ALMACEN', 'DEVUELTO_ALMACEN', 'ASIGNADO_A_RUTA', 'EN_RUTA_ENTREGA', 'INCIDENCIA_ENTREGA', 'REPROGRAMADO'].includes(pkg.status)) {
     throw conflict('El estado del paquete no permite asignarlo a una ruta.');
@@ -24,12 +24,20 @@ async function assignPackage(pkg, route, transaction, { confirmTransfer = false,
   });
   const sameRoute = assignments.find((item) => item.route_id === route.route_id);
   const previous = assignments.filter((item) => item.route_id !== route.route_id);
+  if (previous.length && actorRole !== 'ADMIN' && (actorRole !== 'DRIVER' || route.user_id !== actorId)) {
+    throw Object.assign(new Error('Solo puedes migrar paquetes entre tus propias rutas. Para otro conductor, solicita a un administrador.'), { status: 403 });
+  }
   if (previous.length && route.route_type !== 'ENTREGA') throw conflict('Los traspasos requieren una ruta de entrega.');
   for (const item of previous) {
     const source = await Route.findByPk(item.route_id, { transaction });
     if (!source || source.route_type !== 'ENTREGA' || source.warehouse_id !== route.warehouse_id) {
       throw conflict('Solo se pueden transferir paquetes entre rutas de entrega de la misma bodega.');
     }
+    if (!OPEN_ROUTE_STATUSES.includes(source.status)) throw conflict('No se pueden retirar paquetes de una ruta cerrada.');
+    if (actorRole !== 'ADMIN' && source.user_id !== actorId) {
+      throw Object.assign(new Error('Solo puedes migrar paquetes entre tus propias rutas. Para otro conductor, solicita a un administrador.'), { status: 403 });
+    }
+
   }
   if (sourceRouteId && !previous.some((item) => item.route_id === sourceRouteId)) {
     throw conflict(`El paquete ${pkg.tracking_code} ya no está a cargo de la ruta de origen.`);
@@ -60,7 +68,7 @@ async function assignPackage(pkg, route, transaction, { confirmTransfer = false,
     status: route.status === 'EN_PROGRESO' ? 'EN_RUTA_ENTREGA' : 'ASIGNADO_A_RUTA',
     assigned_to_route_datetime: new Date(), pending_return_user_id: null
   }, { transaction });
-  return { assignment, alreadyInRoute: false, transferred: previous.length > 0 };
+  return { assignment, alreadyInRoute: false, transferred: previous.length > 0, sourceRouteIds: previous.map(item => item.route_id) };
 }
 
 module.exports = { assignPackage, conflict, OPEN_ROUTE_STATUSES, PENDING_STATUSES };

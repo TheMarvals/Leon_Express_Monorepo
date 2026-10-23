@@ -29,3 +29,7 @@ ssh_key/
 !LeonExpress_back/migrations/20261021_client_invitations.sql
 !LeonExpress_back/migrations/20261021_allow_null_scanned_at_origin.sql
 !LeonExpress_back/migrations/20261021_invoice_payment_voucher.sql
+
+!LeonExpress_back/migrations/20261022_user_retention.sql
+
+!LeonExpress_back/migrations/20261022_prospects.sql

@@ -434,6 +434,18 @@ router.post('/otp/verify', [
  *       - Autenticación
  *     summary: Validar token de invitación para nuevo cliente
  */
+function findRemainingClientPricing(clientId, transaction) {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+  return ClientPricing.findOne({
+    where: {
+      client_id: clientId,
+      [Op.or]: [{ valid_to: null }, { valid_to: { [Op.gte]: today } }],
+    },
+    order: [['valid_from', 'ASC']],
+    ...(transaction ? { transaction, lock: transaction.LOCK.UPDATE } : {}),
+  });
+}
+
 router.get('/invitation/:token', async (req, res) => {
   try {
     const { token } = req.params;
@@ -453,13 +465,15 @@ router.get('/invitation/:token', async (req, res) => {
       return res.status(404).json({ error: 'El enlace de invitación es inválido, ya fue utilizado o ha expirado.' });
     }
 
+    const client = await Client.findOne({ where: { email: invitation.email.toLowerCase().trim() } });
+    const pricing = client ? await findRemainingClientPricing(client.client_id) : null;
     res.json({
       success: true,
       invitation: {
         client_name: invitation.client_name,
         email: invitation.email,
-        base_price: invitation.base_price,
-        has_free_pickups: invitation.has_free_pickups,
+        base_price: pricing?.base_price ?? invitation.base_price,
+        has_free_pickups: client?.has_free_pickups ?? invitation.has_free_pickups,
         expires_at: invitation.expires_at
       }
     });
@@ -499,7 +513,8 @@ router.post('/invitation/accept', [
         is_used: false,
         expires_at: { [Op.gt]: new Date() }
       },
-      transaction: t
+      transaction: t,
+      lock: t.LOCK.UPDATE
     });
 
     if (!invitation) {
@@ -511,7 +526,7 @@ router.post('/invitation/accept', [
     const normalizedEmail = invitation.email.toLowerCase().trim();
 
     // 1. Verificar si ya existe el cliente o crearlo
-    let client = await Client.findOne({ where: { email: normalizedEmail }, transaction: t });
+    let client = await Client.findOne({ where: { email: normalizedEmail }, transaction: t, lock: t.LOCK.UPDATE });
     let verification_code = client?.verification_code;
 
     if (!client) {
@@ -530,19 +545,22 @@ router.post('/invitation/accept', [
       await client.update({
         phone: phone.trim(),
         address: fullAddress,
-        is_active: true,
-        has_free_pickups: invitation.has_free_pickups
+        is_active: true
       }, { transaction: t });
     }
 
-    // 2. Asignar política de precios ClientPricing
-    await ClientPricing.create({
-      pricing_id: uuidv4(),
-      client_id: client.client_id,
-      base_price: invitation.base_price,
-      valid_from: new Date(),
-      valid_to: null
-    }, { transaction: t });
+    // Preserve existing commercial conditions; only provision a price when none remains valid.
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+    let pricing = await findRemainingClientPricing(client.client_id, t);
+    if (!pricing) {
+      pricing = await ClientPricing.create({
+        pricing_id: uuidv4(),
+        client_id: client.client_id,
+        base_price: invitation.base_price,
+        valid_from: today,
+        valid_to: null
+      }, { transaction: t });
+    }
 
     // 3. Crear usuario con rol CLIENT
     let clientRole = await Role.findOne({ where: { role_name: 'CLIENT' }, transaction: t });
@@ -551,7 +569,16 @@ router.post('/invitation/accept', [
     }
 
     let user = await User.findOne({ where: { email: normalizedEmail }, transaction: t });
+    if (user && (user.role_id !== clientRole.role_id || (user.client_id && user.client_id !== client.client_id))) {
+      await t.rollback();
+      return res.status(409).json({ error: 'El correo ya pertenece a otro acceso. Contacta al administrador para revisar la cuenta.' });
+    }
     if (!user) {
+      const linkedUser = await User.findOne({ where: { client_id: client.client_id }, transaction: t });
+      if (linkedUser) {
+        await t.rollback();
+        return res.status(409).json({ error: 'El cliente ya tiene un usuario con otro correo. Solicita al administrador que sincronice el correo.' });
+      }
       const randomPass = crypto.randomBytes(16).toString('hex');
       const passwordHash = await bcrypt.hash(randomPass, 10);
 
@@ -581,8 +608,6 @@ router.post('/invitation/accept', [
       client_id: client.client_id
     }, { transaction: t });
 
-    await t.commit();
-
     // 5. Generar token de sesión inmediato
     const jwtToken = jwt.sign(
       {
@@ -595,11 +620,13 @@ router.post('/invitation/accept', [
       { expiresIn: '12h' }
     );
 
+    await t.commit();
+
     await logAudit(user.user_id, 'ACCEPT_CLIENT_INVITATION', {
       client_id: client.client_id,
       email: normalizedEmail,
       client_name: client.client_name,
-      base_price: invitation.base_price
+      base_price: pricing.base_price
     });
 
     res.status(201).json({
@@ -623,9 +650,9 @@ router.post('/invitation/accept', [
       }
     });
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
     console.error('Error al aceptar invitación de cliente:', error);
-    res.status(500).json({ error: 'Error al procesar el registro de cliente', details: error.message });
+    res.status(500).json({ error: 'Error al procesar el registro de cliente. Intenta nuevamente o contacta al administrador.' });
   }
 });
 

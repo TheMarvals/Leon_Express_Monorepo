@@ -24,6 +24,8 @@ const selectedPending = ref<Package[]>([])
 const targetRouteId = ref('')
 const isTransferring = ref(false)
 const showFinishModal = ref(false)
+const scrollToSection = (id: string) =>
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 const availablePackages = ref<Package[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
@@ -204,7 +206,8 @@ const eligibleTargetRoutes = computed(() =>
       item.route_id !== routeData.value?.route_id &&
       ['PENDIENTE', 'EN_PROGRESO'].includes(item.status) &&
       item.route_type === 'ENTREGA' &&
-      item.warehouse_id === routeData.value?.warehouse_id,
+      item.warehouse_id === routeData.value?.warehouse_id &&
+      (isAdmin.value || item.user_id === userStore.user?.user_id),
   ),
 )
 const emptyTargetRoutesText = 'No hay otra ruta de entrega pendiente o en progreso en esta bodega.'
@@ -218,7 +221,7 @@ const targetRouteOptions = computed(() =>
   })),
 )
 const refreshTargetRoutes = async (isOpen = true) => {
-  if (!isOpen || isLoadingTargetRoutes.value) return
+  if (!canManageRoute.value || !isOpen || isLoadingTargetRoutes.value) return
   const routeId = route.params.id as string
   isLoadingTargetRoutes.value = true
   targetRoutesError.value = ''
@@ -242,7 +245,14 @@ const refreshTargetRoutes = async (isOpen = true) => {
 }
 const handleTransferPending = async () => {
   const destination = eligibleTargetRoutes.value.find((item) => item.route_id === targetRouteId.value)
-  if (isTransferring.value || isLoadingTargetRoutes.value || !destination || !selectedPending.value.length) return
+  if (
+    !canManageRoute.value ||
+    isTransferring.value ||
+    isLoadingTargetRoutes.value ||
+    !destination ||
+    !selectedPending.value.length
+  )
+    return
   if (
     !window.confirm(
       `¿Confirmas el traspaso físico de ${selectedPending.value.length} paquete(s) a la ruta ${
@@ -565,6 +575,7 @@ const canStartRoute = computed(() => {
 const showScanner = computed(() => {
   return (
     isDriver.value &&
+    canManageRoute.value &&
     (routeData.value?.status === 'EN_PROGRESO' ||
       (routeData.value?.status === 'PENDIENTE' &&
         (loadingStatus.value === 'NOT_STARTED' || loadingStatus.value === 'LOADING')))
@@ -593,6 +604,26 @@ const showApproveButton = computed(() => {
     <VaCard class="mb-6">
       <VaCardTitle>Acciones de Ruta</VaCardTitle>
       <VaCardContent class="route-actions-container">
+        <VaButton
+          v-if="canManageRoute && ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status) && (isAdmin || showScanner)"
+          icon="add"
+          class="route-action-button"
+          @click="scrollToSection('route-add-packages')"
+          >Agregar paquetes</VaButton
+        >
+        <VaButton
+          v-if="
+            canManageRoute &&
+            routeData.route_type === 'ENTREGA' &&
+            ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status) &&
+            pendingPackages.length
+          "
+          preset="secondary"
+          icon="swap_horiz"
+          class="route-action-button"
+          @click="scrollToSection('route-transfer-packages')"
+          >Reasignar paquetes</VaButton
+        >
         <VaButton
           v-if="routeData.status === 'PENDIENTE' && canStartRoute"
           size="large"
@@ -640,6 +671,10 @@ const showApproveButton = computed(() => {
         >
           Finalizar Ruta
         </VaButton>
+        <VaAlert v-if="routeData.status === 'EN_PROGRESO' && canManageRoute" color="info" class="route-alert">
+          Puedes agregar paquetes mientras la ruta esté abierta. Puedes reasignarlos entre tus propias rutas; para otro
+          conductor se requiere un administrador.
+        </VaAlert>
         <VaAlert v-if="routeData.status === 'EN_PROGRESO' && !canFinishRoute" color="warning" class="route-alert">
           <p>
             Transfiere los paquetes pendientes a otra ruta o registra su recepción física en bodega antes de finalizar.
@@ -736,8 +771,8 @@ const showApproveButton = computed(() => {
     </VaCard>
 
     <!-- Escáner de paquetes para conductor -->
-    <VaCard v-if="showScanner" class="mb-6">
-      <VaCardTitle>Escanear Paquetes para Cargar</VaCardTitle>
+    <VaCard v-if="showScanner" id="route-add-packages" class="mb-6">
+      <VaCardTitle>Agregar paquetes a la ruta</VaCardTitle>
       <VaCardContent>
         <RoutePackageScanner
           :key="route.params.id as string"
@@ -806,7 +841,10 @@ const showApproveButton = computed(() => {
     </VaCard>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <VaCard v-if="isAdmin && ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status) && !showScanner">
+      <VaCard
+        v-if="isAdmin && ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status) && !showScanner"
+        id="route-add-packages"
+      >
         <VaCardTitle>Paquetes Disponibles en Almacén</VaCardTitle>
         <VaCardContent>
           <div class="flex flex-col sm:flex-row gap-4 mb-4">
@@ -994,18 +1032,19 @@ const showApproveButton = computed(() => {
         ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status) &&
         pendingPackages.length
       "
+      id="route-transfer-packages"
       class="mb-6"
     >
-      <VaCardTitle>Transferir pendientes</VaCardTitle>
+      <VaCardTitle>Reasignar paquetes sin incidencia</VaCardTitle>
       <VaCardContent>
         <p class="mb-3">
           Selecciona los paquetes pendientes y una ruta de destino de la misma bodega. Confirma el traspaso físico antes
-          de transferirlos.
+          de transferirlos. No necesitas registrar una incidencia; el movimiento queda en el historial.
         </p>
         <p class="mb-3">
-          Puedes transferir a rutas propias o de otros conductores que estén pendientes o en progreso. El conductor de
-          destino quedará a cargo del paquete y del cobro contra entrega, si corresponde. La remuneración de la entrega
-          se asignará a ese conductor cuando la registre.
+          Puedes transferir entre tus propias rutas pendientes o en progreso. Solo un administrador puede transferir a
+          otro conductor. El conductor de destino quedará a cargo del paquete y del cobro contra entrega, si
+          corresponde. La remuneración de la entrega se asignará a ese conductor cuando la registre.
         </p>
         <VaDataTable
           v-model="selectedPending"

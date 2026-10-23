@@ -545,7 +545,10 @@ router.get('/', authenticateToken, roleValidator(), async (req, res) => {
     const { page = 1, pageSize = 10, sortBy = 'full_name', sortOrder = 'ASC', search, isActive } = req.query;
     // --- FIN DE LA CORRECCIÓN ---
 
-    const whereClause = {};
+    if (req.query.archived === 'true' && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Solo administración puede consultar usuarios archivados.' });
+    }
+    const whereClause = { archived_at: req.query.archived === 'true' ? { [Op.ne]: null } : null };
     if (search) {
       whereClause[Op.or] = [
         { full_name: { [Op.like]: `%${search.trim()}%` } },
@@ -584,7 +587,7 @@ router.get('/', authenticateToken, roleValidator(), async (req, res) => {
       // ... (el resto de tu consulta se mantiene igual)
       attributes: [
         'user_id', 'username', 'email', 'full_name', 'phone', 'role_id',
-        'warehouse_id', 'is_active', 'created_at', 'updated_at'
+        'warehouse_id', 'is_active', 'deactivated_at', 'archived_at', 'created_at', 'updated_at'
       ],
       include: [
         roleInclude, // Usar el objeto con posible filtro
@@ -621,6 +624,8 @@ router.get('/', authenticateToken, roleValidator(), async (req, res) => {
       warehouse_id: user.warehouse_id,
       warehouse_name: user.warehouse?.warehouse_name || 'Sin almacén',
       is_active: user.is_active,
+      deactivated_at: user.deactivated_at,
+      archived_at: user.archived_at,
       vehicles: user.vehicles.map((vehicle) => ({
         vehicle_id: vehicle.vehicle_id,
         license_plate: vehicle.license_plate,
@@ -943,13 +948,15 @@ router.patch('/:id/activate', authenticateToken, roleValidator(['ADMIN']), async
   // Esta línea ahora funcionará porque 'sequelize' está importado
   const t = await sequelize.transaction();
   try {
-    const user = await User.findByPk(req.params.id, { transaction: t });
+    const user = await User.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
     if (!user) {
       await t.rollback();
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
     user.is_active = true;
+    user.deactivated_at = null;
+    user.archived_at = null;
     await user.save({ transaction: t });
 
     await t.commit();

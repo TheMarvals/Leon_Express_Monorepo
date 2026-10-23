@@ -25,12 +25,7 @@
       />
 
       <div v-if="!otpSent || isEditingEmail" class="flex justify-center mt-2">
-        <VaButton
-          class="w-full font-bold py-2.5 shadow-sm"
-          color="#03323A"
-          :loading="isLoading"
-          @click="requestOtp"
-        >
+        <VaButton class="w-full font-bold py-2.5 shadow-sm" color="#03323A" :loading="isLoading" @click="requestOtp">
           Enviar Código de Acceso
         </VaButton>
       </div>
@@ -39,7 +34,8 @@
     <!-- PASO 2: Ingreso de Código OTP -->
     <div v-if="otpSent && !isEditingEmail" class="mt-4">
       <VaAlert color="success" class="mb-4 text-xs">
-        Hemos enviado un código temporal a <strong>{{ email }}</strong>. Revisa tu bandeja de entrada o spam.
+        Hemos enviado un código temporal a <strong>{{ email }}</strong
+        >. Revisa tu bandeja de entrada o spam.
       </VaAlert>
 
       <VaForm ref="clientOtpForm" @submit.prevent="verifyOtp">
@@ -55,23 +51,14 @@
         />
 
         <div class="flex justify-center mt-2">
-          <VaButton
-            class="w-full font-bold py-2.5 shadow-md"
-            color="#03323A"
-            :loading="isLoading"
-            @click="verifyOtp"
-          >
+          <VaButton class="w-full font-bold py-2.5 shadow-md" color="#03323A" :loading="isLoading" @click="verifyOtp">
             Ingresar al Portal
           </VaButton>
         </div>
       </VaForm>
 
       <div class="flex items-center justify-between mt-4 text-xs text-gray-600">
-        <button
-          type="button"
-          class="text-[#03323a] hover:underline font-semibold"
-          @click="isEditingEmail = true"
-        >
+        <button type="button" class="text-[#03323a] hover:underline font-semibold" @click="isEditingEmail = true">
           ← Cambiar correo
         </button>
 
@@ -91,19 +78,19 @@
     </div>
 
     <div class="mt-6 text-center text-xs text-gray-500">
-      ¿Aún no tienes cuenta? Solicita tu tarifa de envíos escribiéndonos a
-      <a href="mailto:soporte@leonexpress.cl" class="font-semibold text-[#03323a] hover:underline">soporte@leonexpress.cl</a>
+      ¿Aún no tienes cuenta?
+      <RouterLink
+        :to="{ name: 'home', hash: '#trabaja-con-nosotros' }"
+        class="font-semibold text-[#03323a] hover:underline"
+        >Cuéntanos sobre tu negocio</RouterLink
+      >
     </div>
 
-    <!-- Enlace secundario para personal interno -->
-    <div class="mt-6 pt-5 border-t border-gray-100 text-center">
-      <p class="text-xs text-gray-500">
-        ¿Eres personal interno o chofer de León Express?
-        <RouterLink :to="{ name: 'login' }" class="font-bold text-[#03323a] hover:underline ml-1">
-          Ingresar aquí
-        </RouterLink>
-      </p>
-    </div>
+    <p class="mt-4 text-center text-xs text-gray-500">
+      <RouterLink :to="{ name: 'home' }" class="font-semibold text-[#03323a] hover:underline"
+        >← Volver a León Express</RouterLink
+      >
+    </p>
   </div>
 </template>
 

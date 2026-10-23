@@ -24,7 +24,7 @@ function buildClientInvitationEmail({ clientName, basePrice, hasFreePickups, inv
             <tr><td style="padding:20px 20px 16px;color:#03323A;font-size:11px;font-weight:700;letter-spacing:0.8px;">CONDICIONES DE TU CUENTA</td></tr>
             <tr><td style="padding:0 20px 16px;">
               <p style="margin:0 0 4px;color:#526366;font-size:13px;line-height:20px;">Tarifa base acordada</p>
-              <p style="margin:0;color:#03323A;font-size:24px;font-weight:700;line-height:30px;">$${price} <span style="font-size:13px;font-weight:400;">+ IVA</span></p>
+              <p style="margin:0;color:#03323A;font-size:24px;font-weight:700;line-height:30px;">$${price}</p>
               <p style="margin:2px 0 0;color:#526366;font-size:12px;line-height:18px;">Por paquete entregado</p>
             </td></tr>
             <tr><td style="padding:16px 20px 20px;border-top:1px solid #E4E9E9;">
@@ -52,7 +52,7 @@ function buildClientInvitationEmail({ clientName, basePrice, hasFreePickups, inv
           <p style="margin:0;font-size:12px;line-height:19px;overflow-wrap:anywhere;word-break:break-all;"><a href="${link}" style="color:#03323A;text-decoration:underline;word-break:break-all;">${link}</a></p>
         </td></tr>
 `,
-    text: `Bienvenido a León Express\n\nHola, ${clientName}:\nActiva tu cuenta para coordinar tus retiros y gestionar tus envíos.\n\nCondiciones de tu cuenta\nTarifa base acordada: $${price} + IVA por paquete entregado.\nColectas y recolección: ${pickupTerms}.\n\nDesde tu portal podrás solicitar colectas, crear envíos e imprimir tus etiquetas y conectar tu cuenta de Mercado Libre.\n\nActivar mi cuenta: ${inviteUrl}\nTu enlace es personal, de uso único y válido por 7 días.\n\n¿Necesitas ayuda? soporte@leonexpress.cl\nLeón Express · Logística de envíos`,
+    text: `Bienvenido a León Express\n\nHola, ${clientName}:\nActiva tu cuenta para coordinar tus retiros y gestionar tus envíos.\n\nCondiciones de tu cuenta\nTarifa base acordada: $${price} por paquete entregado.\nColectas y recolección: ${pickupTerms}.\n\nDesde tu portal podrás solicitar colectas, crear envíos e imprimir tus etiquetas y conectar tu cuenta de Mercado Libre.\n\nActivar mi cuenta: ${inviteUrl}\nTu enlace es personal, de uso único y válido por 7 días.\n\n¿Necesitas ayuda? soporte@leonexpress.cl\nLeón Express · Logística de envíos`,
   });
 }
 

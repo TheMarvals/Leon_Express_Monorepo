@@ -42,14 +42,12 @@
 <script lang="ts" setup>
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import { useColors, useToast } from 'vuestic-ui'
 import { useUserStore } from '@stores/user-store'
 const { colors, setHSLAColor } = useColors()
 const hoverColor = computed(() => setHSLAColor(colors.focus, { a: 0.1 }))
 
 const { t } = useI18n()
-const router = useRouter()
 const { init } = useToast()
 const userStore = useUserStore()
 
@@ -137,13 +135,14 @@ const resolveLinkAttribute = (item: ProfileListItem) => {
 
 const handleItemClick = (item: ProfileListItem) => {
   if (item.name === 'logout') {
+    const loginPath = userStore.isClient ? '/portal/login' : '/auth/login'
     userStore.logout()
     init({
       message: 'Sesión cerrada con éxito',
       color: 'success',
     })
     // Forzar reload para limpiar cualquier estado residual
-    window.location.href = '/login'
+    window.location.href = loginPath
     isShown.value = false
   }
 }

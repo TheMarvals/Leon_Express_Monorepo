@@ -4,7 +4,7 @@
 
 ## ¿Qué permite este cambio?
 
-Un conductor puede tener más de una ruta abierta, por ejemplo «Mañana» y «Tarde». Si no alcanzó a entregar algunos paquetes, puede pasarlos a la siguiente ruta y cerrar la anterior.
+Un conductor puede tener más de una ruta abierta del mismo día, por ejemplo «Mañana» y «Tarde». El conductor puede reasignar los pendientes entre sus propias rutas sin registrar una incidencia; para moverlos a otro conductor se requiere administración. Antes de asignarle una ruta de otro día, todas las rutas anteriores deben estar cerradas. La fecha se evalúa según el horario de Chile.
 
 **Cada paquete queda a cargo de una sola ruta a la vez.** Así el conductor lo busca en la ruta que le corresponde.
 
@@ -17,20 +17,18 @@ La ruta de la mañana conserva sus 30 entregas y el registro de los 10 paquetes 
 ## Pasar pendientes a otra ruta
 
 1. Abrir la ruta donde están los paquetes pendientes.
-2. Buscar la sección **«Transferir pendientes»**.
+2. Usar **«Reasignar paquetes»** o buscar la sección **«Reasignar paquetes sin incidencia»**.
 3. Seleccionar los paquetes que se llevarán en la siguiente ruta.
 4. Elegir la **ruta de destino**.
 5. Presionar **«Transferir paquetes»** y confirmar que los paquetes están físicamente con el conductor que los llevará.
 
 Al terminar, esos paquetes dejan de aparecer como pendientes en la ruta anterior y aparecen en la nueva. El historial queda guardado.
 
-**¿Quién puede hacerlo?** El conductor puede pasar paquetes entre sus propias rutas. Administración puede hacerlo entre rutas de conductores distintos. Las dos rutas deben estar abiertas y ser rutas de entrega de la misma bodega.
+**¿Quién puede hacerlo?** El conductor, únicamente entre sus propias rutas. Administración puede hacerlo entre rutas de conductores distintos. Las dos rutas deben estar abiertas y ser rutas de entrega de la misma bodega.
 
 ## Tomar un paquete mediante escaneo
 
-El conductor también puede abrir su ruta y escanear un paquete pendiente que estaba en otra ruta.
-
-Si aparece un aviso de traspaso, debe confirmar solamente si tiene el paquete físicamente. Al aceptar, el paquete pasa a su ruta. Si cancela, sigue en la ruta anterior.
+El conductor puede agregar paquetes disponibles en bodega a su propia ruta abierta. Si el paquete pertenece a otra de sus propias rutas abiertas, puede confirmar su traspaso físico. Si pertenece a otro conductor, debe solicitar la reasignación a administración.
 
 ## Agregar más paquetes durante el reparto
 
@@ -53,7 +51,7 @@ Una vez registrada la recepción, el paquete deja de estar a cargo de la ruta an
 1. Abrir la ruta que terminó su reparto.
 2. Presionar **«Finalizar Ruta»**.
 3. Revisar el resumen de entregados, transferidos, recibidos en bodega y pendientes.
-4. Si quedan paquetes sin gestionar, pasarlos a otra ruta o registrar su recepción en bodega.
+4. Si quedan paquetes sin gestionar, solicitar a administración que los reasigne a otra ruta del mismo día o registrar su recepción física en bodega.
 5. Cuando ya corresponda, presionar **«Confirmar cierre»**.
 
 Cerrar la ruta de la mañana no cierra la ruta de la tarde. Cada ruta se finaliza por separado.

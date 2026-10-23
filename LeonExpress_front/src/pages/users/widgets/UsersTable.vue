@@ -2,7 +2,7 @@
 import { defineVaDataTableColumns, useModal } from 'vuestic-ui'
 import { User } from '../types'
 import UserAvatar from './UserAvatar.vue'
-import { PropType, computed } from 'vue'
+import { PropType } from 'vue'
 import { Pagination, Sorting } from '../../../data/pages/users'
 import { useVModel } from '@vueuse/core'
 
@@ -40,15 +40,12 @@ const emit = defineEmits<{
 
 const sortByVModel = useVModel(props, 'sortBy', emit)
 const sortingOrderVModel = useVModel(props, 'sortingOrder', emit)
-const pageVModel = useVModel(props, 'pagination', emit, { key: 'page' })
-const perPageVModel = useVModel(props, 'pagination', emit, { key: 'perPage' })
 
 const roleColors: Record<string, string> = {
   ADMIN: 'danger',
   DRIVER: 'info',
   CUSTOMER_SERVICE: 'primary',
 }
-const totalPages = computed(() => Math.ceil(props.pagination.total / props.pagination.perPage))
 
 const { confirm } = useModal()
 
@@ -97,7 +94,10 @@ const onUserDelete = async (user: User) => {
     </template>
 
     <template #cell(active)="{ rowData }">
-      <VaBadge :text="rowData.active ? 'Activo' : 'Inactivo'" :color="rowData.active ? 'success' : 'secondary'" />
+      <VaBadge
+        :text="rowData.archived_at ? 'Archivado' : rowData.active ? 'Activo' : 'Inactivo'"
+        :color="rowData.active ? 'success' : 'secondary'"
+      />
     </template>
     <template #cell(actions)="{ rowData }">
       <div class="flex gap-2 justify-end">
@@ -136,7 +136,12 @@ const onUserDelete = async (user: User) => {
     <div>
       <b>{{ pagination.total }} resultados.</b>
       Resultados por página
-      <VaSelect v-model="pagination.perPage" class="!w-20" :options="[10, 50, 100]" />
+      <VaSelect
+        :model-value="pagination.perPage"
+        @update:model-value="$emit('update:perPage', $event)"
+        class="!w-20"
+        :options="[10, 50, 100]"
+      />
     </div>
   </div>
 </template>

@@ -34,6 +34,11 @@ export default {
       },
     },
     {
+      name: 'prospects',
+      displayName: 'Solicitudes comerciales',
+      meta: { icon: 'mark_email_unread', roles: ['ADMIN'] },
+    },
+    {
       name: 'wharehouses',
       displayName: 'Almacenes',
       meta: {

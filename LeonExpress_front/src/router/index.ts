@@ -7,37 +7,38 @@ import { useToast } from 'vuestic-ui'
 const { init } = useToast()
 
 const routes: Array<RouteRecordRaw> = [
+  { name: 'home', path: '/', component: () => import('../pages/public/LandingPage.vue') },
   {
     name: 'ADMIN',
-    path: '/',
+    path: '/app',
     component: AppLayout,
     redirect: { name: 'dashboard' },
     meta: { requiresAuth: true },
     children: [
       {
         name: 'dashboard',
-        path: 'dashboard',
+        path: '/dashboard',
         component: () => import('../pages/dashboard/RoleDashboard.vue'),
       },
       {
         name: 'settings',
-        path: 'settings',
+        path: '/settings',
         component: () => import('../pages/settings/Settings.vue'),
       },
       {
         name: 'preferences',
-        path: 'preferences',
+        path: '/preferences',
         component: () => import('../pages/preferences/Preferences.vue'),
       },
       {
         name: 'wharehouses',
-        path: 'wharehouses',
+        path: '/wharehouses',
         component: () => import('../pages/warehouses/WarehousesPage.vue'),
         meta: { roles: ['ADMIN'] },
       },
       {
         name: 'ocr-review',
-        path: 'ocr-review',
+        path: '/ocr-review',
         component: () => import('../pages/ocr-review/OcrReviewDashboard.vue'),
         meta: { roles: ['ADMIN'] },
       },
@@ -53,13 +54,19 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         name: 'users',
-        path: 'users',
+        path: '/users',
         component: () => import('../pages/users/UsersPage.vue'),
         meta: { roles: ['ADMIN', 'WAREHOUSE_STAFF'] },
       },
       {
+        name: 'prospects',
+        path: '/prospects',
+        component: () => import('../pages/prospects/ProspectsPage.vue'),
+        meta: { roles: ['ADMIN'] },
+      },
+      {
         name: 'clients',
-        path: 'clients',
+        path: '/clients',
         component: () => import('../pages/clients/ClientsPage.vue'),
         meta: { roles: ['ADMIN'] },
       },
@@ -71,19 +78,19 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         name: 'vehicles-type',
-        path: 'vehicles-type',
+        path: '/vehicles-type',
         component: () => import('../pages/vehicle-types/VehicleTypesPage.vue'),
         meta: { roles: ['ADMIN', 'WAREHOUSE_STAFF'] },
       },
       {
         name: 'vehicles',
-        path: 'vehicles',
+        path: '/vehicles',
         component: () => import('../pages/vehicles/VehiclesPage.vue'),
         meta: { roles: ['ADMIN', 'WAREHOUSE_STAFF'] },
       },
       {
         name: 'pickups',
-        path: 'pickups',
+        path: '/pickups',
         component: () => import('../pages/pickups/PickupsPage.vue'),
         meta: { requiresAuth: true },
       },
@@ -113,13 +120,13 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         name: 'packages',
-        path: 'packages',
+        path: '/packages',
         component: () => import('../pages/packages/PackagesPage.vue'),
         meta: { roles: ['ADMIN', 'WAREHOUSE_STAFF', 'CUSTOMER_SERVICE', 'CLIENT'] },
       },
       {
         name: 'package-verification',
-        path: 'packages/verify', // La URL será /packages/verify
+        path: '/packages/verify', // La URL será /packages/verify
         component: () => import('../pages/packages/PackageVerificationPage.vue'),
         meta: {
           requiresAuth: true,
@@ -128,7 +135,7 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         name: 'deliveries',
-        path: 'deliveries',
+        path: '/deliveries',
         component: () => import('../pages/deliveries/DeliveriesPage.vue'),
         meta: { requiresAuth: true, roles: ['ADMIN', 'WAREHOUSE_STAFF', 'DRIVER', 'FINANCE', 'CUSTOMER_SERVICE'] },
       },
@@ -142,7 +149,7 @@ const routes: Array<RouteRecordRaw> = [
         },
       },
       {
-        path: 'payouts',
+        path: '/payouts',
         component: RouteViewComponent, // Usamos un bypass para anidar rutas
         children: [
           {
@@ -163,7 +170,7 @@ const routes: Array<RouteRecordRaw> = [
 
       // --- INICIO: MÓDULO DE FACTURACIÓN DE CLIENTES AÑADIDO ---
       {
-        path: 'invoices', // La URL base será /invoices
+        path: '/invoices', // La URL base será /invoices
         component: RouteViewComponent,
         children: [
           {
@@ -194,12 +201,12 @@ const routes: Array<RouteRecordRaw> = [
 
       {
         name: 'projects',
-        path: 'projects',
+        path: '/projects',
         component: () => import('../pages/projects/ProjectsPage.vue'),
       },
       {
         name: 'mercadolibre',
-        path: 'mercadolibre',
+        path: '/mercadolibre',
         component: () => import('../pages/mercadolibre/MercadoLibrePage.vue'),
         meta: { roles: ['ADMIN', 'CLIENT'] },
       },
@@ -234,12 +241,13 @@ const routes: Array<RouteRecordRaw> = [
       {
         name: 'login',
         path: 'login',
+        beforeEnter: (to) => (to.query.mode === 'client' ? { name: 'client-login' } : true),
         component: () => import('../pages/auth/Login.vue'),
       },
       {
         name: 'signup',
         path: 'signup',
-        component: () => import('../pages/auth/Signup.vue'),
+        redirect: { name: 'client-login' },
       },
       {
         name: 'recover-password',
@@ -339,7 +347,7 @@ router.beforeEach(async (to, from, next) => {
 
   const customerServiceRoutes = ['deliveries', 'packages', 'package-details']
 
-  if (userRole === 'CUSTOMER_SERVICE' && !customerServiceRoutes.includes(String(to.name))) {
+  if (to.meta.requiresAuth && userRole === 'CUSTOMER_SERVICE' && !customerServiceRoutes.includes(String(to.name))) {
     return next({ name: 'deliveries' })
   }
 

@@ -14,6 +14,7 @@ const handleSessionExpiry = createSessionExpiryHandler({
   storage: localStorage,
   redirect: (path) => window.location.replace(path),
   loginPath: `${import.meta.env.BASE_URL}auth/login`,
+  clientLoginPath: `${import.meta.env.BASE_URL}portal/login`,
 })
 
 // Interceptor para agregar el token de autenticación y mostrar loading
@@ -68,6 +69,7 @@ axiosInstance.interceptors.response.use(
 
 // Tipos
 type ApiListParams = {
+  archived?: boolean
   page?: number
   perPage?: number
   pageSize?: number // Backend usa pageSize
@@ -166,8 +168,12 @@ const api = {
     axiosInstance.put(`/clients/${clientId}/pricing/${pricingId}`, data),
   verifyClientCode: (payload: { verification_code: string; client_id: string }) =>
     axiosInstance.post('/clients/verify', payload),
-  createClientInvitation: (data: { client_name: string; email: string; base_price: number; has_free_pickups?: boolean }) =>
-    axiosInstance.post('/clients/invitations', data),
+  createClientInvitation: (data: {
+    client_name: string
+    email: string
+    base_price: number
+    has_free_pickups?: boolean
+  }) => axiosInstance.post('/clients/invitations', data),
   getClientInvitations: () => axiosInstance.get('/clients/invitations'),
   deleteClientInvitation: (id: string) => axiosInstance.delete(`/clients/invitations/${id}`),
 

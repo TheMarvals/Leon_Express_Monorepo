@@ -213,6 +213,16 @@ run_pending_migrations() {
         apply_pickup_request_trigger "/app/migrations/20261021_pickup_request_trigger.sql"
     fi
 
+    if [ -f "/app/migrations/20261022_user_retention.sql" ]; then
+        echo "Aplicando seguimiento de usuarios desactivados y archivados..."
+        mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" < "/app/migrations/20261022_user_retention.sql"
+    fi
+
+    if [ -f "/app/migrations/20261022_prospects.sql" ]; then
+        echo "Preparando solicitudes comerciales de la landing..."
+        mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" < "/app/migrations/20261022_prospects.sql"
+    fi
+
     # --- Migración: Comprobantes de Pago y Estado EN_REVISION ---
     if [ -f "/app/migrations/20261021_invoice_payment_voucher.sql" ]; then
         echo "Aplicando migración de Comprobantes de Pago y Estado EN_REVISION..."

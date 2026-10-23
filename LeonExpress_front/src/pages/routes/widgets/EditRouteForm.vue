@@ -144,6 +144,10 @@ const handleSubmit = () => {
       searchable
     />
     <VaDateInput v-model="start_date" label="Fecha y Hora de Inicio" with-time :rules="[validators.required]" />
+    <p class="text-sm text-secondary">
+      El conductor puede tener varias rutas del mismo día. Para asignarle una ruta de otro día, debe cerrar todas las
+      anteriores.
+    </p>
     <VaSelect
       v-model="status"
       label="Estado"

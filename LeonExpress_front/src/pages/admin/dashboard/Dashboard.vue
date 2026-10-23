@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import ProspectNotificationSettings from '../../prospects/ProspectNotificationSettings.vue'
 import AdminStatsSection from './AdminStatsSection.vue'
 import RevenueReport from './cards/RevenueReport.vue'
 import YearlyBreakup from './cards/YearlyBreakup.vue'
@@ -13,6 +14,7 @@ import Timeline from './cards/Timeline.vue'
       <h1 class="page-title">Dashboard administrativo</h1>
       <p class="page-subtitle">Resumen operativo y financiero de Leon Express</p>
     </header>
+    <ProspectNotificationSettings />
     <AdminStatsSection />
     <div class="flex flex-col gap-4 lg:flex-row">
       <RevenueReport class="w-full lg:w-2/3 flex-1" />

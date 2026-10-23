@@ -6,7 +6,7 @@ import { useUsersStore } from '../../../stores/users'
 
 type Pagination = { page: number; perPage: number; total: number }
 type Sorting = { sortBy: string; sortOrder: 'asc' | 'desc' | 'no-sort' }
-type Filters = { search: string; isActive?: boolean }
+type Filters = { search: string; isActive?: boolean; archived?: boolean }
 
 const makePaginationRef = () => ref<Pagination>({ page: 1, perPage: 10, total: 0 })
 const makeSortingRef = () => ref<Sorting>({ sortBy: 'fullname', sortOrder: 'asc' })

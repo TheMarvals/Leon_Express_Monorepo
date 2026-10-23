@@ -19,6 +19,30 @@ const { assignPackage, OPEN_ROUTE_STATUSES, PENDING_STATUSES } = require('../ser
 const router = express.Router();
 router.use(authenticateToken, roleValidator(['ADMIN', 'DRIVER', 'WAREHOUSE_STAFF']));
 
+// Use Chile's calendar day, independently of the server/browser timezone.
+const routeDay = value => new Date(value).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+async function assertDriverDayAvailable(userId, startDate, transaction, excludeRouteId, historicalStart = false) {
+  // Serialize assignments to the same driver; these callers use READ COMMITTED for fresh reads.
+  const driver = await User.findOne({ where: { user_id: userId, is_active: true }, transaction, lock: transaction.LOCK.UPDATE });
+  if (!driver) throw Object.assign(new Error('El conductor está desactivado o ya no existe.'), { status: 409 });
+  const requestedDay = routeDay(startDate);
+  const day = requestedDay;
+  if (!historicalStart && day < routeDay(new Date())) {
+    throw Object.assign(new Error('No se pueden asignar rutas nuevas con fecha anterior a hoy.'), { status: 409 });
+  }
+  const openRoutes = await Route.findAll({
+    where: { user_id: userId, status: { [Op.in]: OPEN_ROUTE_STATUSES } },
+    attributes: ['route_id', 'route_name', 'start_date', 'status'], transaction,
+  });
+  const earlier = openRoutes.filter(item => item.route_id !== excludeRouteId &&
+    (historicalStart ? routeDay(item.start_date) < day : routeDay(item.start_date) !== day));
+  if (earlier.length) {
+    throw Object.assign(new Error('El conductor tiene rutas abiertas de otra fecha. Debe cerrarlas antes de recibir una ruta de un nuevo día.'), {
+      status: 409, details: { code: 'PREVIOUS_DAY_ROUTES_OPEN', open_route_ids: earlier.map(item => item.route_id) },
+    });
+  }
+}
+
 // --- Validadores ---
 const validateRouteCreation = [
   body('user_id').isUUID(4).withMessage('ID de conductor inválido'),
@@ -170,15 +194,14 @@ const validatePackageAssignment = [
 // POST / - Crear una nueva ruta
 router.post('/', authenticateToken, roleValidator(['ADMIN']), validateRouteCreation, async (req, res) => {
   const errors = validationResult(req);
-  console.log(req.body)
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  const t = await sequelize.transaction();
+  const t = await sequelize.transaction({ isolationLevel: 'READ COMMITTED' });
   try {
     const { user_id, vehicle_id, warehouse_id, start_date, route_type, route_name } = req.body;
 
     // Validaciones de existencia dentro de la transacción
-    const driver = await User.findOne({ where: { user_id } }, { transaction: t });
+    const driver = await User.findOne({ where: { user_id }, transaction: t });
     if (!driver) {
       await t.rollback();
       return res.status(404).json({ error: 'Conductor no encontrado o no tiene el rol correcto.' });
@@ -189,6 +212,8 @@ router.post('/', authenticateToken, roleValidator(['ADMIN']), validateRouteCreat
       await t.rollback();
       return res.status(404).json({ error: 'Vehículo no encontrado.' });
     }
+
+    await assertDriverDayAvailable(user_id, start_date, t);
 
     const newRoute = await Route.create({
       route_id: uuidv4(),
@@ -222,7 +247,8 @@ router.post('/', authenticateToken, roleValidator(['ADMIN']), validateRouteCreat
     res.status(201).json(newRoute);
 
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
+    if (error.status) return res.status(error.status).json({ error: error.message, ...error.details });
     console.error("Error al crear la ruta:", error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
@@ -232,7 +258,7 @@ router.post('/', authenticateToken, roleValidator(['ADMIN']), validateRouteCreat
 router.put('/:id', authenticateToken, roleValidator(['ADMIN']), validateRouteCreation, async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-  const t = await sequelize.transaction();
+  const t = await sequelize.transaction({ isolationLevel: 'READ COMMITTED' });
   try {
     const route = await Route.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
     if (!route) {
@@ -262,12 +288,16 @@ router.put('/:id', authenticateToken, roleValidator(['ADMIN']), validateRouteCre
       await t.rollback();
       return res.status(409).json({ error: 'La ruta ya tiene paquetes. Usa el flujo de transferencia para cambiar su asignación.' });
     }
+    if (String(user_id) !== String(route.user_id) || new Date(start_date).getTime() !== new Date(route.start_date).getTime()) {
+      await assertDriverDayAvailable(user_id, start_date, t, route.route_id);
+    }
     await route.update({ user_id, vehicle_id, warehouse_id, start_date, route_type, route_name: route_name || null }, { transaction: t });
     await logAudit(req.user.user_id, 'UPDATE_ROUTE', { route_id: route.route_id });
     await t.commit();
     res.json(route);
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
+    if (error.status) return res.status(error.status).json({ error: error.message, ...error.details });
     console.error('Error al actualizar la ruta:', error.message);
     res.status(500).json({ error: 'No se pudo actualizar la ruta.' });
   }
@@ -336,6 +366,7 @@ router.get('/:id/transfer-destinations', authenticateToken, roleValidator(['ADMI
         warehouse_id: source.warehouse_id,
         route_type: 'ENTREGA',
         status: { [Op.in]: OPEN_ROUTE_STATUSES },
+        ...(req.user.role === 'DRIVER' ? { user_id: req.user.user_id } : {}),
       },
       attributes: ['route_id', 'route_name', 'user_id', 'warehouse_id', 'route_type', 'status', 'start_date'],
       include: [{ model: User, as: 'user', attributes: ['user_id', 'full_name'] }],
@@ -486,7 +517,7 @@ router.post('/:id/packages', authenticateToken, roleValidator(['ADMIN']), valida
     }
 
     for (const pkg of packages) {
-      await assignPackage(pkg, route, t, { actorId: req.user.user_id });
+      await assignPackage(pkg, route, t, { actorId: req.user.user_id, actorRole: req.user.role });
     }
 
     // Si encontramos un costo válido para el vehículo, lo aplicamos SOLO a los paquetes que NO fueron editados manualmente
@@ -508,10 +539,13 @@ router.post('/:id/packages', authenticateToken, roleValidator(['ADMIN']), valida
     // --- FIN DE LA LÓGICA AÑADIDA ---
 
     await t.commit();
+    await logAudit(req.user.user_id, 'ADD_ROUTE_PACKAGES', {
+      route_id: routeId, package_ids, route_status: route.status,
+    });
     res.status(200).json({ message: `${package_ids.length} paquetes asignados exitosamente a la ruta.` });
 
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
     if (error.name === 'SequelizeUniqueConstraintError') return res.status(409).json({ error: 'El paquete ya fue procesado. Actualiza la ruta.' });
     if (error.status) return res.status(error.status).json({ error: error.message, ...error.details });
     console.error("Error al asignar paquetes a la ruta:", error);
@@ -542,6 +576,9 @@ router.post('/:id/transfer-packages', authenticateToken, roleValidator(['ADMIN',
     if (req.user.role !== 'ADMIN' && source.user_id !== req.user.user_id) {
       throw Object.assign(new Error('Solo puedes transferir paquetes desde una ruta a tu cargo.'), { status: 403 });
     }
+    if (req.user.role === 'DRIVER' && target.user_id !== req.user.user_id) {
+      throw Object.assign(new Error('Solo puedes migrar paquetes entre tus propias rutas. Para otro conductor, solicita a un administrador.'), { status: 403 });
+    }
     if (!OPEN_ROUTE_STATUSES.includes(source.status) || !OPEN_ROUTE_STATUSES.includes(target.status)) {
       throw Object.assign(new Error('Ambas rutas deben estar abiertas.'), { status: 409 });
     }
@@ -558,15 +595,20 @@ router.post('/:id/transfer-packages', authenticateToken, roleValidator(['ADMIN',
       if (!PENDING_STATUSES.includes(pkg.status)) {
         throw Object.assign(new Error(`El paquete ${pkg.tracking_code} ya fue gestionado. Actualiza la ruta.`), { status: 409 });
       }
-      await assignPackage(pkg, target, t, { confirmTransfer: true, sourceRouteId: sourceId, actorId: req.user.user_id });
+      await assignPackage(pkg, target, t, { confirmTransfer: true, sourceRouteId: sourceId, actorId: req.user.user_id, actorRole: req.user.role });
       if (vehicleType && !pkg.is_delivery_cost_manual) {
         await pkg.update({ delivery_cost: vehicleType.base_delivery_cost }, { transaction: t });
       }
     }
     await t.commit();
+    await logAudit(req.user.user_id, 'TRANSFER_ROUTE_PACKAGES', {
+      source_route_id: sourceId, target_route_id: targetId, package_ids: ids,
+      source_driver_id: source.user_id, target_driver_id: target.user_id,
+      confirmed_physical_handoff: true,
+    });
     res.json({ message: `${ids.length} paquetes transferidos.`, transferred_count: ids.length });
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
     if (!error.status) console.error('Error al transferir paquetes:', error);
     res.status(error.status || 500).json({ error: error.status ? error.message : 'Error interno del servidor.' });
   }
@@ -918,7 +960,7 @@ router.post('/:id/scan-package', authenticateToken, [
     }
 
     const assignmentResult = await assignPackage(packageToAdd, route, t, {
-      confirmTransfer: req.body.confirm_transfer === true, actorId: req.user.user_id
+      confirmTransfer: req.body.confirm_transfer === true, actorId: req.user.user_id, actorRole: req.user.role
     });
     if (newDeliveryCost && packageToAdd.is_delivery_cost_manual !== true && !assignmentResult.alreadyInRoute) {
       await packageToAdd.update({ delivery_cost: newDeliveryCost }, { transaction: t });
@@ -931,6 +973,13 @@ router.post('/:id/scan-package', authenticateToken, [
     });
 
     await t.commit();
+
+    if (!assignmentResult.alreadyInRoute) await logAudit(req.user.user_id,
+      assignmentResult.transferred ? 'TRANSFER_ROUTE_PACKAGES' : 'ADD_ROUTE_PACKAGES', {
+        target_route_id: routeId, package_ids: [packageToAdd.package_id],
+        source_route_ids: assignmentResult.sourceRouteIds || [],
+        route_status: route.status, confirmed_physical_handoff: req.body.confirm_transfer === true,
+      });
 
     res.status(200).json({
       message: assignmentResult.alreadyInRoute ? 'Paquete ya verificado en la ruta' : 'Paquete agregado exitosamente a la ruta',
@@ -1191,7 +1240,7 @@ router.post('/:id/approve-loading', authenticateToken, roleValidator(['ADMIN']),
 router.put('/:id/status', authenticateToken, async (req, res) => {
   const routeId = req.params.id;
   const { status: newStatus } = req.body;
-  const t = await sequelize.transaction();
+  const t = await sequelize.transaction({ isolationLevel: 'READ COMMITTED' });
 
   try {
     const route = await Route.findByPk(routeId, { transaction: t, lock: t.LOCK.UPDATE });
@@ -1208,6 +1257,7 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
 
     // --- LÓGICA PARA INICIAR RUTA ---
     if (newStatus === 'EN_PROGRESO' && route.status === 'PENDIENTE') {
+      await assertDriverDayAvailable(route.user_id, route.start_date, t, route.route_id, true);
       // Verificar que la carga esté aprobada (si se usó el nuevo flujo de escaneo)
       // Si loading_status es NOT_STARTED, puede ser una ruta con asignación manual (compatibilidad)
       if (route.loading_status !== 'NOT_STARTED' && route.loading_status !== 'APPROVED') {
@@ -1344,7 +1394,8 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
     res.status(200).json(route);
 
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
+    if (error.status) return res.status(error.status).json({ error: error.message, ...error.details });
     console.error("Error al actualizar estado de la ruta:", error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
@@ -1384,7 +1435,7 @@ router.delete('/:id', authenticateToken, roleValidator(['ADMIN']), async (req, r
     const routeId = req.params.id;
     const route = await Route.findByPk(routeId, {
       include: [{ model: RoutePackage, as: 'routePackages' }],
-      transaction: t
+      transaction: t, lock: t.LOCK.UPDATE
     });
 
     if (!route) {
@@ -1438,7 +1489,8 @@ router.delete('/:id', authenticateToken, roleValidator(['ADMIN']), async (req, r
     res.status(200).json({ message: 'Ruta eliminada exitosamente y paquetes liberados' });
 
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
+    if (error.status) return res.status(error.status).json({ error: error.message, ...error.details });
     console.error("Error al eliminar ruta:", error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
@@ -1546,7 +1598,8 @@ router.delete('/:id/packages/:packageId', authenticateToken, async (req, res) =>
     res.status(200).json({ message: 'Paquete eliminado de la ruta exitosamente' });
 
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
+    if (error.status) return res.status(error.status).json({ error: error.message, ...error.details });
     console.error("Error al eliminar paquete de la ruta:", error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
@@ -1591,7 +1644,7 @@ router.post('/:id/load-my-pending-packages', authenticateToken, async (req, res)
 
     for (const pkg of pendingPackages) {
       // Reattempt after a finalized route must first be received at the warehouse.
-      await assignPackage(pkg, route, t, { confirmTransfer: true, actorId: req.user.user_id });
+      await assignPackage(pkg, route, t, { confirmTransfer: true, actorId: req.user.user_id, actorRole: req.user.role });
     }
 
     await t.commit();

@@ -40,7 +40,7 @@
         <div class="flex items-center justify-between">
           <span class="text-gray-500">Tarifa acordada:</span>
           <span class="font-extrabold text-[#03323a] text-sm">
-            ${{ Number(invitation.base_price).toLocaleString('es-CL') }} + IVA
+            ${{ Number(invitation.base_price).toLocaleString('es-CL') }}
           </span>
         </div>
         <div class="flex items-center justify-between">
@@ -140,7 +140,7 @@ onMounted(async () => {
 })
 
 const submitActivation = async () => {
-  if (!validate()) return
+  if (isSubmitting.value || !validate()) return
 
   isSubmitting.value = true
   try {

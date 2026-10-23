@@ -18,6 +18,20 @@ function getDefaultFrom() {
 }
 
 module.exports = {
+  async sendProspectNotification({ to, prospect }) {
+    const { buildProspectReceivedEmail } = require('./emailTemplates/prospectReceived');
+    const payload = buildProspectReceivedEmail({ prospect });
+    const resend = getResend();
+    if (!resend) return { success: false, simulated: true };
+    try {
+      const response = await resend.emails.send({ from: getDefaultFrom(), to, subject: 'Nueva solicitud comercial - León Express', ...payload });
+      if (response.error) return { success: false };
+      return { success: true, id: response.data?.id };
+    } catch (error) {
+      console.error('Error enviando aviso de solicitud comercial:', error.message);
+      return { success: false };
+    }
+  },
   /**
    * Envía el código de acceso temporal (OTP) al cliente
    */

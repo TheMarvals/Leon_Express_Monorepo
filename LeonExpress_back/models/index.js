@@ -27,7 +27,17 @@ const User = sequelize.define('User', {
   email: { type: DataTypes.STRING(100) }, // unique: true removed
   phone: { type: DataTypes.STRING(20) },
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
-}, { tableName: 'users', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
+  deactivated_at: { type: DataTypes.DATE, allowNull: true },
+  archived_at: { type: DataTypes.DATE, allowNull: true },
+}, {
+  tableName: 'users', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at',
+  hooks: {
+    beforeSave(user) {
+      if (user.is_active) { user.deactivated_at = null; user.archived_at = null; }
+      else if (!user.deactivated_at) user.deactivated_at = new Date();
+    },
+  },
+});
 
 const Client = sequelize.define('Client', {
   client_id: { type: DataTypes.STRING(36), primaryKey: true },
@@ -91,6 +101,21 @@ const ClientInvitation = sequelize.define('ClientInvitation', {
   created_by: { type: DataTypes.STRING(36) },
   client_id: { type: DataTypes.STRING(36) },
 }, { tableName: 'client_invitations', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
+
+// Solicitudes comerciales públicas: no crean identidades ni acceso al portal.
+const Prospect = sequelize.define('Prospect', {
+  prospect_id: { type: DataTypes.STRING(36), primaryKey: true },
+  dedupe_key: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+  company: { type: DataTypes.STRING(120), allowNull: false },
+  contact_name: { type: DataTypes.STRING(100), allowNull: false },
+  email: { type: DataTypes.STRING(100), allowNull: false },
+  phone: { type: DataTypes.STRING(20), allowNull: false },
+  commune: { type: DataTypes.STRING(100), allowNull: false },
+  volume: { type: DataTypes.STRING(40), allowNull: false },
+  message: { type: DataTypes.TEXT, allowNull: false },
+  status: { type: DataTypes.ENUM('NEW', 'CONTACTED', 'CLOSED'), allowNull: false, defaultValue: 'NEW' },
+  email_status: { type: DataTypes.ENUM('PENDING', 'SENT', 'FAILED', 'NOT_CONFIGURED'), allowNull: false, defaultValue: 'PENDING' },
+}, { tableName: 'prospects', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
 
 const Pickup = sequelize.define('Pickup', {
   pickup_id: { type: DataTypes.STRING(36), primaryKey: true },
@@ -594,7 +619,8 @@ const db = {
   PushSubscription,
   Notification,
   ClientOtp,
-  ClientInvitation
+  ClientInvitation,
+  Prospect
 };
 
 db.sequelize = sequelize;
