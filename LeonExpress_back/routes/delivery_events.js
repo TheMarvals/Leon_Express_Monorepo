@@ -496,13 +496,21 @@ router.post(
 
             const routePackage = await RoutePackage.findOne({
                 where: { package_id: packageId, released_at: null },
-                include: [{ model: Route, as: 'route', required: true,
-                    where: { user_id: driverId, status: 'EN_PROGRESO' } }],
+                include: [{ model: Route, as: 'route', required: true }],
                 order: [['created_at', 'DESC']], transaction: t
             });
-            if (!routePackage) {
+            // Closing a route preserves custody of unsuccessful deliveries. A later
+            // attempt belongs to that assignment until a physical return or transfer.
+            const assignedRoute = routePackage?.route;
+            const retainedAfterClosing = assignedRoute?.status === 'FINALIZADA'
+                && pkg.pending_return_user_id === driverId
+                && ['INCIDENCIA_ENTREGA', 'REPROGRAMADO'].includes(pkg.status);
+            const canAttemptDelivery = assignedRoute?.user_id === driverId
+                && (!pkg.pending_return_user_id || pkg.pending_return_user_id === driverId)
+                && (assignedRoute.status === 'EN_PROGRESO' || retainedAfterClosing);
+            if (!canAttemptDelivery) {
                 await t.rollback();
-                return res.status(403).json({ error: 'El paquete ya no está a tu cargo en una ruta en progreso. Actualiza tu ruta.' });
+                return res.status(403).json({ error: 'El paquete no está a tu cargo para registrar una entrega. Actualiza tus paquetes pendientes.' });
             }
             if (await Delivery.findOne({ where: { package_id: packageId, status_at_delivery: 'ENTREGADO' }, transaction: t })) {
                 await t.rollback();

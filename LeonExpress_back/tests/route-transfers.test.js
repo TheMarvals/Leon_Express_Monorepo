@@ -113,6 +113,60 @@ test('route transfers with real SQL, HTTP handlers and concurrency', { skip: !pr
     status_at_delivery: 'ENTREGADO', receiver_name: 'Test', receiver_rut: '12345678K', ...extra
   }, user);
 
+  async function closeWithCustody(status = 'INCIDENCIA_ENTREGA') {
+    const f = await fixture(status);
+    const closed = await request('PUT', `/routes/${f.source.route_id}/status`, { status: 'FINALIZADA' }, f.user_id);
+    assert.equal(closed.status, 200, JSON.stringify(closed));
+    assert.equal((await f.pkg.reload()).pending_return_user_id, f.user_id);
+    return f;
+  }
+  await t.test('closed routes allow another attempt only by the driver retaining custody', async () => {
+    for (const status of ['INCIDENCIA_ENTREGA', 'REPROGRAMADO']) {
+      const f = await closeWithCustody(status);
+      const closedAt = (await f.source.reload()).end_date.getTime();
+      assert.equal((await deliver(f, f.other_id)).status, 403);
+      const retry = await deliver(f, f.user_id, { status_at_delivery: 'NO_HAY_NADIE' });
+      assert.equal(retry.status, 201, JSON.stringify(retry));
+      assert.equal((await f.pkg.reload()).pending_return_user_id, f.user_id);
+      const result = await deliver(f, f.user_id);
+      assert.equal(result.status, 201, JSON.stringify(result));
+      await f.pkg.reload();
+      assert.equal(f.pkg.status, 'ENTREGADO');
+      assert.equal(f.pkg.pending_return_user_id, null);
+      const delivery = await Delivery.findOne({ where: { package_id: f.pkg.package_id, status_at_delivery: 'ENTREGADO' } });
+      assert.equal(delivery.route_package_id, f.rp.route_package_id);
+      assert.equal((await f.source.reload()).status, 'FINALIZADA');
+      assert.equal(f.source.end_date.getTime(), closedAt);
+      assert.equal((await deliver(f, f.user_id)).status, 409);
+    }
+  });
+  await t.test('closed routes require explicit custody, including when another driver holds the package', async () => {
+    const f = await closeWithCustody();
+    for (const custodian of [null, f.other_id]) {
+      await f.pkg.update({ pending_return_user_id: custodian });
+      assert.equal((await deliver(f, f.user_id)).status, 403);
+    }
+    assert.equal(await Delivery.count({ where: { package_id: f.pkg.package_id } }), 0);
+  });
+  await t.test('warehouse return and reassignment revoke delivery permission on a closed route', async () => {
+    const f = await closeWithCustody();
+    assert.equal((await request('PUT', `/packages/${f.pkg.package_id}/receive-at-warehouse`, {}, f.user_id, 'ADMIN')).status, 200);
+    assert.equal((await f.pkg.reload()).pending_return_user_id, null);
+    assert.equal((await deliver(f, f.user_id)).status, 409);
+    const assigned = await request('POST', `/routes/${f.target.route_id}/scan-package`, {
+      external_tracking_code: f.pkg.tracking_code
+    }, f.other_id);
+    assert.equal(assigned.status, 200, JSON.stringify(assigned));
+    assert.equal((await deliver(f, f.user_id)).status, 403);
+    assert.equal((await deliver(f)).status, 201);
+  });
+  await t.test('simultaneous attempts after route closure record only one successful delivery', async () => {
+    const f = await closeWithCustody();
+    const results = await Promise.all([deliver(f, f.user_id), deliver(f, f.user_id)]);
+    assert.deepEqual(results.map(r => r.status).sort(), [201, 409]);
+    assert.equal(await Delivery.count({ where: { package_id: f.pkg.package_id, status_at_delivery: 'ENTREGADO' } }), 1);
+  });
+
   await t.test('transfer, close source, deliver on target and keep historical outcome', async () => {
     const f = await fixture();
     assert.equal((await transfer(f)).status, 200);
