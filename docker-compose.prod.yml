@@ -43,7 +43,7 @@ services:
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
       - VAPID_SUBJECT=${VAPID_SUBJECT}
       # MercadoLibre Gateway (servicio externo en Coolify)
-      - ML_GATEWAY_URL=${ML_GATEWAY_URL:-https://gateway.themarvals.com}
+      - ML_GATEWAY_URL=${ML_GATEWAY_URL:-https://gateway.leonexpress.cl}
       - FRONTEND_URL=${FRONTEND_URL:-}
       - ML_GATEWAY_API_KEY=${ML_GATEWAY_API_KEY}
     expose:
@@ -74,7 +74,7 @@ services:
       - leonexpress_network
     restart: unless-stopped
 
-  # NOTE: ml-gateway corre en Coolify (https://gateway.themarvals.com)
+  # NOTE: ml-gateway corre en Coolify (https://gateway.leonexpress.cl)
   # No se incluye aquí. El backend de LE se conecta a él por HTTPS.
 
 
