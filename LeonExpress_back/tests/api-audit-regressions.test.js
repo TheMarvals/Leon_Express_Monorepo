@@ -26,7 +26,11 @@ async function fixture(t, file, options = {}) {
     DriverPayout: { findAll: async query => { calls.owners.push(query.where.user_id); return []; } },
     Cost: { findAll: async () => [{ cost_id: 'cost-1', cost_name: 'Peaje' }] },
     Client: { findAndCountAll: async options => { calls.clientsWhere = options.where; return { count: 0, rows: [] }; } },
-    Package: { findByPk: async () => ({ client_id: 'other-client' }), findOne: async () => ({ client_id: 'other-client' }) },
+    Package: { findByPk: async () => ({ client_id: 'other-client' }), findOne: async () => ({
+      client_id: options.ownPackage ? 'client-1' : 'other-client',
+      toJSON: () => ({ client_id: options.ownPackage ? 'client-1' : 'other-client', tracking_code: 'LE-TEST' }),
+    }) },
+    ClientLabelBranding: { findByPk: async id => { calls.owners.push(id); return options.noLogo ? null : { logo_data_url: 'data:image/png;base64,logo' }; } },
     Delivery: { findAll: async () => [] },
     sequelize: { transaction: async () => tx },
   };
@@ -186,5 +190,30 @@ for (const options of [{ anonymous: true }, { role: 'CLIENT' }, { role: 'DRIVER'
   test(`push test notifications require an authenticated administrator: ${JSON.stringify(options)}`, async t => {
     const f = await fixture(t, 'push', options);
     assert.equal((await f.request('POST', '/test', {})).status, options.anonymous ? 401 : 403);
+  });
+}
+
+for (const noLogo of [true, false]) {
+  test(`own package label includes only its sender branding (noLogo=${noLogo})`, async t => {
+    const f = await fixture(t, 'package', { role: 'CLIENT', ownPackage: true, noLogo });
+    const result = await f.request('GET', '/by-code/LE-TEST');
+    assert.equal(result.status, 200);
+    assert.equal(result.body.client_label_logo, noLogo ? null : 'data:image/png;base64,logo');
+    assert.deepEqual(f.calls.owners, ['client-1']);
+  });
+}
+test('foreign package lookup never loads its sender logo', async t => {
+  const f = await fixture(t, 'package', { role: 'CLIENT' });
+  assert.equal((await f.request('GET', '/by-code/foreign')).status, 403);
+  assert.equal(f.calls.owners.length, 0);
+});
+
+for (const [method, endpoint, role] of [['POST', '/', 'CLIENT'], ['PUT', '/package-a', 'ADMIN']]) {
+  test(`${method} package rejects observations over 120 characters before writing`, async t => {
+    const f = await fixture(t, 'package', { role });
+    const result = await f.request(method, endpoint, { recipient_name: 'Ana', destination_address: `Calle 123, Santiago (Obs: ${'x'.repeat(121)})` });
+    assert.equal(result.status, 400);
+    assert.ok(result.body.errors.some(error => error.path === 'destination_address' && error.msg.includes('120')));
+    assert.equal(f.calls.updated.length, 0);
   });
 }

@@ -2,6 +2,7 @@
 import { onMounted, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import logo from '@/assets/leon-express-light.svg'
+import VaIconArrowUpRight from '@/components/icons/VaIconArrowUpRight.vue'
 import { submitProspect } from '@/services/prospects'
 const route = useRoute()
 const applicationDialog = ref<HTMLDialogElement | null>(null)
@@ -83,37 +84,42 @@ async function submit() {
     <div class="photo-shade" aria-hidden="true"></div>
     <div class="hero-frame">
       <header class="site-header">
-        <span class="header-location">SANTIAGO, CHILE</span>
+        <RouterLink to="/" class="header-brand" aria-label="León Express, inicio">
+          <img :src="logo" alt="León Express · Logística de envíos" width="190" height="92" />
+        </RouterLink>
         <nav aria-label="Accesos">
-          <RouterLink to="/auth/login" class="staff-link">Acceso personal</RouterLink
-          ><RouterLink to="/portal/login" class="portal-link"
-            >Portal clientes <span aria-hidden="true">↗</span></RouterLink
-          >
+          <RouterLink to="/auth/login" class="staff-link">Acceso personal</RouterLink>
+          <RouterLink to="/portal/login" class="portal-link">Portal clientes <VaIconArrowUpRight /></RouterLink>
         </nav>
       </header>
       <main class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow">
-            LEÓN EXPRESS · TU NEGOCIO EN MOVIMIENTO
-          </p>
-          <h1 id="hero-title">Tu negocio,<br /><span>más lejos.</span></h1>
-          <p class="hero-description">Tú creas las oportunidades.<br />Nosotros llevamos tus paquetes.</p>
-          <button id="trabaja-con-nosotros" class="hero-cta" type="button" aria-haspopup="dialog" @click="openForm">
-            Trabaja con nosotros <span aria-hidden="true">↗</span>
-          </button>
-          <div class="hero-services" aria-label="Servicios">
-            <span>Colectas</span><span>Portal de seguimiento para clientes</span>
+          <h1 id="hero-title">Tu negocio,<br /><span class="title-accent">más lejos.</span></h1>
+          <div class="hero-details">
+            <p class="hero-description">Tú creas las oportunidades.<br />Nosotros llevamos tus paquetes.</p>
+            <div class="cta-container">
+              <button id="trabaja-con-nosotros" class="hero-cta" type="button" aria-haspopup="dialog" @click="openForm">
+                <span>Trabaja con nosotros</span>
+                <VaIconArrowUpRight />
+              </button>
+            </div>
+            <div class="hero-services" aria-label="Servicios">
+              <span>Colectas</span>
+              <span>Portal de seguimiento para clientes</span>
+            </div>
           </div>
         </div>
         <div class="city-caption" aria-hidden="true">
           <span class="caption-line"></span><span>DESDE SANTIAGO.<br />PARA TU PRÓXIMO PASO.</span>
         </div>
       </main>
+      <nav class="mobile-access" aria-label="Accesos móviles">
+        <RouterLink to="/portal/login" class="portal-link">Portal clientes <VaIconArrowUpRight /></RouterLink>
+        <RouterLink to="/auth/login" class="staff-link">Acceso personal</RouterLink>
+      </nav>
       <footer class="site-footer">
-        <RouterLink to="/" class="footer-brand" aria-label="León Express, inicio"
-          ><img :src="logo" alt="León Express · Logística de envíos" width="125" height="61" /></RouterLink
-        ><span class="footer-tagline">Conectamos negocios.<br />Acercamos personas.</span
-        ><span class="footer-copyright">© {{ new Date().getFullYear() }} León Express</span>
+        <span class="footer-tagline">Conectamos negocios.<br />Acercamos personas.</span>
+        <span class="footer-copyright">© {{ new Date().getFullYear() }} León Express</span>
       </footer>
     </div>
     <dialog
@@ -138,7 +144,7 @@ async function submit() {
             Recibirás una invitación para activar tu portal cuando coordinemos las condiciones del servicio.
           </p>
           <button class="submit-button" type="button" @click="closeForm">
-            Volver al inicio <span aria-hidden="true">↗</span>
+            Volver al inicio <VaIconArrowUpRight />
           </button>
         </div>
         <template v-else>
@@ -226,8 +232,7 @@ async function submit() {
             >
             <p v-if="error" class="form-error" role="alert">{{ error }}</p>
             <button class="submit-button" type="submit" :disabled="submitting" :aria-busy="submitting">
-              {{ submitting ? 'Enviando solicitud…' : 'Enviar solicitud'
-              }}<span v-if="!submitting" aria-hidden="true">↗</span>
+              {{ submitting ? 'Enviando solicitud…' : 'Enviar solicitud' }}<VaIconArrowUpRight v-if="!submitting" />
             </button>
             <p class="form-footnote">Revisaremos tu solicitud antes de habilitar una cuenta de cliente.</p>
           </form>
@@ -244,8 +249,8 @@ async function submit() {
   position: relative;
   isolation: isolate;
   min-height: 100svh;
-  background: #102e30;
-  color: white;
+  background: #081d22;
+  color: #fff;
   font-family: Inter, Arial, sans-serif;
   line-height: 1.5;
   overflow: hidden;
@@ -254,15 +259,15 @@ async function submit() {
   box-sizing: border-box;
 }
 .landing a {
-  text-decoration: none;
   color: inherit;
+  text-decoration: none;
 }
 .landing button {
   font-family: inherit;
 }
 .landing a:focus-visible,
 .landing button:focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 2px solid var(--accent);
   outline-offset: 5px;
 }
 .city-photo {
@@ -271,14 +276,15 @@ async function submit() {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center 63%;
+  object-position: center 62%;
   z-index: -3;
 }
 .photo-shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(0, 26, 29, 0.89) 0%, rgba(0, 26, 29, 0.66) 38%, rgba(0, 26, 29, 0.08) 78%),
-    linear-gradient(0deg, rgba(0, 20, 23, 0.8), transparent 30%, transparent 75%, rgba(0, 20, 23, 0.32));
+  background-color: #00182045;
+  background-image: linear-gradient(180deg, #00151d33, transparent 35%, #00151d14 65%, #00151d9c),
+    linear-gradient(90deg, #001c2633, transparent);
   z-index: -2;
 }
 .hero-frame {
@@ -286,181 +292,174 @@ async function submit() {
   max-width: 1680px;
   min-height: 100svh;
   margin: auto;
+  padding: 0 6%;
   display: flex;
   flex-direction: column;
-  padding: 0 6%;
 }
 .site-header {
-  padding: 27px 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: 24px;
 }
-.header-location {
+.header-brand {
+  grid-column: 2;
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 9px;
-  letter-spacing: 1.8px;
-  color: #dbe7df;
-  font-weight: 600;
+  justify-content: center;
+  padding: 27px 23px 29px;
+  border: 1px solid #ffffff38;
+  border-top: 0;
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(160deg, #d7eddf14, #d7eddf0a);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.header-brand img {
+  display: block;
+  width: 170px;
+  height: 83px;
+  object-fit: contain;
 }
 .site-header nav {
+  grid-column: 3;
+  justify-self: end;
   display: flex;
   align-items: center;
-  gap: 30px;
+  gap: 12px;
+  padding-top: 30px;
   font-size: 12px;
   font-weight: 600;
 }
+.site-header nav a,
+.mobile-access a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  gap: 10px;
+}
 .staff-link {
-  color: #d7e2df !important;
+  color: #edf5ef !important;
+  border: 1px solid #ffffff3d;
+  background: #001d2229;
 }
 .portal-link {
-  display: flex;
-  gap: 25px;
-  align-items: center;
-  padding: 13px 19px;
   border: 1px solid #ffffff70;
-  background: #ffffff0a;
+  background: #ffffff12;
   backdrop-filter: blur(12px);
-  border-radius: 5px;
+  -webkit-backdrop-filter: blur(12px);
 }
+.staff-link:hover,
 .portal-link:hover {
-  background: #ffffff20;
+  background: #ffffff24;
 }
-.portal-link span {
-  font-size: 18px;
-  line-height: 1;
+.mobile-access {
+  display: none;
 }
 .hero {
   position: relative;
-  flex: 1;
   display: flex;
   align-items: center;
-  padding: 60px 0 85px;
-  min-height: 600px;
+  justify-content: center;
+  flex: 1;
+  padding: 64px 0 76px;
+  min-height: 550px;
 }
 .hero-copy {
-  max-width: 850px;
-}
-.eyebrow {
-  font-size: 10px;
-  letter-spacing: 2px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  line-height: 1.7;
-  margin: 0 0 28px;
+  width: min(100%, 760px);
+  text-align: left;
 }
 .hero h1 {
-  font-size: clamp(76px, 8.6vw, 132px);
-  line-height: 1.01;
-  letter-spacing: -6px;
-  font-weight: 600;
-  margin: 0 0 29px;
+  font-size: clamp(72px, 7.4vw, 110px);
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.055em;
+  margin: 0 0 23px;
+  text-shadow: 0 2px 18px #00131b70;
 }
-.hero h1 span {
+.title-accent {
   color: var(--accent);
 }
 .hero-description {
-  font-size: 17px;
+  font-size: 15px;
   line-height: 1.85;
-  letter-spacing: -0.2px;
-  color: #dde8e4;
-  margin: 0 0 34px;
-  max-width: 420px;
+  color: #f1f5ef;
+  max-width: 410px;
+  margin: 0 0 29px;
+  margin-inline: 0;
+  text-shadow: 0 1px 10px #00131b99;
+}
+.cta-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 .hero-cta {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 55px;
+  gap: 28px;
   background: var(--accent);
-  color: var(--ink);
   border: 0;
-  border-radius: 5px;
-  font-size: 13px;
+  border-radius: 6px;
+  color: var(--ink);
+  padding: 15px 20px;
+  min-height: 52px;
+  font-size: 14px;
   font-weight: 700;
-  min-height: 55px;
-  padding: 16px 23px;
   cursor: pointer;
-  transition:
-    background 0.2s,
-    transform 0.2s;
+  transition: background 0.2s;
 }
 .hero-cta:hover {
-  background: #e3ffc0;
-  transform: translateY(-2px);
-}
-.hero-cta span {
-  font-size: 24px;
-  line-height: 1;
-  font-weight: 400;
+  background: #e4ffc2;
 }
 .hero-services {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
   align-items: center;
-  color: #bfd0c8;
-  font-size: 10px;
-  letter-spacing: 0.2px;
-  margin-top: 30px;
-}
-.hero-services span + span:before {
-  content: '·';
-  color: #9fb99c;
-  margin-right: 12px;
+  justify-content: flex-start;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.8;
+  color: #fff;
+  text-shadow: 0 1px 6px #00131bcc;
+  margin-top: 25px;
 }
 .city-caption {
   position: absolute;
   right: 0;
-  bottom: 90px;
+  bottom: 50px;
   display: flex;
-  gap: 15px;
   align-items: center;
+  gap: 15px;
   font-size: 9px;
-  letter-spacing: 1.8px;
+  letter-spacing: 1.4px;
   line-height: 1.9;
-  color: #f1f6ed;
+  color: #f1f5ef;
 }
 .caption-line {
-  display: block;
   height: 1px;
-  width: 43px;
+  width: 35px;
   background: #d5f3aa;
 }
 .site-footer {
-  padding: 20px 0;
-  border-top: 1px solid #ffffff30;
   display: flex;
   align-items: center;
-  gap: 27px;
-  color: #c3d2ca;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 0;
+  border-top: 1px solid #ffffff30;
   font-size: 10px;
-  letter-spacing: 0.2px;
-}
-.footer-brand {
-  display: block;
-  flex-shrink: 0;
-}
-.footer-brand img {
-  display: block;
-  width: 125px;
-  height: 61px;
-  object-fit: contain;
-}
-.footer-tagline {
-  line-height: 1.7;
-  padding-left: 25px;
-  border-left: 1px solid #ffffff30;
+  line-height: 1.8;
+  color: #dae6df;
 }
 .footer-copyright {
-  margin-left: auto;
   font-size: 9px;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.3px;
 }
 .application-dialog {
   border: 1px solid #d6dfd9;
@@ -488,12 +487,6 @@ async function submit() {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
-}
-.modal-header .eyebrow {
-  font-size: 9px;
-  letter-spacing: 1.5px;
-  color: #628266;
-  margin-bottom: 8px;
 }
 .modal-header h2 {
   font-size: 29px;
@@ -616,10 +609,6 @@ async function submit() {
 .submit-button:focus-visible {
   outline-color: #527f65 !important;
 }
-.submit-button span {
-  font-size: 21px;
-  line-height: 1;
-}
 .submit-button:disabled {
   opacity: 0.65;
   cursor: wait;
@@ -673,133 +662,176 @@ async function submit() {
   padding: 16px;
   border-radius: 6px;
 }
-@media (min-width: 1600px) {
+
+@media (min-width: 1101px) {
   .hero-frame {
-    padding-left: 100px;
-    padding-right: 100px;
+    max-width: none;
+    padding-inline: 6%;
+  }
+  .site-header {
+    grid-template-columns: auto 1fr;
+  }
+  .header-brand {
+    grid-column: 1;
+  }
+  .site-header nav {
+    grid-column: 2;
+    padding-top: 38px;
   }
   .hero {
-    min-height: 700px;
+    justify-content: flex-start;
+    padding-block: 64px 96px;
+  }
+  .hero-copy {
+    width: min(65%, 900px);
+  }
+  .hero h1 {
+    font-size: clamp(84px, 8.1vw, 150px);
+    line-height: 0.98;
+    margin-bottom: 36px;
+  }
+  .hero-details {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 28px;
+    max-width: 700px;
+  }
+  .hero-description {
+    font-size: clamp(16px, 1.15vw, 20px);
+    line-height: 1.7;
+    margin-bottom: 0;
+  }
+  .hero-cta {
+    min-height: 54px;
+    padding-inline: 24px;
+    gap: 28px;
+    white-space: nowrap;
+  }
+  .hero-services {
+    grid-column: 1 / -1;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #ffffff30;
+    gap: 24px;
+    font-size: 13px;
+  }
+  .photo-shade {
+    background-image: linear-gradient(180deg, #00151d20, transparent 35%, #00151d14 65%, #00151d9c),
+      linear-gradient(90deg, #00151d70, #00151d20 48%, transparent 72%);
   }
 }
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
+  .site-header {
+    grid-template-columns: 1fr auto 1fr;
+    gap: 12px;
+  }
+  .header-brand {
+    padding: 24px 20px 26px;
+  }
+  .header-brand img {
+    width: 150px;
+    height: 73px;
+  }
+  .site-header nav {
+    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+    padding-top: 20px;
+    font-size: 11px;
+  }
+  .site-header nav a {
+    min-height: 40px;
+    padding: 9px 13px;
+  }
+  .hero-copy {
+    width: min(100%, 680px);
+    padding: 40px;
+  }
   .hero h1 {
-    font-size: 95px;
-    letter-spacing: -4px;
+    font-size: 76px;
   }
   .city-caption {
     display: none;
   }
-  .hero {
-    padding: 65px 0 80px;
-    min-height: 620px;
-  }
-  .photo-shade {
-    background: linear-gradient(90deg, #001a1de0, #001a1d60), linear-gradient(0deg, #001417b3, transparent 45%);
-  }
-  .site-header nav {
-    gap: 20px;
-  }
 }
 @media (max-width: 600px) {
   .hero-frame {
-    padding: 0 7%;
+    padding: 0 6%;
     min-height: 100svh;
   }
   .site-header {
-    padding: 22px 0 20px;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 15px;
-    border-bottom: 1px solid #ffffff24;
-  }
-
-  .site-header nav {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    align-items: stretch;
-    font-size: 12px;
-  }
-  .site-header nav a {
     display: flex;
-    align-items: center;
     justify-content: center;
-    min-height: 46px;
-    padding: 11px 10px;
-    border-radius: 5px;
-    font-size: 12px;
   }
-  .portal-link {
-    order: -1;
-    gap: 10px;
-    background: #ffffff12;
+  .header-brand {
+    padding: 26px 19px 28px;
   }
-  .staff-link {
-    border: 1px solid #ffffff30;
-    background: #001a1d24;
+  .header-brand img {
+    width: 158px;
+    height: 77px;
+  }
+  .site-header nav {
+    display: none;
   }
   .hero {
-    padding: 45px 0 65px;
-    min-height: 510px;
+    padding: 36px 0;
+    min-height: 0;
+    justify-content: center;
     align-items: center;
   }
-  .hero h1 {
-    font-size: clamp(67px, 15.5vw, 92px);
-    letter-spacing: -3.8px;
-    margin-bottom: 25px;
+  .hero-copy {
+    width: 100%;
+    padding: 0;
   }
-  .hero .eyebrow {
-    font-size: 8px;
-    letter-spacing: 1.3px;
-    gap: 9px;
-    margin-bottom: 26px;
+  .hero h1 {
+    font-size: clamp(46px, 14vw, 68px);
+    letter-spacing: -0.055em;
+    margin-bottom: 19px;
   }
   .hero-description {
     font-size: 14px;
     line-height: 1.9;
-    margin-bottom: 30px;
+    margin-bottom: 25px;
   }
   .hero-cta {
-    padding: 16px 20px;
-    gap: 36px;
-    min-height: 53px;
-    font-size: 12px;
+    font-size: 13px;
+    min-height: 52px;
+    padding: 15px 20px;
+    gap: 28px;
   }
   .hero-services {
-    font-size: 9px;
-    gap: 9px;
-    margin-top: 26px;
-  }
-  .hero-services span + span:before {
-    margin-right: 9px;
+    font-size: 12px;
+    gap: 8px 20px;
+    margin-top: 22px;
+    align-items: center;
   }
   .city-photo {
     object-position: 70% center;
   }
   .photo-shade {
-    background: linear-gradient(90deg, #001a1dc9, #001a1d80),
-      linear-gradient(0deg, #001417cc, transparent 40%, #0014171a);
+    background-image: linear-gradient(180deg, #00151d26, transparent 30%, #00151d14 65%, #00151db3);
   }
-  .header-location {
-    display: none;
+  .mobile-access {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 21px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .mobile-access a {
+    min-height: 46px;
+    padding: 10px;
+    gap: 9px;
   }
   .site-footer {
-    padding: 18px 0;
-    gap: 17px;
-    flex-wrap: wrap;
-  }
-  .footer-brand img {
-    width: 96px;
-    height: 47px;
-  }
-  .footer-tagline {
+    padding: 17px 0;
     font-size: 9px;
-    padding-left: 16px;
+    gap: 15px;
   }
   .footer-copyright {
     font-size: 8px;
-    margin-left: auto;
   }
   .application-dialog {
     max-height: calc(100svh - 24px);
@@ -828,9 +860,6 @@ async function submit() {
 @media (prefers-reduced-motion: reduce) {
   .hero-cta {
     transition: none;
-  }
-  .hero-cta:hover {
-    transform: none;
   }
 }
 </style>

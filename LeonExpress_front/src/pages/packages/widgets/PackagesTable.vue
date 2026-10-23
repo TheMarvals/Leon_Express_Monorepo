@@ -4,14 +4,13 @@ import { Package } from '../types'
 import { PropType, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useUserStore } from '../../../stores/user-store'
+import ClientPackageActions from './ClientPackageActions.vue'
 
 const userStore = useUserStore()
 const router = useRouter()
 
 const columns = computed(() => {
-  const cols = [
-    { label: 'CÓDIGO DE SEGUIMIENTO', key: 'tracking_code', sortable: true },
-  ]
+  const cols = [{ label: 'CÓDIGO DE SEGUIMIENTO', key: 'tracking_code', sortable: true }]
   if (!userStore.isClient) {
     cols.push({ label: 'CLIENTE', key: 'client', sortable: true })
   }
@@ -30,6 +29,7 @@ defineProps({
 })
 
 const emit = defineEmits<{
+  (event: 'refresh'): void
   (event: 'edit-package', pkg: Package): void
   (event: 'delete-package', pkg: Package): void
   (event: 'open-change-modal', pkg: Package): void
@@ -128,6 +128,12 @@ const statusColors: Record<string, string> = {
     </template>
     <template #cell(actions)="{ rowData }">
       <div class="flex gap-1 justify-end items-center">
+        <ClientPackageActions
+          :pkg="rowData"
+          @saved="emit('refresh')"
+          @deleted="emit('refresh')"
+          @refresh="emit('refresh')"
+        />
         <VaButton
           preset="secondary"
           size="small"

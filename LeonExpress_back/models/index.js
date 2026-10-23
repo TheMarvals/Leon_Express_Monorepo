@@ -58,6 +58,12 @@ const Client = sequelize.define('Client', {
   },
 }, { tableName: 'clients', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
 
+const ClientLabelBranding = sequelize.define('ClientLabelBranding', {
+  client_id: { type: DataTypes.STRING(36), primaryKey: true },
+  logo_data_url: { type: DataTypes.TEXT('medium'), allowNull: false },
+}, { tableName: 'client_label_branding', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
+ClientLabelBranding.belongsTo(Client, { foreignKey: 'client_id', onDelete: 'CASCADE', as: 'client' });
+
 const VehicleType = sequelize.define('VehicleType', {
   type_id: { type: DataTypes.STRING(36), primaryKey: true },
   type_name: { type: DataTypes.STRING(50), allowNull: false, unique: true },
@@ -591,6 +597,7 @@ const db = {
   Warehouse,
   User,
   Client,
+  ClientLabelBranding,
   VehicleType,
   Vehicle,
   ClientPricing,

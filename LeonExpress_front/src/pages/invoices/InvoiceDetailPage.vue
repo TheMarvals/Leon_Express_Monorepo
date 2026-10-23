@@ -435,12 +435,7 @@ const printInvoice = () => {
   />
 
   <!-- Modal de Rechazo de Comprobante -->
-  <VaModal
-    v-model="showRejectModal"
-    title="Rechazar Comprobante de Pago"
-    hide-default-actions
-    size="small"
-  >
+  <VaModal v-model="showRejectModal" title="Rechazar Comprobante de Pago" hide-default-actions size="small">
     <div class="space-y-4">
       <p class="text-sm text-gray-600">
         Indica el motivo por el cual se rechaza el comprobante de pago presentado por el cliente.
@@ -455,12 +450,7 @@ const printInvoice = () => {
       />
       <div class="flex justify-end gap-2 pt-2">
         <VaButton preset="secondary" @click="showRejectModal = false">Cancelar</VaButton>
-        <VaButton
-          preset="primary"
-          color="danger"
-          :loading="processingPaymentId !== null"
-          @click="confirmRejectPayment"
-        >
+        <VaButton preset="primary" color="danger" :loading="processingPaymentId !== null" @click="confirmRejectPayment">
           Confirmar Rechazo
         </VaButton>
       </div>

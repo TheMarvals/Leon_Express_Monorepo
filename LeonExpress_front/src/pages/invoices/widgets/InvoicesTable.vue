@@ -135,11 +135,7 @@ const formatCurrency = (val: number) =>
           Informar Pago
         </VaButton>
 
-        <VaButton
-          preset="primary"
-          size="small"
-          :to="{ name: 'invoice-details', params: { id: rowData.invoice_id } }"
-        >
+        <VaButton preset="primary" size="small" :to="{ name: 'invoice-details', params: { id: rowData.invoice_id } }">
           Ver Detalles
         </VaButton>
       </div>

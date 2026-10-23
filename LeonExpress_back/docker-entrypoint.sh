@@ -223,6 +223,11 @@ run_pending_migrations() {
         mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" < "/app/migrations/20261022_prospects.sql"
     fi
 
+    if [ -f "/app/migrations/20261023_client_label_branding.sql" ]; then
+        echo "Preparando logos de clientes para etiquetas..."
+        mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" < "/app/migrations/20261023_client_label_branding.sql"
+    fi
+
     # --- Migración: Comprobantes de Pago y Estado EN_REVISION ---
     if [ -f "/app/migrations/20261021_invoice_payment_voucher.sql" ]; then
         echo "Aplicando migración de Comprobantes de Pago y Estado EN_REVISION..."

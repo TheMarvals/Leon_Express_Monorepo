@@ -15,7 +15,15 @@ console.log('DEBUG role:', role.value)
 
 <template>
   <component
-    :is="role === 'ADMIN' ? AdminDashboard : role === 'DRIVER' ? DriverDashboard : role === 'CLIENT' ? ClientDashboard : 'div'"
+    :is="
+      role === 'ADMIN'
+        ? AdminDashboard
+        : role === 'DRIVER'
+          ? DriverDashboard
+          : role === 'CLIENT'
+            ? ClientDashboard
+            : 'div'
+    "
     v-if="userId && role"
     :user-id="userId"
   />

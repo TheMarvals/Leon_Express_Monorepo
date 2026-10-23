@@ -154,6 +154,13 @@ const api = {
   deletePickup: (id: string) => axiosInstance.delete(`/pickups/${id}`),
 
   // --- Métodos de client ---
+  getMyLabelLogo: () => axiosInstance.get('/client-label'),
+  uploadMyLabelLogo: (file: File) => {
+    const data = new FormData()
+    data.append('logo', file)
+    return axiosInstance.put('/client-label', data)
+  },
+  deleteMyLabelLogo: () => axiosInstance.delete('/client-label'),
   getClientById: (id: string) => axiosInstance.get(`/clients/${id}`),
   getClients: (params: ApiListParams) => {
     return axiosInstance.get('/clients', { params: mapParams(params) })
@@ -191,6 +198,8 @@ const api = {
   updatePackageTracking: (id: string, externalTrackingCode: string) =>
     axiosInstance.patch(`/packages/${id}/tracking`, { external_tracking_code: externalTrackingCode }),
   deletePackage: (id: string) => axiosInstance.delete(`/packages/${id}`),
+  updateMyPendingPackage: (id: string, data: any) => axiosInstance.put(`/client-packages/${id}`, data),
+  deleteMyPendingPackage: (id: string) => axiosInstance.delete(`/client-packages/${id}`),
   postOcr: (imageBase64: string) => axiosInstance.post('/ocr', { image: imageBase64 }),
 
   // ---- Metodos routes ----

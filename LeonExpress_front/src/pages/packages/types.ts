@@ -42,6 +42,7 @@ export interface Package {
   client_id: string
   pickup_id: string
   status:
+    | 'PENDIENTE_RECOLECCION'
     | 'RECOLECTADO_EN_ORIGEN'
     | 'RECIBIDO_EN_ALMACEN'
     | 'ASIGNADO_A_RUTA'

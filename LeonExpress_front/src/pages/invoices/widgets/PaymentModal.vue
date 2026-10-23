@@ -137,27 +137,14 @@ const submit = async () => {
       <span v-if="isClient">
         Sube el comprobante de transferencia para que el equipo administrativo valide y concilie tu pago.
       </span>
-      <span v-else>
-        Registra el abono o pago total correspondiente a esta factura.
-      </span>
+      <span v-else> Registra el abono o pago total correspondiente a esta factura. </span>
     </div>
 
     <VaForm @submit.prevent="submit">
       <div class="space-y-4">
-        <VaInput
-          v-model="payment.amount"
-          label="Monto Pagado"
-          type="number"
-          step="any"
-          required
-        />
+        <VaInput v-model="payment.amount" label="Monto Pagado" type="number" step="any" required />
 
-        <VaInput
-          v-model="payment.payment_date"
-          label="Fecha de Pago"
-          type="date"
-          required
-        />
+        <VaInput v-model="payment.payment_date" label="Fecha de Pago" type="date" required />
 
         <VaSelect
           v-model="payment.payment_method"
@@ -187,12 +174,7 @@ const submit = async () => {
           />
 
           <div v-if="!selectedFile" class="flex items-center gap-2">
-            <VaButton
-              preset="secondary"
-              size="small"
-              icon="attach_file"
-              @click="fileInputRef?.click()"
-            >
+            <VaButton preset="secondary" size="small" icon="attach_file" @click="fileInputRef?.click()">
               Seleccionar Archivo (PDF o Imagen)
             </VaButton>
             <span class="text-xs text-gray-400">Máx. 10MB</span>
@@ -204,22 +186,11 @@ const submit = async () => {
               <span class="text-sm font-medium truncate">{{ selectedFile.name }}</span>
               <span class="text-xs text-gray-500">({{ (selectedFile.size / 1024).toFixed(1) }} KB)</span>
             </div>
-            <VaButton
-              preset="plain"
-              icon="close"
-              color="danger"
-              size="small"
-              @click="removeFile"
-            />
+            <VaButton preset="plain" icon="close" color="danger" size="small" @click="removeFile" />
           </div>
         </div>
 
-        <VaInput
-          v-model="payment.notes"
-          label="Notas Adicionales"
-          type="textarea"
-          :rows="2"
-        />
+        <VaInput v-model="payment.notes" label="Notas Adicionales" type="textarea" :rows="2" />
       </div>
 
       <div class="flex gap-2 mt-6 justify-end">

@@ -61,12 +61,21 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
           transaction
         });
 
-        if (pkg) {
-          await pkg.update({ pickup_id: pickup_id }, { transaction });
-        }
       }
 
+      // Buscar primero y bloquear después por PK, igual que la edición/eliminación
+      // del cliente. Releer evita usar una instancia borrada mientras esperábamos.
+      if (pkg) pkg = await Package.findByPk(pkg.package_id, { transaction, lock: transaction.LOCK.UPDATE });
       if (pkg) {
+        if (String(pkg.client_id) !== String(pickup.client_id) || (pkg.pickup_id && String(pkg.pickup_id) !== String(pickup_id))) {
+          throw Object.assign(new Error('El paquete ya no está disponible para esta recolección.'), { status: 409 });
+        }
+        if (!pkg.pickup_id) {
+          if (pkg.status !== 'PENDIENTE_RECOLECCION') {
+            throw Object.assign(new Error('El paquete ya no está pendiente de recolección.'), { status: 409 });
+          }
+          await pkg.update({ pickup_id }, { transaction });
+        }
         if (pkg.status !== 'PENDIENTE_RECOLECCION') {
            return { pkg, alreadyConfirmed: true };
         }

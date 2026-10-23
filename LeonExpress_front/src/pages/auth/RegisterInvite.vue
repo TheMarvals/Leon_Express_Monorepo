@@ -23,16 +23,16 @@
     <!-- Formulario de Activación de Cuenta -->
     <div v-else-if="invitation" class="space-y-4">
       <div>
-        <h1 class="text-2xl font-black text-gray-900 tracking-tight">
-          ¡Hola, {{ invitation.client_name }}!
-        </h1>
+        <h1 class="text-2xl font-black text-gray-900 tracking-tight">¡Hola, {{ invitation.client_name }}!</h1>
         <p class="text-xs text-gray-500 mt-1">
           Completa los datos de retiro para activar de inmediato tu portal y comenzar tus envíos.
         </p>
       </div>
 
       <!-- Resumen de Condiciones Acordadas -->
-      <div class="bg-gradient-to-br from-gray-50 to-emerald-50/30 border border-emerald-100 rounded-xl p-3.5 text-xs text-gray-700 space-y-1.5 shadow-sm">
+      <div
+        class="bg-gradient-to-br from-gray-50 to-emerald-50/30 border border-emerald-100 rounded-xl p-3.5 text-xs text-gray-700 space-y-1.5 shadow-sm"
+      >
         <div class="flex items-center justify-between">
           <span class="text-gray-500">Correo registrado:</span>
           <span class="font-bold text-gray-800 font-mono">{{ invitation.email }}</span>
@@ -52,7 +52,7 @@
       </div>
 
       <!-- Formulario de Activación -->
-      <VaForm ref="activationForm" @submit.prevent="submitActivation" class="space-y-3 pt-1">
+      <VaForm ref="activationForm" class="space-y-3 pt-1" @submit.prevent="submitActivation">
         <VaInput
           v-model="formData.phone"
           :rules="[validators.required]"

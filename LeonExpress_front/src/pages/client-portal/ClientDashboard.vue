@@ -20,9 +20,7 @@
     <!-- TARJETAS DE ESTADÍSTICAS -->
     <section class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       <VaCard class="flex flex-col gap-2">
-        <VaCardTitle class="uppercase text-secondary text-xs font-semibold">
-          En Preparación
-        </VaCardTitle>
+        <VaCardTitle class="uppercase text-secondary text-xs font-semibold"> En Preparación </VaCardTitle>
         <VaCardContent class="flex flex-col gap-1">
           <span class="text-2xl font-bold">{{ stats.pendingPickup }}</span>
           <span class="text-xs text-secondary">Pendientes de recolección</span>
@@ -30,9 +28,7 @@
       </VaCard>
 
       <VaCard class="flex flex-col gap-2">
-        <VaCardTitle class="uppercase text-secondary text-xs font-semibold">
-          En Tránsito
-        </VaCardTitle>
+        <VaCardTitle class="uppercase text-secondary text-xs font-semibold"> En Tránsito </VaCardTitle>
         <VaCardContent class="flex flex-col gap-1">
           <span class="text-2xl font-bold text-info">{{ stats.inTransit }}</span>
           <span class="text-xs text-secondary">En camino a destino</span>
@@ -40,9 +36,7 @@
       </VaCard>
 
       <VaCard class="flex flex-col gap-2">
-        <VaCardTitle class="uppercase text-secondary text-xs font-semibold">
-          Entregados
-        </VaCardTitle>
+        <VaCardTitle class="uppercase text-secondary text-xs font-semibold"> Entregados </VaCardTitle>
         <VaCardContent class="flex flex-col gap-1">
           <span class="text-2xl font-bold text-success">{{ stats.delivered }}</span>
           <span class="text-xs text-secondary">Entregas exitosas</span>
@@ -50,9 +44,7 @@
       </VaCard>
 
       <VaCard class="flex flex-col gap-2">
-        <VaCardTitle class="uppercase text-secondary text-xs font-semibold">
-          Mercado Libre
-        </VaCardTitle>
+        <VaCardTitle class="uppercase text-secondary text-xs font-semibold"> Mercado Libre </VaCardTitle>
         <VaCardContent class="flex flex-col gap-1">
           <div>
             <VaBadge
@@ -80,11 +72,7 @@
             >
               + Vincular ahora
             </VaButton>
-            <RouterLink
-              v-if="mlAccounts.length"
-              :to="{ name: 'mercadolibre' }"
-              class="text-xs text-primary mt-2 block"
-            >
+            <RouterLink v-if="mlAccounts.length" :to="{ name: 'mercadolibre' }" class="text-xs text-primary mt-2 block">
               Gestionar cuentas
             </RouterLink>
           </div>
@@ -97,22 +85,13 @@
       <VaCardTitle>Colectas solicitadas en proceso</VaCardTitle>
       <VaCardContent>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          <VaCard
-            v-for="p in activePickups"
-            :key="p.pickup_id"
-            outlined
-            class="p-3"
-          >
+          <VaCard v-for="p in activePickups" :key="p.pickup_id" outlined class="p-3">
             <div class="flex items-center justify-between mb-2">
               <span class="text-xs font-bold">Colecta #{{ p.pickup_id.substring(0, 8) }}</span>
               <VaBadge :text="p.status" color="warning" class="text-[10px]" />
             </div>
-            <p class="text-xs text-secondary">
-              Fecha: {{ formatDateTime(p.pickup_scheduled_date) }}
-            </p>
-            <p v-if="p.notes" class="text-xs text-secondary italic mt-1">
-              "{{ p.notes }}"
-            </p>
+            <p class="text-xs text-secondary">Fecha: {{ formatDateTime(p.pickup_scheduled_date) }}</p>
+            <p v-if="p.notes" class="text-xs text-secondary italic mt-1">"{{ p.notes }}"</p>
             <div class="mt-3 pt-2 border-t text-xs text-secondary flex items-center justify-between">
               <span>{{ p.packages?.length || 0 }} paquetes</span>
               <span>{{ p.user?.full_name ? 'Chofer: ' + p.user.full_name : 'Asignando chofer...' }}</span>
@@ -138,13 +117,7 @@
               <VaIcon name="search" size="small" color="secondary" />
             </template>
           </VaInput>
-          <VaButton
-            preset="secondary"
-            size="small"
-            icon="refresh"
-            :loading="isLoadingPackages"
-            @click="loadData"
-          />
+          <VaButton preset="secondary" size="small" icon="refresh" :loading="isLoadingPackages" @click="loadData" />
         </div>
       </VaCardTitle>
 
@@ -165,21 +138,12 @@
                 color="warning"
                 class="text-[10px] font-bold"
               />
-              <VaBadge
-                v-else
-                text="MANUAL"
-                color="secondary"
-                class="text-[10px] font-bold"
-              />
+              <VaBadge v-else text="MANUAL" color="secondary" class="text-[10px] font-bold" />
             </div>
           </template>
 
           <template #cell(status)="{ value }">
-            <VaBadge
-              :text="formatStatus(value)"
-              :color="statusColor(value)"
-              class="text-[11px] font-semibold"
-            />
+            <VaBadge :text="formatStatus(value)" :color="statusColor(value)" class="text-[11px] font-semibold" />
           </template>
 
           <template #cell(created_at)="{ value }">
@@ -188,6 +152,7 @@
 
           <template #cell(actions)="{ rowData }">
             <div class="flex items-center gap-1 justify-end">
+              <ClientPackageActions :pkg="rowData" @saved="loadData" @deleted="loadData" @refresh="loadData" />
               <VaButton
                 preset="secondary"
                 size="small"
@@ -200,8 +165,6 @@
         </VaDataTable>
       </VaCardContent>
     </VaCard>
-
-
   </div>
 </template>
 
@@ -212,6 +175,7 @@ import { useUserStore } from '@/stores/user-store'
 import { useToast } from 'vuestic-ui'
 import api from '@/services/api'
 import ManualPackageButton from '@/pages/packages/widgets/ManualPackageButton.vue'
+import ClientPackageActions from '@/pages/packages/widgets/ClientPackageActions.vue'
 import RequestPickupButton from '@/pages/pickups/widgets/RequestPickupButton.vue'
 
 const router = useRouter()
@@ -310,7 +274,9 @@ const loadData = async () => {
     // 2. Cargar colectas activas
     const resPickups = await api.getPickups({ perPage: 20 } as any)
     const pList = resPickups.data?.pickups || resPickups.data?.items || resPickups.data || []
-    activePickups.value = Array.isArray(pList) ? pList.filter((p: any) => p.status === 'SOLICITADA' || p.status === 'EN_PROCESO_RECOLECCION') : []
+    activePickups.value = Array.isArray(pList)
+      ? pList.filter((p: any) => p.status === 'SOLICITADA' || p.status === 'EN_PROCESO_RECOLECCION')
+      : []
 
     // 3. Cargar estado de cuenta ML
     try {

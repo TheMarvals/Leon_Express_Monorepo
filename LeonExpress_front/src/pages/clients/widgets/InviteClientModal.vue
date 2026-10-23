@@ -1,16 +1,12 @@
 <template>
-  <VaModal
-    v-model="isOpen"
-    title="Invitar Nuevo Cliente (Enlace Privado)"
-    hide-default-actions
-    size="medium"
-  >
+  <VaModal v-model="isOpen" title="Invitar Nuevo Cliente (Enlace Privado)" hide-default-actions size="medium">
     <div v-if="!createdInvitation" class="space-y-4 py-2">
       <p class="text-xs text-gray-500">
-        Crea un enlace único y privado para tu cliente con su tarifa base acordada. Podrás enviárselo por correo o copiar el enlace directo para WhatsApp.
+        Crea un enlace único y privado para tu cliente con su tarifa base acordada. Podrás enviárselo por correo o
+        copiar el enlace directo para WhatsApp.
       </p>
 
-      <VaForm ref="inviteForm" @submit.prevent="handleCreateInvite" class="space-y-3">
+      <VaForm ref="inviteForm" class="space-y-3" @submit.prevent="handleCreateInvite">
         <VaInput
           v-model="form.client_name"
           :rules="[validators.required]"
@@ -40,21 +36,13 @@
           />
 
           <div class="flex items-center pt-5">
-            <VaCheckbox
-              v-model="form.has_free_pickups"
-              label="Recolecciones Gratuitas (Free Pickups)"
-            />
+            <VaCheckbox v-model="form.has_free_pickups" label="Recolecciones Gratuitas (Free Pickups)" />
           </div>
         </div>
 
         <div class="flex justify-end gap-2 pt-4 border-t border-gray-100">
           <VaButton preset="secondary" @click="isOpen = false">Cancelar</VaButton>
-          <VaButton
-            color="#03323a"
-            class="font-bold"
-            :loading="isSubmitting"
-            @click="handleCreateInvite"
-          >
+          <VaButton color="#03323a" class="font-bold" :loading="isSubmitting" @click="handleCreateInvite">
             Generar y Enviar Invitación
           </VaButton>
         </div>
@@ -66,7 +54,9 @@
       <VaIcon name="check_circle" size="48px" color="success" class="mx-auto" />
       <h3 class="text-lg font-bold text-gray-800">¡Invitación Creada con Éxito!</h3>
       <p class="text-xs text-gray-500">
-        Se envió un correo de bienvenida automático a <strong>{{ createdInvitation.email }}</strong> con su tarifa de <strong>${{ Number(createdInvitation.base_price).toLocaleString('es-CL') }}</strong>.
+        Se envió un correo de bienvenida automático a <strong>{{ createdInvitation.email }}</strong> con su tarifa de
+        <strong>${{ Number(createdInvitation.base_price).toLocaleString('es-CL') }}</strong
+        >.
       </p>
 
       <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 text-left">
@@ -80,29 +70,17 @@
             :value="createdInvitation.invite_url"
             class="flex-1 bg-white border border-gray-300 rounded px-2.5 py-1.5 text-xs font-mono select-all text-gray-800"
           />
-          <VaButton
-            size="small"
-            color="#03323a"
-            icon="content_copy"
-            @click="copyLink"
-          >
+          <VaButton size="small" color="#03323a" icon="content_copy" @click="copyLink">
             {{ copied ? '¡Copiado!' : 'Copiar' }}
           </VaButton>
         </div>
       </div>
 
       <div class="flex justify-center gap-3 pt-3">
-        <VaButton
-          color="#25D366"
-          icon="share"
-          class="font-bold text-white shadow-sm"
-          @click="shareOnWhatsApp"
-        >
+        <VaButton color="#25D366" icon="share" class="font-bold text-white shadow-sm" @click="shareOnWhatsApp">
           Enviar por WhatsApp
         </VaButton>
-        <VaButton preset="secondary" @click="resetAndClose">
-          Finalizar
-        </VaButton>
+        <VaButton preset="secondary" @click="resetAndClose"> Finalizar </VaButton>
       </div>
     </div>
   </VaModal>
@@ -184,7 +162,7 @@ const copyLink = async () => {
 const shareOnWhatsApp = () => {
   if (!createdInvitation.value) return
   const msg = encodeURIComponent(
-    `¡Hola ${createdInvitation.value.client_name}! Te damos la bienvenida a León Express. Activa tu portal de cliente completando tus datos de retiro en el siguiente enlace:\n\n${createdInvitation.value.invite_url}`
+    `¡Hola ${createdInvitation.value.client_name}! Te damos la bienvenida a León Express. Activa tu portal de cliente completando tus datos de retiro en el siguiente enlace:\n\n${createdInvitation.value.invite_url}`,
   )
   window.open(`https://wa.me/?text=${msg}`, '_blank')
 }

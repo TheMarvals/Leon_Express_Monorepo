@@ -87,7 +87,7 @@ const onUserDelete = async (user: User) => {
             v-if="userStore.isAdmin"
             v-model="filters.archived"
             label="Ver archivados"
-            @update:model-value="filters.isActive = undefined"
+            @update:modelValue="filters.isActive = undefined"
           />
           <VaInput v-model="filters.search" placeholder="Buscar por nombre...">
             <template #prependInner>
@@ -112,7 +112,7 @@ const onUserDelete = async (user: User) => {
           @editUser="showModal"
           @deleteUser="onUserDelete"
           @reactivateUser="onUserReactivate"
-          @update:per-page="pagination.perPage = $event"
+          @update:perPage="pagination.perPage = $event"
         />
       </div>
     </VaCardContent>

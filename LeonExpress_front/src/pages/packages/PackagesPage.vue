@@ -160,6 +160,7 @@ const statusOptions = [
           @deletePackage="onPackageDelete"
           @openChangeModal="openChangeModal"
           @confirmReception="handleConfirmReception"
+          @refresh="fetch"
         />
       </div>
 

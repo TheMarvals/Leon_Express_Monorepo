@@ -6,6 +6,7 @@ import { Package, Delivery, DeliveryPhoto } from './types' // ✅ Asegúrate de 
 import { useToast } from 'vuestic-ui'
 import { useUserStore } from '../../stores/user-store'
 import DeliveryForm from './widgets/DeliveryForm.vue'
+import ClientPackageActions from './widgets/ClientPackageActions.vue'
 import { uploadBatchChunked } from '../../composables/useChunkedUpload'
 
 import VueEasyLightbox from 'vue-easy-lightbox' // ✅ NUEVO: Importar la librería Lightbox
@@ -454,12 +455,13 @@ const printThermalLabel = () => {
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
       <h1 class="page-title mb-0">Detalles del Paquete</h1>
       <div class="flex items-center gap-2">
-        <VaButton
-          preset="primary"
-          color="#03323a"
-          icon="print"
-          @click="printThermalLabel"
-        >
+        <ClientPackageActions
+          :pkg="pkg"
+          @saved="fetchData"
+          @refresh="fetchData"
+          @deleted="router.push({ name: 'packages' })"
+        />
+        <VaButton preset="primary" color="#03323a" icon="print" @click="printThermalLabel">
           Imprimir Etiqueta (100x150mm)
         </VaButton>
       </div>

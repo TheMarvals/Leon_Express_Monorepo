@@ -138,9 +138,9 @@ const onUserDelete = async (user: User) => {
       Resultados por página
       <VaSelect
         :model-value="pagination.perPage"
-        @update:model-value="$emit('update:perPage', $event)"
         class="!w-20"
         :options="[10, 50, 100]"
+        @update:modelValue="$emit('update:perPage', $event)"
       />
     </div>
   </div>

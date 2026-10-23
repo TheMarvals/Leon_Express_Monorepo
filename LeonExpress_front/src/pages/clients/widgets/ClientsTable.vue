@@ -120,9 +120,9 @@ const onClientDelete = async (client: Client) => {
       Resultados por página
       <VaSelect
         :model-value="pagination.perPage"
-        @update:model-value="$emit('update:per-page', $event)"
         class="!w-20"
         :options="[10, 50, 100]"
+        @update:modelValue="$emit('update:per-page', $event)"
       />
     </div>
   </div>

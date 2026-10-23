@@ -124,8 +124,8 @@ const beforeEditFormModalClose = async (hide: () => void) => {
           :pagination="pagination"
           @editClient="showEditClientModal"
           @deleteClient="onClientDelete"
-          @portal-access="showPortalAccess"
-          @update:per-page="pagination.perPage = $event"
+          @portalAccess="showPortalAccess"
+          @update:perPage="pagination.perPage = $event"
         />
       </div>
     </VaCardContent>

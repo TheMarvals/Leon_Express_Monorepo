@@ -9,6 +9,8 @@ const { Op } = require("sequelize");
 const { logAudit } = require("../utils/audit");
 const { generateUniqueTrackingCode } = require("../utils/uuidUtils");
 const roleValidator = require('../middlewares/roleValidator');
+const { ClientLabelBranding } = require('../models');
+const { validateLabelNotes } = require('../utils/labelNotes');
 const { queueNotificationForRole } = require('../utils/notificationService');
 
 const router = express.Router();
@@ -23,7 +25,7 @@ const validatePackage = [
   body("pickup_id").optional({ nullable: true }).isUUID(4).withMessage("ID de recolección inválido"),
   body("client_id").optional({ nullable: true }).isUUID(4).withMessage("ID de cliente inválido"),
   body("recipient_name").isString().notEmpty().withMessage("Nombre del destinatario es requerido"),
-  body("destination_address").isString().notEmpty().withMessage("Dirección de destino es requerida"),
+  body("destination_address").isString().notEmpty().withMessage("Dirección de destino es requerida").custom(validateLabelNotes),
   body("client_price").optional().isFloat({ min: 0 }).withMessage("Precio al cliente debe ser un número positivo"),
   body("delivery_cost").optional().isFloat({ min: 0 }).withMessage("Costo de entrega debe ser un número positivo"),
   body("scanned_at_origin_datetime").optional({ nullable: true }).isISO8601().toDate().withMessage("Fecha de escaneo inválida"),
@@ -1050,7 +1052,8 @@ router.get('/by-code/:trackingCode', authenticateToken, async (req, res) => {
     if (req.user.role === 'CLIENT' && String(pkg.client_id) !== String(req.user.client_id)) {
       return res.status(403).json({ error: 'No tienes permiso para ver este paquete' });
     }
-    res.json(pkg);
+    const branding = await ClientLabelBranding.findByPk(pkg.client_id);
+    res.json({ ...pkg.toJSON(), client_label_logo: branding?.logo_data_url || null });
   } catch (error) {
     console.error("Error al buscar paquete por código:", error);
     res.status(500).json({ error: 'Error interno del servidor' });

@@ -1,17 +1,39 @@
 <script setup lang="ts">
-import { ref, reactive, computed, nextTick } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vuestic-ui'
 import { useUserStore } from '@/stores/user-store'
 import api from '@/services/api'
-import QRCode from 'qrcode'
+import PackageShippingLabel from '@/components/labels/PackageShippingLabel.vue'
+import ClientLabelLogoButton from '@/components/labels/ClientLabelLogoButton.vue'
+import { MAX_LABEL_NOTES } from '@/components/labels/labelNotes'
 
 const emit = defineEmits<{ (event: 'created'): void }>()
 const router = useRouter()
 const userStore = useUserStore()
 const { init: notify } = useToast()
-const clientName = computed(() => userStore.user?.client?.client_name || userStore.user?.full_name || 'Cliente')
-const qrCanvasRef = ref<HTMLCanvasElement | null>(null)
+const labelReady = ref(false)
+const labelError = ref('')
+const loadingLabel = ref(false)
+const labelData = ref<any>(null)
+
+async function loadLabelPreview() {
+  if (!createdPackageForLabel.value?.tracking_code) return
+  loadingLabel.value = true
+  labelReady.value = false
+  labelError.value = ''
+  try {
+    labelData.value = (await api.getPackageByTrackingCode(createdPackageForLabel.value.tracking_code)).data
+  } catch (error: any) {
+    labelError.value = error.response?.data?.error || 'El envío está guardado, pero no se pudo cargar la etiqueta.'
+  } finally {
+    loadingLabel.value = false
+  }
+}
+function onLabelError(message: string) {
+  labelReady.value = false
+  labelError.value = message
+}
 
 // Modal Paquete Manual
 const showManualPackageModal = ref(false)
@@ -30,6 +52,10 @@ const manualForm = reactive({
 // Crear Paquete Manual
 const handleCreateManualPackage = async () => {
   if (isCreatingPackage.value || createdPackageForLabel.value) return
+  if (manualForm.notes.length > MAX_LABEL_NOTES) {
+    notify({ message: `Las observaciones admiten hasta ${MAX_LABEL_NOTES} caracteres.`, color: 'danger' })
+    return
+  }
   isCreatingPackage.value = true
   try {
     const fullAddress = manualForm.commune
@@ -47,30 +73,23 @@ const handleCreateManualPackage = async () => {
     })
 
     const newPkg = res.data?.package || res.data
-    createdPackageForLabel.value = {
-      ...newPkg,
-      commune: manualForm.commune,
-      recipient_name: manualForm.recipient_name,
-      recipient_phone: manualForm.recipient_phone,
-      destination_address: addressWithNotes,
-      is_cod: manualForm.is_cod,
-      cod_amount: manualForm.cod_amount,
-    }
+    createdPackageForLabel.value = newPkg
 
     notify({
       message: 'Paquete creado con éxito.',
       color: 'success',
     })
 
-    // Renderizar QR en canvas
-    await nextTick()
-    await renderQrCode(newPkg.tracking_code)
-
     emit('created')
+    await loadLabelPreview()
   } catch (error: any) {
     console.error('Error al crear paquete:', error)
     notify({
-      message: error.response?.data?.error || error.message || 'Error al crear el paquete.',
+      message:
+        error.response?.data?.error ||
+        error.response?.data?.errors?.[0]?.msg ||
+        error.message ||
+        'Error al crear el paquete.',
       color: 'danger',
     })
   } finally {
@@ -78,20 +97,12 @@ const handleCreateManualPackage = async () => {
   }
 }
 
-const renderQrCode = async (text: string) => {
-  const canvas = qrCanvasRef.value
-  if (canvas) {
-    await QRCode.toCanvas(canvas, text, {
-      width: 432,
-      margin: 4,
-      color: { dark: '#000000', light: '#ffffff' },
-    })
-  }
-}
-
 const resetManualPackageModal = () => {
   showManualPackageModal.value = false
   createdPackageForLabel.value = null
+  labelData.value = null
+  labelReady.value = false
+  labelError.value = ''
   manualForm.recipient_name = ''
   manualForm.recipient_phone = ''
   manualForm.destination_address = ''
@@ -113,6 +124,7 @@ const printCurrentLabel = () => {
 
 <template>
   <div class="manual-package-action">
+    <ClientLabelLogoButton v-if="userStore.isClient" />
     <VaButton color="#03323a" icon="add" @click="showManualPackageModal = true">Agregar envío manual</VaButton>
     <!-- MODAL CREAR ENVÍO MANUAL (CON ETIQUETA QR) -->
     <VaModal
@@ -172,9 +184,13 @@ const printCurrentLabel = () => {
           v-model="manualForm.notes"
           label="Notas del Envío (Opcional)"
           placeholder="Dejar en conserjería..."
+          :maxlength="MAX_LABEL_NOTES"
           rows="2"
           class="w-full"
         />
+        <p class="text-xs text-gray-500 text-right" aria-live="polite">
+          {{ manualForm.notes.length }}/{{ MAX_LABEL_NOTES }} caracteres
+        </p>
 
         <div class="flex justify-end gap-2 pt-4 border-t border-gray-100">
           <VaButton preset="secondary" :disabled="isCreatingPackage" @click="showManualPackageModal = false"
@@ -198,50 +214,17 @@ const printCurrentLabel = () => {
           ¡Paquete registrado exitosamente! Ya puedes imprimir la etiqueta térmica.
         </VaAlert>
 
-        <!-- Etiqueta Térmica Renderizada -->
-        <div
-          id="thermal-label-container"
-          class="border-2 border-dashed border-gray-400 p-4 rounded-xl bg-white max-w-sm mx-auto text-left shadow-sm"
-        >
-          <div class="flex justify-between items-center border-b-2 border-black pb-2 mb-2">
-            <div>
-              <h2 class="font-black text-xl tracking-tight text-black">LEÓN EXPRESS</h2>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-black">Envío Flex Express</span>
-            </div>
-            <span class="text-xs font-mono font-black border border-black px-1.5 py-0.5 rounded">
-              {{ createdPackageForLabel.commune || 'SANTIAGO' }}
-            </span>
-          </div>
-
-          <!-- QR Code Canvas -->
-          <div class="flex justify-center my-3">
-            <canvas ref="qrCanvasRef" class="w-36 h-36" />
-          </div>
-
-          <div class="text-center font-mono font-black text-lg tracking-widest border-b border-black pb-2">
-            {{ createdPackageForLabel.tracking_code }}
-          </div>
-
-          <div class="py-2 text-xs space-y-1 text-black border-b border-black">
-            <p><strong>Destinatario:</strong> {{ createdPackageForLabel.recipient_name }}</p>
-            <p v-if="createdPackageForLabel.recipient_phone">
-              <strong>Tel:</strong> {{ createdPackageForLabel.recipient_phone }}
-            </p>
-            <p><strong>Dirección:</strong> {{ createdPackageForLabel.destination_address }}</p>
-            <p v-if="createdPackageForLabel.is_cod" class="text-sm font-bold text-red-600 mt-1">
-              COBRAR AL ENTREGAR: ${{ Number(createdPackageForLabel.cod_amount).toLocaleString('es-CL') }}
-            </p>
-          </div>
-
-          <div class="pt-2 flex justify-between items-center text-[10px] text-gray-600 font-mono">
-            <span>Remitente: {{ clientName }}</span>
-            <span>{{ new Date().toLocaleDateString('es-CL') }}</span>
-          </div>
+        <p class="text-xs text-gray-500">Vista previa de impresión · 100 × 150 mm</p>
+        <p v-if="loadingLabel">Cargando etiqueta...</p>
+        <div v-else-if="labelError" role="alert">
+          <p class="text-danger">{{ labelError }}</p>
+          <VaButton preset="secondary" @click="loadLabelPreview">Volver a cargar etiqueta</VaButton>
         </div>
+        <PackageShippingLabel v-else-if="labelData" :pkg="labelData" @ready="labelReady = true" @error="onLabelError" />
 
         <div class="flex justify-center gap-3 pt-2">
           <VaButton preset="secondary" @click="resetManualPackageModal">Cerrar</VaButton>
-          <VaButton color="#03323a" icon="print" class="font-bold" @click="printCurrentLabel">
+          <VaButton color="#03323a" icon="print" class="font-bold" :disabled="!labelReady" @click="printCurrentLabel">
             Imprimir Etiqueta (100x150mm)
           </VaButton>
         </div>
@@ -255,5 +238,7 @@ const printCurrentLabel = () => {
   display: flex;
   justify-content: flex-end;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 </style>

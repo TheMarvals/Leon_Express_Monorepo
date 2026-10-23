@@ -143,7 +143,7 @@ for (const [code, scans] of [['48233839764', 4], ['48233999392', 2], ['482330797
 
 test('manual packages can be confirmed by internal tracking or external barcode', async (t) => {
   const fixture = await scanner(t);
-  fixture.packages.push({ package_id: 'manual-1', pickup_id: 'pickup-1', tracking_code: 'LE-MANUAL',
+  fixture.packages.push({ package_id: 'manual-1', client_id: 'client-1', pickup_id: 'pickup-1', tracking_code: 'LE-MANUAL',
     external_tracking_code: 'MANUAL-123', status: 'RECOLECTADO_EN_ORIGEN' });
   for (const code of ['LE-MANUAL', 'MANUAL-123']) {
     const result = await fixture.scan(code);
