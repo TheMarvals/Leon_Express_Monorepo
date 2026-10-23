@@ -4,10 +4,10 @@ const axios = require('axios');
 
 /**
  * URL base del Microservicio ML Gateway.
- * En Docker: http://ml-gateway:4200 (si están en la misma red)
- * En dev: http://localhost:4200
+ * Dominio canónico compartido con LeónImport y el servicio de vinculación.
+ * ML_GATEWAY_URL permite indicar una instancia local para desarrollo.
  */
-const GATEWAY_URL = process.env.ML_GATEWAY_URL || 'http://localhost:4200';
+const GATEWAY_URL = process.env.ML_GATEWAY_URL || 'https://gateway.leonexpress.cl';
 const API_KEY = process.env.ML_GATEWAY_API_KEY || 'le-ml-gateway-dev-key-2026';
 const APP_ID = 'leon-express';
 

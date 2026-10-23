@@ -11,14 +11,21 @@ Fecha: 2026-10-23.
 - La copia inicial y el delta final se conservaron en `/root/ml-gateway-migration-20261023/`, con permisos privados.
 - Se compararon los totales de las cuatro tablas y las huellas de todas las credenciales cifradas después de detener los escritores del origen. Las seis cuentas superaron `/users/me` en Mercado Libre desde el VPS.
 
-## Compatibilidad temporal
+## Dominio único y retirada del puente
 
-El callback registrado en Mercado Libre sigue siendo
-`https://gateway.themarvals.com/ml/auth/callback`. No cambiarlo sin actualizar también la configuración de la aplicación en Mercado Libre.
+León Express, LeónImport y el gateway deben utilizar únicamente
+`https://gateway.leonexpress.cl`. Las dos aplicaciones consumidoras ya usan ese dominio en producción.
+
+Para completar el cambio, registrar en la aplicación existente de Mercado Libre:
+
+- Redirect URI: `https://gateway.leonexpress.cl/ml/auth/callback`.
+- URL de notificaciones: `https://gateway.leonexpress.cl/ml/webhooks`.
+
+Conservar el mismo ID de aplicación, secretos y cuentas vinculadas. Después de confirmar esos ajustes, actualizar `ML_REDIRECT_URI` en Coolify y desplegar el gateway. La API consultada no permite administrar esa configuración de Mercado Libre (403); requiere acceso al panel del propietario.
 
 En `192.168.1.250`, el contenedor `ml-gateway` ahora es un proxy hacia el dominio nuevo. El anterior proceso Node quedó detenido como `ml-gateway-rollback-20261023`, con reinicio automático y autodespliegue desactivados. No iniciarlo contra la base antigua: sus tokens pueden haber sido renovados en el VPS.
 
-Para retirar esa dependencia, publicar también `gateway.themarvals.com` en el túnel Cloudflare del VPS, hacia `http://localhost:80`. Traefik ya acepta ambos nombres. Verificar `/api/health` y el flujo de vinculación antes de retirar el proxy. Los enlaces temporales siguen sujetos a su vencimiento habitual.
+No publicar ni conservar el dominio antiguo como alias permanente. Una vez verificados el nuevo callback y la recepción de notificaciones, detener el proxy, retirar el hostname antiguo de Traefik y eliminar su publicación/DNS en Cloudflare. Los enlaces emitidos con el dominio anterior dejarán de abrirse; generar nuevos enlaces de vinculación con el dominio canónico cuando sea necesario. Las cuentas ya vinculadas conservan sus tokens.
 
 Una reversión posterior requiere copiar los datos y tokens actuales del VPS al destino de reversión, con un único proceso encargado de renovar credenciales. La copia inicial por sí sola ya no garantiza tokens vigentes.
 
