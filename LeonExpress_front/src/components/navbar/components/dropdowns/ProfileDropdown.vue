@@ -14,23 +14,23 @@
         </VaButton>
       </template>
       <VaDropdownContent
-        class="profile-dropdown__content md:w-60 px-0 py-4 w-full"
+        class="profile-dropdown__content w-72 max-w-[calc(100vw-2rem)] px-0 py-3"
         :style="{ '--hover-color': hoverColor }"
       >
         <VaList v-for="group in options" :key="group.name">
           <header v-if="group.name" class="uppercase text-[var(--va-secondary)] opacity-80 font-bold text-xs px-4">
-            {{ t(`user.${group.name}`) }}
+            {{ group.name }}
           </header>
           <VaListItem
             v-for="item in group.list"
             :key="item.name"
-            class="menu-item px-4 text-base cursor-pointer h-8"
+            class="menu-item px-4 py-2 text-sm cursor-pointer"
             :class="{ 'text-danger': item.name === 'logout' }"
             v-bind="resolveLinkAttribute(item)"
             @click="handleItemClick(item)"
           >
             <FontAwesomeIcon :icon="item.icon" class="pr-1" style="color: var(--va-secondary)" />
-            {{ t(`user.${item.name}`) }}
+            {{ item.label }}
           </VaListItem>
           <VaListSeparator v-if="group.separator" class="mx-3 my-2" />
         </VaList>
@@ -41,99 +41,50 @@
 
 <script lang="ts" setup>
 import { ref, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { useColors, useToast } from 'vuestic-ui'
 import { useUserStore } from '@stores/user-store'
 const { colors, setHSLAColor } = useColors()
 const hoverColor = computed(() => setHSLAColor(colors.focus, { a: 0.1 }))
 
-const { t } = useI18n()
 const { init } = useToast()
 const userStore = useUserStore()
 
 const isShown = ref(false)
 
-import {
-  faUserCircle,
-  faFileInvoice,
-  faQuestionCircle,
-  faLifeRing,
-  faSignOutAlt,
-} from '@fortawesome/free-solid-svg-icons'
+import { faUserCircle, faFileInvoice, faSignOutAlt } from '@fortawesome/free-solid-svg-icons'
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 
 type ProfileListItem = {
   name: string
+  label: string
   to?: string
-  href?: string
-  icon: any
+  icon: IconDefinition
 }
 
-type ProfileOptions = {
-  name: string
-  separator: boolean
-  list: ProfileListItem[]
-}
-
-withDefaults(
-  defineProps<{
-    options?: ProfileOptions[]
-  }>(),
-  {
-    options: () => [
-      {
-        name: 'account',
-        separator: true,
-        list: [
-          {
-            name: 'profile',
-            to: 'preferences',
-            icon: faUserCircle,
-          },
-          {
-            name: 'billing',
-            to: 'billing',
-            icon: faFileInvoice,
-          },
-        ],
-      },
-      {
-        name: 'explore',
-        separator: true,
-        list: [
-          {
-            name: 'faq',
-            to: 'faq',
-            icon: faQuestionCircle,
-          },
-          {
-            name: 'helpAndSupport',
-            href: 'https://discord.gg/u7fQdqQt8c',
-            icon: faLifeRing,
-          },
-        ],
-      },
-      {
-        name: '',
-        separator: false,
-        list: [
-          {
-            name: 'logout',
-            icon: faSignOutAlt,
-          },
-        ],
-      },
-    ],
-  },
-)
-
-const resolveLinkAttribute = (item: ProfileListItem) => {
-  if (item.name === 'logout') {
-    return {}
+const options = computed(() => {
+  const accountItems: ProfileListItem[] = []
+  // Client access uses OTP; customer service has a restricted operational area.
+  if (!userStore.isClient && userStore.user?.role !== 'CUSTOMER_SERVICE') {
+    accountItems.push({ name: 'profile', label: 'Mi perfil', to: 'preferences', icon: faUserCircle })
   }
-  return item.to ? { to: { name: item.to } } : item.href ? { href: item.href, target: '_blank' } : {}
-}
+  if (userStore.isAdmin) {
+    accountItems.push({ name: 'billing', label: 'Administración financiera', to: 'billing', icon: faFileInvoice })
+  }
+
+  return [
+    ...(accountItems.length ? [{ name: 'Mi cuenta', separator: true, list: accountItems }] : []),
+    {
+      name: '',
+      separator: false,
+      list: [{ name: 'logout', label: 'Cerrar sesión', icon: faSignOutAlt }],
+    },
+  ]
+})
+
+const resolveLinkAttribute = (item: ProfileListItem) => (item.to ? { to: { name: item.to } } : {})
 
 const handleItemClick = (item: ProfileListItem) => {
+  isShown.value = false
   if (item.name === 'logout') {
     const loginPath = userStore.isClient ? '/portal/login' : '/auth/login'
     userStore.logout()
@@ -143,7 +94,6 @@ const handleItemClick = (item: ProfileListItem) => {
     })
     // Forzar reload para limpiar cualquier estado residual
     window.location.href = loginPath
-    isShown.value = false
   }
 }
 </script>
