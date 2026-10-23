@@ -71,22 +71,28 @@ function createService({ request, excludedIds, now = Date.now, ttl = 60000, conc
   function start(account, force = false) {
     const id = String(account.ml_account_id);
     const previous = snapshots.get(id);
-    if (previous?.loading || (!force && previous && now() - previous.finished < ttl)) return previous;
-    const snapshot = { rows: [], previousRows: previous?.rows || [], loading: true, finished: 0, error: null, scanned: 0 };
+    if (previous?.loading || (!force && previous && !previous.stale && now() - previous.finished < ttl)) return previous;
+    const snapshot = { rows: [], previousRows: previous?.rows || [], previousComplete: previous?.hasComplete || false, hasComplete: false, loading: true, finished: 0, lastAccess: now(), error: null, scanned: 0 };
     snapshots.set(id, snapshot);
     snapshot.promise = build(account, snapshot)
+      .then(() => { snapshot.hasComplete = true; })
       .catch(() => { snapshot.error = 'No se pudo completar la consulta de Mercado Libre. Reintenta la actualización.'; })
       .finally(() => {
         snapshot.loading = false; snapshot.finished = now(); snapshot.previousRows = [];
-        const expiry = setTimeout(() => { if (snapshots.get(id) === snapshot) snapshots.delete(id); }, ttl * 2);
-        expiry.unref?.();
+        const expireWhenIdle = () => {
+          if (snapshots.get(id) !== snapshot) return;
+          const remaining = ttl * 2 - (now() - snapshot.lastAccess);
+          if (remaining <= 0) snapshots.delete(id);
+          else { const timer = setTimeout(expireWhenIdle, remaining); timer.unref?.(); }
+        };
+        const timer = setTimeout(expireWhenIdle, ttl * 2); timer.unref?.();
       });
     return snapshot;
   }
 
   async function list(accounts, params = {}) {
     const search = String(params.search || '').trim();
-    let rows, refreshing = false, errors = [];
+    let rows, refreshing = false, complete = true, errors = [];
     if (/^\d+$/.test(search)) {
       rows = [];
       for (const account of accounts) {
@@ -95,10 +101,15 @@ function createService({ request, excludedIds, now = Date.now, ttl = 60000, conc
       }
     } else {
       // Drop snapshots of accounts no longer accessible, and never retain idle data indefinitely.
-      for (const [id, snapshot] of snapshots) if (!snapshot.loading && now() - snapshot.finished > ttl * 2) snapshots.delete(id);
-      const states = accounts.map(account => start(account));
-      rows = states.flatMap(state => state.loading && state.previousRows.length ? state.previousRows : state.rows);
+      for (const [id, snapshot] of snapshots) if (!snapshot.loading && now() - snapshot.lastAccess > ttl * 2) snapshots.delete(id);
+      // Finish a selected group before restarting its faster accounts. Otherwise frequent
+      // events/short TTLs can prevent a multi-account list from ever completing.
+      const groupLoading = accounts.some(account => snapshots.get(String(account.ml_account_id))?.loading);
+      const states = accounts.map(account => (groupLoading && snapshots.get(String(account.ml_account_id))) || start(account));
+      for (const state of states) state.lastAccess = now();
+      rows = states.flatMap(state => state.loading && state.previousComplete ? state.previousRows : state.rows);
       refreshing = states.some(state => state.loading);
+      complete = states.every(state => state.loading ? state.previousComplete : state.hasComplete);
       errors = states.flatMap((state, i) => state.error ? [{ ml_account_id: accounts[i].ml_account_id, message: state.error }] : []);
     }
     const excluded = await excludedIds(rows.map(ship => ship.ml_shipment_external_id));
@@ -107,12 +118,12 @@ function createService({ request, excludedIds, now = Date.now, ttl = 60000, conc
     rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || a.ml_shipment_id.localeCompare(b.ml_shipment_id));
     const offset = Math.max(0, Math.floor(Number(params.offset) || 0));
     const limit = Math.max(1, Math.min(200, Math.floor(Number(params.limit) || 50)));
-    return { total: rows.length, shipments: rows.slice(offset, offset + limit), refreshing, complete: !refreshing && !errors.length, errors };
+    return { total: rows.length, shipments: rows.slice(offset, offset + limit), refreshing, complete: complete && !errors.length, errors };
   }
 
   function invalidate(accountId) {
     const snapshot = snapshots.get(String(accountId));
-    if (snapshot && !snapshot.loading) snapshots.delete(String(accountId));
+    if (snapshot) snapshot.stale = true;
   }
   return { list, detail, start, invalidate };
 }

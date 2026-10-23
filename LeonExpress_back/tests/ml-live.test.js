@@ -57,3 +57,25 @@ test('a failed page does not silently report complete results, and simultaneous 
   assert.equal(a, b); await a.promise; assert.equal(searches, 1);
   assert.equal((await service.list([account])).complete, false);
 });
+
+test('events retain a completed snapshot while refreshing and do not restart fast accounts ahead of slow ones', async () => {
+  let release, queries = 0, blocked = false;
+  const service = createService({ excludedIds: async () => new Set(), request: async (a, m, path) => {
+    if (path === '/orders/search') {
+      queries++;
+      if (blocked && a.ml_account_id === 'slow') await new Promise(resolve => { release = resolve; });
+      return { results: [{ id: '9123', seller: { id: 'seller' }, shipping: { id: 123 } }], paging: { total: 1 } };
+    }
+    if (path === '/shipments/123') return ship(123);
+    return [];
+  } });
+  const slow = { ...account, ml_account_id: 'slow' };
+  await Promise.all([service.start(account).promise, service.start(slow).promise]);
+  service.invalidate('a'); service.invalidate('slow'); blocked = true;
+  const during = await service.list([account, slow]);
+  assert.equal(during.total, 2); assert.equal(during.complete, true); assert.equal(during.refreshing, true);
+  await service.start(account).promise; service.invalidate('a');
+  const before = queries; const still = await service.list([account, slow]);
+  assert.equal(queries, before); assert.equal(still.total, 2);
+  release(); await service.start(slow).promise;
+});
