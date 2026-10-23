@@ -34,3 +34,5 @@ ssh_key/
 
 !LeonExpress_back/migrations/20261022_prospects.sql
 !LeonExpress_back/migrations/20261023_client_label_branding.sql
+
+!LeonExpress_back/migrations/20261023_ml_imports.sql

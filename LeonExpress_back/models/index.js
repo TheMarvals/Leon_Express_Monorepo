@@ -5,6 +5,16 @@ const sequelize = require('../config/database'); // Ajusta la ruta a tu configur
 
 // --- DEFINICIÓN DE MODELOS ---
 
+const MlImport = sequelize.define('MlImport', {
+  external_id: { type: DataTypes.STRING(32), primaryKey: true },
+  ml_account_id: { type: DataTypes.STRING(36), allowNull: false },
+  legacy_shipment_id: { type: DataTypes.STRING(36), unique: true },
+  package_id: { type: DataTypes.STRING(36) },
+  disposition: { type: DataTypes.STRING(16), allowNull: false, defaultValue: 'imported' },
+  imported_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+}, { tableName: 'ml_imports', timestamps: false });
+
+
 const Role = sequelize.define('Role', {
   role_id: { type: DataTypes.STRING(36), primaryKey: true },
   role_name: { type: DataTypes.STRING(50), allowNull: false, unique: true },
@@ -593,6 +603,7 @@ OcrProcessingQueue.hasMany(OcrCorrection, { foreignKey: 'queue_id', as: 'correct
 
 // --- EXPORTACIÓN DE MODELOS ---
 const db = {
+  MlImport,
   Role,
   Warehouse,
   User,

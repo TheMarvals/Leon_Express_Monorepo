@@ -8,7 +8,7 @@ const { recipientFromShipment, missingContactPatch } = require('../utils/mlRecip
 const { applyContact } = require('../services/mlRecipientService');
 function service(gateway) {
   const file=path.resolve(__dirname,'../services/mlRecipientService.js'), original=createRequire(file),module={exports:{}};
-  vm.runInNewContext(fs.readFileSync(file,'utf8'),{module,console,require:id=>id==='./mlGatewayClient'?gateway:original(id)});
+  vm.runInNewContext(fs.readFileSync(file,'utf8'),{module,console,require:id=>id==='./mlLiveShipments'?gateway:original(id)});
   return module.exports;
 }
 const original = { ml_shipment_external_id:'123',ml_account_id:'a',buyer_name:'XXXXXXX',buyer_phone:'XXXXXXX',buyer_address:'XXXXXXX' };

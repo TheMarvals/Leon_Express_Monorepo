@@ -25,9 +25,12 @@ const gatewayApi = axios.create({
 });
 
 module.exports = {
-  async refreshShipmentDetails(externalId, accountId) {
-    const response = await gatewayApi.post(`/api/shipments/external/${encodeURIComponent(externalId)}/refresh-details`, { ml_account_id: accountId });
-    return response.data.shipment;
+  async getAccountToken(accountId, rejectedToken) {
+    const path = `/api/accounts/${encodeURIComponent(accountId)}/token`;
+    const response = rejectedToken
+      ? await gatewayApi.post(`${path}/refresh`, { rejected_token: rejectedToken })
+      : await gatewayApi.get(path);
+    return response.data;
   },
   /**
    * Obtiene todas las cuentas vinculadas
@@ -63,74 +66,6 @@ module.exports = {
       return { ...link, url }; // { token_id, token, url, expires_at }
     } catch (error) {
       console.error('[ML Client] Error generateLink:', error.message);
-      throw error;
-    }
-  },
-
-  /**
-   * Cuentas las recíprocamente importables
-   */
-  async getPendingShipmentsCount(accountId = null) {
-    try {
-      const params = accountId ? { ml_account_id: accountId } : {};
-      const response = await gatewayApi.get('/api/shipments/pending/count', { params });
-      return response.data.count || 0;
-    } catch (error) {
-      console.error('[ML Client] Error getPendingShipmentsCount:', error.message);
-      throw error;
-    }
-  },
-
-  /**
-   * Obtiene la lista completa o paginada de envíos a la espera de ser procesados por LE
-   */
-  async getPendingShipments(params = {}) {
-    try {
-      const response = await gatewayApi.get('/api/shipments/pending', { params });
-      return response.data; // { total, shipments: [] }
-    } catch (error) {
-      console.error('[ML Client] Error getPendingShipments:', error.message);
-      throw error;
-    }
-  },
-
-  /**
-   * Marca en el microservicio el envío como completado para que no se duplique
-   */
-  async markShipmentAsImported(shipmentId, packageIdRef) {
-    try {
-      const response = await gatewayApi.post(`/api/shipments/${shipmentId}/mark-imported`, {
-        reference_id: packageIdRef,
-      });
-      return response.data;
-    } catch (error) {
-      console.error('[ML Client] Error markShipmentAsImported:', error.message);
-      throw error;
-    }
-  },
-
-  /**
-   * Fuerza el ciclo de auto-sync de una cuenta (bypass del CronJob)
-   */
-  async forceSyncNow(accountId) {
-    try {
-      const response = await gatewayApi.post(`/api/accounts/${accountId}/sync-now`);
-      return response.data;
-    } catch (error) {
-      console.error('[ML Client] Error forceSyncNow:', error.message);
-      throw error;
-    }
-  },
-
-  /**
-   * Fuerza el ciclo de auto-sync de todas las cuentas activas (bypass del CronJob)
-   */
-  async syncAll() {
-    try {
-      const response = await gatewayApi.post(`/api/accounts/sync-all`);
-      return response.data;
-    } catch (error) {
-      console.error('[ML Client] Error syncAll:', error.message);
       throw error;
     }
   },

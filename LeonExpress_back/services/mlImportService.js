@@ -6,41 +6,56 @@ const path = require('path');
 const QRCode = require('qrcode');
 const { Pickup, Package, Client, ClientPricing, OcrProcessingQueue, sequelize } = require('../models');
 const { generateUniqueTrackingCode } = require('../utils/uuidUtils');
-const mlGatewayClient = require('./mlGatewayClient');
 const mlAccountAccess = require('./mlAccountAccessService');
+const mlLive = require('./mlLiveShipments');
+const ledger = require('./mlImportLedger');
+const { importable } = require('../utils/mlImportPolicy');
 
 /**
  * Importa envíos específicos y los inserta como paquetes (Packages) dentro de
  * una recolección (Pickup) ya existente.
  * 
- * @param {Array<string>} shipmentIds Array con los IDs en el Gateway (`ml_shipment_id`)
+ * @param {Array<string>} shipmentIds Identidades estables cuenta:envío de Mercado Libre
  * @param {string} targetPickupId UUID del Pickup existente al que se van a agregar
  * @param {string} adminUserId UUID del administrador orquestando
  */
 async function importShipments(shipmentIds, targetPickupId, adminUserId) {
+  if (!Array.isArray(shipmentIds) || !shipmentIds.length || shipmentIds.length > 200) {
+    throw Object.assign(new Error('Selecciona entre 1 y 200 envíos.'), { status: 400 });
+  }
+  const initialPickup = await Pickup.findByPk(targetPickupId);
+  if (!initialPickup) throw Object.assign(new Error('Recolección no encontrada.'), { status: 404 });
+  const accounts = await mlAccountAccess.getAccounts();
+  const accountById = new Map(accounts.map(account => [String(account.ml_account_id), account]));
+  // Resolve the exact selection, independently of pagination. Always reread ML before importing.
+  const targetShipments = [];
+  for (const key of [...new Set(shipmentIds)]) {
+    const parts = typeof key === 'string' ? key.split(':') : [];
+    const account = accountById.get(parts[0]);
+    if (parts.length !== 2 || !/^\d{1,20}$/.test(parts[1])) {
+      throw Object.assign(new Error('Actualiza la lista de envíos antes de importar.'), { status: 400 });
+    }
+    if (!account || String(account.client_id) !== String(initialPickup.client_id)) {
+      throw Object.assign(new Error('El envío no pertenece al cliente de la recolección.'), { status: 403 });
+    }
+    const ship = await mlLive.detail(account, parts[1]);
+    if (!importable(ship)) throw Object.assign(new Error('El envío ya no está disponible para recolectar.'), { status: 409 });
+    targetShipments.push(await require('./mlRecipientService').prepareShipment(ship));
+  }
   const t = await sequelize.transaction();
   
   try {
     // 1. Validar el Pickup de destino
-    const targetPickup = await Pickup.findOne({ where: { pickup_id: targetPickupId }, transaction: t });
+    const targetPickup = await Pickup.findOne({ where: { pickup_id: targetPickupId }, transaction: t, lock: t.LOCK.UPDATE });
     if (!targetPickup) {
       throw new Error(`El Pickup de destino no existe: ${targetPickupId}`);
     }
-
-    // 2. Obtener la data de los shipments desde el Gateway
-    const { shipments } = await mlAccountAccess.getPendingShipments({ limit: 200 });
-    
-    // Filtrar los shipments que nos pidieron importar
-    const targetShipments = shipments.filter(s => shipmentIds.includes(s.ml_shipment_id));
-    
-    if (targetShipments.length === 0) {
-      throw new Error("No se encontraron envíos con los IDs proporcionados en la lista de pendientes del Gateway");
+    if (!['SOLICITADA', 'ASIGNADO_A_RECOLECTOR', 'EN_PROCESO_RECOLECCION'].includes(targetPickup.status)) {
+      throw Object.assign(new Error('La recolección ya está cerrada.'), { status: 409 });
     }
 
     // El cliente de LE asociado al Pickup
     const clientId = targetPickup.client_id;
-    const accessibleAccounts = await mlAccountAccess.getAccounts();
-    const accountById = new Map(accessibleAccounts.map(account => [String(account.ml_account_id), account]));
     const invalidShipment = targetShipments.find(ship =>
       String(accountById.get(String(ship.ml_account_id))?.client_id) !== String(clientId),
     );
@@ -58,12 +73,13 @@ async function importShipments(shipmentIds, targetPickupId, adminUserId) {
     const packageRefs = [];
 
     // 3. Generar los Paquetes bajo ese Pickup
-    for (const original of targetShipments) {
-      const ship = await require('./mlRecipientService').prepareShipment(original);
+    for (const ship of targetShipments.sort((a, b) => a.ml_shipment_external_id.localeCompare(b.ml_shipment_external_id))) {
       const trackingCode = await generateUniqueTrackingCode();
+      const packageId = uuidv4();
+      await ledger.claim(ship, packageId, t);
 
       const newPackage = await Package.create({
-        package_id: uuidv4(),
+        package_id: packageId,
         tracking_code: trackingCode,
         external_tracking_code: String(ship.ml_shipment_external_id),
         pickup_id: targetPickupId,
@@ -125,11 +141,6 @@ async function importShipments(shipmentIds, targetPickupId, adminUserId) {
         package_id: newPackage.package_id,
         tracking_code: trackingCode
       });
-    }
-
-    // 4. Notificar al Gateway que estos shipments han sido procesados.
-    for (const ref of packageRefs) {
-      await mlGatewayClient.markShipmentAsImported(ref.shipment_id, ref.package_id);
     }
 
     await t.commit();

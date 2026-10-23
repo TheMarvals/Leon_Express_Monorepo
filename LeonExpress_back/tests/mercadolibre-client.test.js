@@ -23,6 +23,7 @@ async function fixture(t, options = {}) {
   };
   const access = {
     getAccounts: async () => { if (options.gatewayFailure) throw Error('Gateway unavailable'); return accounts; },
+    refreshAccount: gateway.forceSyncNow,
     excludeAccount: async id => calls.excluded.push(id),
   };
   const filename = path.resolve(__dirname, '../routes/mercadolibre.js');

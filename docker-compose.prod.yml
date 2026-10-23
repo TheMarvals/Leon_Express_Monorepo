@@ -46,6 +46,7 @@ services:
       - ML_GATEWAY_URL=${ML_GATEWAY_URL:-https://gateway.leonexpress.cl}
       - FRONTEND_URL=${FRONTEND_URL:-}
       - ML_GATEWAY_API_KEY=${ML_GATEWAY_API_KEY}
+      - INTERNAL_WEBHOOK_TOKEN=${INTERNAL_WEBHOOK_TOKEN}
     expose:
       - "4100"
     volumes:

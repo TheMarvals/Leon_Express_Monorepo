@@ -51,7 +51,13 @@ const mercadolibreService = {
     limit?: number
     offset?: number
     search?: string
-  }): Promise<{ total: number; shipments: MlPendingShipment[] }> {
+  }): Promise<{
+    total: number
+    shipments: MlPendingShipment[]
+    refreshing?: boolean
+    complete?: boolean
+    errors?: { message: string }[]
+  }> {
     const response = await apiClient.get('/mercadolibre/shipments/pending', { params })
     // Normalise: el gateway devuelve { total, shipments }
     if (Array.isArray(response.data)) {
@@ -60,6 +66,9 @@ const mercadolibreService = {
     return {
       total: response.data.total ?? response.data.shipments?.length ?? 0,
       shipments: response.data.shipments ?? response.data,
+      refreshing: response.data.refreshing === true,
+      complete: response.data.complete !== false,
+      errors: response.data.errors || [],
     }
   },
 

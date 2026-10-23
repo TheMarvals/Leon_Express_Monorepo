@@ -6,7 +6,7 @@ async function prepareShipment(ship) {
   let contact = recipientFromShipment(result);
   if (!contact.recipient_name || !contact.destination_address || !contact.recipient_phone) {
     try {
-      const refreshed = await require('./mlGatewayClient').refreshShipmentDetails(ship.ml_shipment_external_id, ship.ml_account_id);
+      const refreshed = await require('./mlLiveShipments').refreshShipmentDetails(ship.ml_shipment_external_id, ship.ml_account_id);
       if (String(refreshed.ml_shipment_external_id) !== String(ship.ml_shipment_external_id) || String(refreshed.ml_account_id) !== String(ship.ml_account_id)) throw Object.assign(new Error('Envío incompatible'), { code: 'ML_SOURCE_MISMATCH', status: 403 });
       result = refreshed;
       contact = recipientFromShipment(result);
@@ -40,7 +40,7 @@ async function reconcileRecipients({ dryRun = false, limit = 100, models, gatewa
   if (running) return { skipped: true };
   running = true;
   try {
-    models ||= require('../models'); gateway ||= require('./mlGatewayClient'); access ||= require('./mlAccountAccessService');
+    models ||= require('../models'); gateway ||= require('./mlLiveShipments'); access ||= require('./mlAccountAccessService');
     const { Op } = require('sequelize');
     const accounts = await access.getAccounts();
     const clients = [...new Set(accounts.map(a => String(a.client_id)))];
@@ -58,7 +58,7 @@ async function reconcileRecipients({ dryRun = false, limit = 100, models, gatewa
           if (fields.length) result.updated++;
           break;
         } catch (error) {
-          if (error.response?.status !== 404) { result.failed++; break; }
+          if (![403, 404].includes(error.response?.status || error.status)) { result.failed++; break; }
         }
       }
     }

@@ -40,6 +40,9 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
     }
 
     const confirmation = await withPickupPackageLock(pickup_id, async (pickup, transaction) => {
+      if (req.user.role === 'DRIVER' && String(pickup.user_id) !== String(req.user.user_id)) {
+        throw Object.assign(new Error('La recolección no está asignada a este conductor.'), { status: 403 });
+      }
       // Recheck after locking: simultaneous scans must see the first committed package.
       let pkg = await Package.findOne({
         where: {
@@ -93,30 +96,26 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
           throw error;
         }
 
-        const mlGatewayClient = require('../services/mlGatewayClient');
         const mlAccountAccess = require('../services/mlAccountAccessService');
-
-        // Consultamos el banco de ML buscando este tracking
-        const pendingData = await mlGatewayClient.getPendingShipments({ search: ml_code });
-
-        if (!pendingData || !pendingData.shipments || pendingData.shipments.length === 0) {
-          throw Object.assign(new Error('El paquete no se encuentra disponible en MercadoLibre.'), { status: 404, allowPhoto: true });
-        }
-
-        // Buscar coincidencia exacta (la API de gateway puede retornar coincidencias parciales con LIKE)
-        let shipment = pendingData.shipments.find(s => String(s.ml_shipment_external_id) === String(ml_code));
-        if (!shipment) {
-          throw Object.assign(new Error('El paquete no está disponible (quizás ya fue cancelado o importado).'), { status: 404, allowPhoto: true });
-        }
-
-        // Validar que la cuenta de ML dueña del paquete le pertenezca al cliente del Pickup
+        const mlLive = require('../services/mlLiveShipments');
+        const { importable } = require('../utils/mlImportPolicy');
         const accessibleAccounts = await mlAccountAccess.getAccounts();
-        const clientAccounts = accessibleAccounts
-          .filter(a => String(a.client_id) === String(pickup.client_id))
-          .map(a => String(a.ml_account_id));
-
-        if (!clientAccounts.includes(String(shipment.ml_account_id))) {
-          throw Object.assign(new Error('Este paquete pertenece a otro cliente distinto al de esta recolección.'), { status: 403 });
+        const clientAccounts = accessibleAccounts.filter(a => String(a.client_id) === String(pickup.client_id));
+        if (!clientAccounts.length) throw Object.assign(new Error('El cliente no tiene una cuenta de Mercado Libre vinculada.'), { status: 403 });
+        let shipment;
+        let forbidden = false;
+        for (const account of clientAccounts) {
+          try {
+            shipment = await mlLive.detail(account, ml_code);
+            break;
+          } catch (error) {
+            if ((error.response?.status || error.status) === 403) forbidden = true;
+            if (![403, 404].includes(error.response?.status || error.status)) throw error;
+          }
+        }
+        if (!shipment && forbidden) throw Object.assign(new Error('El envío no pertenece a las cuentas de este cliente.'), { status: 403 });
+        if (!shipment || !importable(shipment)) {
+          throw Object.assign(new Error('El envío no está disponible para recolectar con las cuentas de este cliente.'), { status: 404, allowPhoto: true });
         }
 
         shipment = await require('../services/mlRecipientService').prepareShipment(shipment);
@@ -134,6 +133,7 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
         const clientPrice = pricing ? parseFloat(pricing.base_price) : 0.00;
 
 
+        await require('../services/mlImportLedger').claim(shipment, newPackageId, transaction);
         pkg = await Package.create({
           package_id: newPackageId,
           tracking_code: trackingCode,
@@ -152,14 +152,6 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
           updated_at: new Date()
         }, { transaction });
 
-        // Notificamos al ML Gateway que este envío ya fue consumido
-        transaction.afterCommit(async () => {
-          try {
-            await mlGatewayClient.markShipmentAsImported(shipment.ml_shipment_id, newPackageId);
-          } catch (error) {
-            console.error('No se pudo notificar la importación al gateway ML:', error.message);
-          }
-        });
         console.log(`✅ [ML-CONFIRM] Paquete ${ml_code} auto-importado exitosamente al vuelo.`);
       }
 

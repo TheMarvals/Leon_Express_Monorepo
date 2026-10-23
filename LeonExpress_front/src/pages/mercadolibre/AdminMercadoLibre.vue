@@ -15,6 +15,10 @@ const availableAccounts = ref<MlAccount[]>([])
 const pendingShipments = ref<MlPendingShipment[]>([])
 const totalShipments = ref(0)
 const isLoading = ref(false)
+const refreshingFromML = ref(false)
+const resultsComplete = ref(true)
+const queryError = ref('')
+let fetchVersion = 0
 
 // Selectors / Modal states
 const showImportModal = ref(false)
@@ -139,6 +143,7 @@ const formatAddress = (rawJson: string) => {
 
 // === Data Fetching ===
 async function fetchShipments() {
+  const version = ++fetchVersion
   isLoading.value = true
   try {
     const params: Record<string, any> = {
@@ -149,6 +154,12 @@ async function fetchShipments() {
     if (searchQuery.value.trim()) params.search = searchQuery.value.trim()
 
     const data = await mercadolibreService.getPendingShipments(params)
+    if (version !== fetchVersion) return
+    refreshingFromML.value = data.refreshing === true
+    resultsComplete.value = data.complete !== false
+    queryError.value = data.errors?.length
+      ? 'No se pudieron consultar todas las cuentas. Los resultados están incompletos; vuelve a actualizar.'
+      : ''
     // Handle both response shapes: { total, shipments } or array
     if (Array.isArray(data)) {
       pendingShipments.value = data
@@ -159,9 +170,11 @@ async function fetchShipments() {
     }
     lastUpdated.value = new Date()
   } catch (error: any) {
+    if (version !== fetchVersion) return
+    queryError.value = 'No se pudo consultar Mercado Libre. Vuelve a actualizar.'
     notify({ message: 'Error al cargar envíos de MercadoLibre', color: 'danger' })
   } finally {
-    isLoading.value = false
+    if (version === fetchVersion) isLoading.value = false
   }
 }
 
@@ -325,7 +338,7 @@ const submitImport = async () => {
 const totalPages = computed(() => Math.ceil(totalShipments.value / perPage.value) || 1)
 
 // === Live Polling ===
-const POLL_INTERVAL_MS = 60_000 // 60 segundos
+const POLL_INTERVAL_MS = 5_000
 const lastUpdated = ref<Date | null>(null)
 const lastUpdatedText = computed(() => {
   if (!lastUpdated.value) return ''
@@ -336,12 +349,19 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
   fetchData()
   pollTimer = setInterval(() => {
-    fetchData()
+    if (
+      !document.hidden &&
+      !isLoading.value &&
+      (refreshingFromML.value || !lastUpdated.value || Date.now() - lastUpdated.value.getTime() >= 60_000)
+    )
+      fetchShipments()
   }, POLL_INTERVAL_MS)
 })
 
 onUnmounted(() => {
+  fetchVersion++
   if (pollTimer) clearInterval(pollTimer)
+  if (searchTimer) clearTimeout(searchTimer)
 })
 </script>
 
@@ -359,20 +379,13 @@ onUnmounted(() => {
           <VaButton size="small" icon="link" @click="openLinkModal">Vincular Nueva Cuenta</VaButton>
         </VaCardTitle>
         <VaCardContent>
-          <VaDataTable
-            :items="accounts"
-            :columns="['ml_nickname', 'client_id', 'auth_status', 'last_sync_at', 'actions']"
-            striped
-          >
+          <VaDataTable :items="accounts" :columns="['ml_nickname', 'client_id', 'auth_status', 'actions']" striped>
             <template #cell(auth_status)="{ rowData }">
-              <VaBadge
-                :text="(rowData as MlAccount).last_sync_error ? 'ALERTA' : 'OK'"
-                :color="(rowData as MlAccount).last_sync_error ? 'danger' : 'success'"
+              <span
+                :class="(rowData as MlAccount).last_sync_error ? 'text-danger' : 'text-success'"
                 :title="(rowData as MlAccount).last_sync_error || 'Autorización operativa'"
-              />
-            </template>
-            <template #cell(last_sync_at)="{ value }">
-              {{ value ? new Date(value).toLocaleString() : 'Nunca' }}
+                >{{ (rowData as MlAccount).last_sync_error ? 'Revisar autorización' : 'Vinculada' }}</span
+              >
             </template>
             <template #cell(client_id)="{ value }">
               {{ localClients.find((c) => c.client_id === value)?.client_name || value }}
@@ -398,7 +411,7 @@ onUnmounted(() => {
             </template>
             <template v-if="accounts.length === 0" #bodyAppend>
               <tr>
-                <td colspan="5" class="text-center py-4">
+                <td colspan="4" class="text-center py-4">
                   No hay cuentas vinculadas. Genera un link para tus clientes.
                 </td>
               </tr>
@@ -409,11 +422,11 @@ onUnmounted(() => {
 
       <!-- Resumen -->
       <VaCard>
-        <VaCardTitle>Status del Gateway</VaCardTitle>
+        <VaCardTitle>Consulta de Mercado Libre</VaCardTitle>
         <VaCardContent>
           <div class="flex flex-col gap-2">
             <div class="text-lg">
-              📈 Envíos Pendientes: <strong>{{ totalShipments }}</strong>
+              Envíos encontrados: <strong>{{ totalShipments }}{{ resultsComplete ? '' : ' (parcial)' }}</strong>
             </div>
             <div class="text-sm text-secondary">
               Los envíos deben ser importados hacia un Pickup activo para que el chófer los registre.
@@ -429,11 +442,8 @@ onUnmounted(() => {
     <!-- Pending Shipments Table -->
     <VaCard>
       <VaCardTitle>
-        Envíos Listos Para Importar ({{ totalShipments }})
-        <span v-if="lastUpdatedText" class="live-badge ml-2">
-          <span class="live-dot" />
-          Actualizado: {{ lastUpdatedText }}
-        </span>
+        Envíos listos para importar ({{ totalShipments }}{{ resultsComplete ? '' : ' · parcial' }})
+        <span v-if="lastUpdatedText" class="text-sm text-secondary ml-2"> Actualizado: {{ lastUpdatedText }} </span>
         <VaSpacer />
         <VaButton color="success" icon="get_app" :disabled="selectedCount === 0" @click="openImportModal">
           Importar Seleccionados ({{ selectedCount }})
@@ -442,6 +452,10 @@ onUnmounted(() => {
 
       <!-- Barra de búsqueda y filtros -->
       <VaCardContent>
+        <p v-if="refreshingFromML" role="status" class="mb-3 text-sm">
+          Consultando ventas activas en Mercado Libre. Los envíos aparecen a medida que se verifican.
+        </p>
+        <p v-if="queryError" role="alert" class="mb-3 text-sm text-danger">{{ queryError }}</p>
         <div class="flex flex-col md:flex-row gap-3 mb-4">
           <VaInput v-model="searchQuery" placeholder="Buscar por comprador o tracking..." clearable style="flex: 1">
             <template #prependInner>

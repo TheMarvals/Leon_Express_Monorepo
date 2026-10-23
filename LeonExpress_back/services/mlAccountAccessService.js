@@ -88,53 +88,23 @@ async function getPendingShipments(params = {}) {
   if (requestedId && selected.length === 0) await assertAccessible(requestedId);
   if (selected.length === 0) return { total: 0, shipments: [] };
 
-  const limit = Math.max(1, Math.min(Number(params.limit) || 50, 200));
-  const offset = Math.max(0, Number(params.offset) || 0);
-  const requiredPerAccount = offset + limit;
-  const baseParams = { ...params };
-  delete baseParams.ml_account_id;
-  delete baseParams.limit;
-  delete baseParams.offset;
-
-  const responses = await Promise.all(selected.map(async account => {
-    const shipments = [];
-    let accountOffset = 0;
-    let total = 0;
-    do {
-      const response = await mlGatewayClient.getPendingShipments({
-        ...baseParams,
-        ml_account_id: account.ml_account_id,
-        limit: Math.min(200, requiredPerAccount - shipments.length),
-        offset: accountOffset,
-      });
-      total = Number(response.total || 0);
-      const page = response.shipments || [];
-      shipments.push(...page);
-      accountOffset += page.length;
-      if (page.length === 0) break;
-    } while (shipments.length < Math.min(requiredPerAccount, total));
-    return { total, shipments };
-  }));
-  const total = responses.reduce((sum, response) => sum + Number(response.total || 0), 0);
-  const shipments = responses
-    .flatMap(response => response.shipments || [])
-    .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
-    .slice(offset, offset + limit);
-  return { total, shipments };
+  return require('./mlLiveShipments').getPendingShipments(selected, params);
 }
 
 async function getPendingCount(accountId) {
-  const accounts = accountId ? [await assertAccessible(accountId)] : await getAccounts();
-  const counts = await Promise.all(accounts.map(account =>
-    mlGatewayClient.getPendingShipmentsCount(account.ml_account_id),
-  ));
-  return counts.reduce((sum, count) => sum + Number(count || 0), 0);
+  const data = await getPendingShipments(accountId ? { ml_account_id: accountId, limit: 1 } : { limit: 1 });
+  return { count: data.total, complete: data.complete, refreshing: data.refreshing, errors: data.errors };
+}
+
+async function refreshAccount(accountId) {
+  const account = await assertAccessible(accountId);
+  return require('./mlLiveShipments').refresh(account);
 }
 
 async function syncAccessibleAccounts() {
   const accounts = await getAccounts();
-  await Promise.all(accounts.map(account => mlGatewayClient.forceSyncNow(account.ml_account_id)));
-  return { message: `Sincronización iniciada para ${accounts.length} cuenta(s) de Leon Express.` };
+  for (const account of accounts) require('./mlLiveShipments').refresh(account);
+  return { message: `Consulta directa iniciada para ${accounts.length} cuenta(s).` };
 }
 
 module.exports = {
@@ -145,5 +115,6 @@ module.exports = {
   assertAccessible,
   getPendingShipments,
   getPendingCount,
+  refreshAccount,
   syncAccessibleAccounts,
 };

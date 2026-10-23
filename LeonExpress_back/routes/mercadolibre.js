@@ -58,7 +58,7 @@ router.get('/shipments/pending', authMiddleware, hasRole(['ADMIN']), async (req,
 router.get('/shipments/pending/count', authMiddleware, hasRole(['ADMIN']), async (req, res) => {
   try {
     const count = await mlAccountAccess.getPendingCount(req.query.ml_account_id);
-    res.json({ count });
+    res.json(count);
   } catch (error) {
     res.status(500).json({ error: 'Error al contar envíos pendientes', details: error.message });
   }
@@ -83,7 +83,7 @@ router.post('/shipments/import', authMiddleware, hasRole(['ADMIN']), async (req,
     res.json({ message: 'Envíos importados con éxito al Pickup', result });
 
   } catch (error) {
-    res.status(500).json({ error: 'Error durante la importación', details: error.message });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Error durante la importación', details: error.message });
   }
 });
 
@@ -127,81 +127,41 @@ router.delete('/accounts/:id', authMiddleware, hasRole(['ADMIN']), async (req, r
 router.post('/accounts/:id/sync', authMiddleware, hasRole(['ADMIN']), async (req, res) => {
   try {
     await mlAccountAccess.assertAccessible(req.params.id);
-    const data = await mlGatewayClient.forceSyncNow(req.params.id);
+    const data = await mlAccountAccess.refreshAccount(req.params.id);
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: 'No se pudo forzar la sincronización de la cuenta', details: error.message });
   }
 });
 
-// POST /api/mercadolibre/webhook/cancel
-// Recibe notificación del ML Gateway sobre cancelaciones post-recolección
+// Durable gateway notifications carry resource IDs only; always reread ML.
+router.post('/webhook/event', async (req, res) => {
+  const events = require('../services/mlEvents');
+  if (!events.authorized(req.headers['x-webhook-token'])) return res.status(403).json({ error: 'Forbidden' });
+  try { res.json(await events.processEvent(req.body)); }
+  catch (error) { res.status(error.status === 400 ? 400 : 503).json({ error: 'No se pudo verificar el evento en Mercado Libre' }); }
+});
+
+// Compatibility during cutover: never trust a cancellation supplied by the old cache.
 router.post('/webhook/cancel', async (req, res) => {
+  const events = require('../services/mlEvents');
+  if (!events.authorized(req.headers['x-webhook-token'])) return res.status(403).json({ error: 'Forbidden' });
+  const id = String(req.body.ml_code || '');
+  if (!/^\d{1,20}$/.test(id)) return res.status(400).json({ error: 'Código inválido' });
   try {
-    const token = req.headers['x-webhook-token'];
-    if (token !== (process.env.INTERNAL_WEBHOOK_TOKEN || 'leonexpress-internal-webhook')) {
-      return res.status(403).json({ error: 'Forbidden' });
+    const { Package } = require('../models');
+    const pkg = await Package.findOne({ where: { external_tracking_code: id } });
+    if (!pkg) return res.json({ ignored: true });
+    const accounts = (await mlAccountAccess.getAccounts()).filter(a => String(a.client_id) === String(pkg.client_id));
+    for (const account of accounts) {
+      try {
+        const ship = await require('../services/mlLiveShipments').detail(account, id);
+        await events.applyShipment(account, ship);
+        return res.json({ processed: true });
+      } catch (error) { if (![403, 404].includes(error.response?.status || error.status)) throw error; }
     }
-
-    const { ml_code, ml_shipment_id } = req.body;
-    if (!ml_code) return res.status(400).json({ error: 'Falta ml_code' });
-
-    const { Package, Cancellation, RoutePackage, Route } = require('../models');
-    const { v4: uuidv4 } = require('uuid');
-    const { queueNotification } = require('../utils/notificationService');
-
-    const pkg = await Package.findOne({
-      where: { external_tracking_code: String(ml_code) },
-      include: [
-        {
-          model: RoutePackage,
-          as: 'route_packages',
-          include: [{ model: Route, as: 'route' }]
-        }
-      ]
-    });
-
-    if (!pkg) {
-      return res.status(404).json({ error: 'Paquete no encontrado localmente' });
-    }
-
-    const finalStatuses = ['ENTREGADO', 'DEVUELTO_A_CLIENTE', 'DEVUELTO_ALMACEN', 'CANCELADO'];
-    if (finalStatuses.includes(pkg.status)) {
-      return res.json({ message: `El paquete ya tiene estado final: ${pkg.status}` });
-    }
-
-    const oldStatus = pkg.status;
-    pkg.status = 'CANCELADO';
-    await pkg.save();
-
-    await Cancellation.create({
-      cancellation_id: uuidv4(),
-      package_id: pkg.package_id,
-      reason: 'SOLICITUD_CLIENTE',
-      notes: 'Cancelado por el comprador en MercadoLibre (vía Webhook)',
-      refund_amount: 0.00
-    });
-
-    // Enviar notificación al chofer si está asignado a una ruta
-    if (pkg.route_packages && pkg.route_packages.length > 0) {
-      // Tomamos la última ruta asignada
-      const lastRoutePkg = pkg.route_packages[pkg.route_packages.length - 1];
-      if (lastRoutePkg.route && lastRoutePkg.route.user_id) {
-        queueNotification({
-          userId: lastRoutePkg.route.user_id,
-          title: '🚨 Paquete Cancelado por ML',
-          message: `El comprador canceló la compra del paquete ML: ${ml_code}. NO LO ENTREGUES.`,
-          shouldSendPush: true
-        });
-      }
-    }
-
-    console.log(`🚨 [ML-WEBHOOK] Paquete ${ml_code} marcado como CANCELADO. Estado anterior: ${oldStatus}`);
-    res.json({ message: 'Paquete cancelado exitosamente' });
-  } catch (error) {
-    console.error('Error en webhook de cancelación:', error);
-    res.status(500).json({ error: 'Error procesando webhook' });
-  }
+    res.json({ ignored: true });
+  } catch { res.status(503).json({ error: 'No se pudo verificar la cancelación' }); }
 });
 
 // ==========================================
@@ -265,7 +225,7 @@ router.post('/my-account/sync', authMiddleware, hasRole(['CLIENT']), async (req,
     if (selected.length === 0) {
       return res.status(404).json({ error: 'No se encontró una cuenta de Mercado Libre vinculada.' });
     }
-    const results = await Promise.allSettled(selected.map(account => mlGatewayClient.forceSyncNow(account.ml_account_id)));
+    const results = await Promise.allSettled(selected.map(account => mlAccountAccess.refreshAccount(account.ml_account_id)));
     const failed = selected.filter((account, index) => results[index].status === 'rejected').map(account => account.ml_account_id);
     if (failed.length) {
       return res.status(502).json({ error: 'No se pudieron sincronizar todas las cuentas. Intenta nuevamente.', failed_account_ids: failed });

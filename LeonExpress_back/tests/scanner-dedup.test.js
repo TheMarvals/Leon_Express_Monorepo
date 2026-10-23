@@ -82,20 +82,20 @@ async function scanner(t, options = {}) {
       return result;
     } }
   };
-  const gateway = {
-    getPendingShipments: async ({ search }) => {
+  const live = {
+    detail: async (account, search) => {
       gatewayCalls++;
-      return { shipments: options.missingShipment ? [] : [{ ml_shipment_external_id: search,
-        ml_shipment_id: 'shipment-1', ml_account_id: options.shipmentAccountId ?? 'account-1', buyer_name: 'Destinatario', buyer_phone: '+56912345678', buyer_address: JSON.stringify({ address_line: 'Calle 123' }) }] };
+      if (options.missingShipment) throw Object.assign(new Error('No disponible'), { status: 404 });
+      if (options.shipmentAccountId && String(options.shipmentAccountId) !== String(account.ml_account_id)) throw Object.assign(new Error('Otra cuenta'), { status: 403 });
+      return { ml_shipment_external_id: search, ml_shipment_id: 'shipment-1', ml_account_id: account.ml_account_id,
+        status_ml: 'ready_to_ship', logistic_type: 'self_service', buyer_name: 'Destinatario', buyer_phone: '+56912345678', buyer_address: JSON.stringify({ address_line: 'Calle 123' }) };
     },
-    markShipmentAsImported: async () => {
-      if (options.gatewayFailure) throw new Error('Gateway unavailable after local commit');
-    }
   };
   const overrides = {
     '../models': models,
     '../middlewares/authenticateToken': (req, res, next) => { req.user = { role: 'ADMIN', user_id: 'admin-1' }; next(); },
-    '../services/mlGatewayClient': gateway,
+    '../services/mlLiveShipments': live,
+    '../services/mlImportLedger': { claim: async () => {} },
     '../services/mlAccountAccessService': { getAccounts: async () => options.otherClient ? [] : [{ client_id: pickup.client_id, ml_account_id: options.accountId ?? 'account-1' }] },
     '../utils/uuidUtils': { generateUniqueTrackingCode: async () => `LE${++nextId}` },
     '../utils/ocrLearningEngine': { recordCorrections: async () => ({ recorded: 0 }) }
@@ -176,7 +176,7 @@ test('a code belonging to another client is rejected', async (t) => {
   assert.equal(fixture.packages.length, 0);
 });
 
-test('gateway notification failure does not recreate the committed package on retry', async (t) => {
+test('local confirmation does not depend on a gateway import acknowledgement', async (t) => {
   const fixture = await scanner(t, { gatewayFailure: true });
   assert.equal((await fixture.scan('48233839764')).status, 200);
   assert.equal((await fixture.scan('48233839764')).status, 200);
