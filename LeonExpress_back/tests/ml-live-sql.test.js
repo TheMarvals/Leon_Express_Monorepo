@@ -72,4 +72,16 @@ test('ML imports and cancellations use atomic local decisions with real SQL', { 
     delete process.env.INTERNAL_WEBHOOK_TOKEN; assert.equal(events.authorized('leonexpress-internal-webhook'), false);
     process.env.INTERNAL_WEBHOOK_TOKEN = 'secret-only-for-tests'; assert.equal(events.authorized('bad'), false); assert.equal(events.authorized('secret-only-for-tests'), true);
   });
+  await t.test('bulk selection resolves exact shipments with bounded network concurrency', async () => {
+    let active = 0, maximum = 0;
+    const batchImporter = load('services/mlImportService.js', { ...overrides, './mlLiveShipments': { detail: async (a, id) => {
+      active++; maximum = Math.max(maximum, active);
+      await new Promise(resolve => setTimeout(resolve, 5)); active--; return ship(id);
+    } } });
+    const ids = Array.from({ length: 9 }, (_, i) => `${account.ml_account_id}:${1000 + i}`);
+    assert.equal((await batchImporter.importShipments(ids, pickups[0].pickup_id, 'admin')).packages_created, 9);
+    assert.equal(maximum, 4);
+    assert.equal(await models.Package.count(), 11);
+    assert.equal(await models.MlImport.count(), 12);
+  });
 });

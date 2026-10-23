@@ -33,6 +33,8 @@ Una reversión posterior requiere copiar los datos y tokens actuales del VPS al 
 
 ## Datos de envíos
 
-La migración conserva `ml_shipments`, sus marcas de importación y los webhooks. León Express todavía consulta ese almacén; LeónImport obtiene detalles de Mercado Libre directamente usando credenciales del gateway.
+La migración inicial conservó `ml_shipments`, sus marcas de importación y los webhooks. Posteriormente, el mismo 23 de octubre, ambas aplicaciones pasaron a consumir los datos y etiquetas directamente desde Mercado Libre.
 
-Reducir la persistencia del gateway requiere sustituir la consulta de pendientes y mover el control de importación a cada aplicación. Mantener credenciales, vínculos, estado OAuth y procesamiento fiable de eventos; definir una retención acotada para caché y logs antes de eliminar históricos.
+Las 5.193 marcas de importación de León Express se trasladaron a su tabla local `ml_imports`. Las tablas antiguas del gateway fueron archivadas fuera de la base activa y retiradas después de validar el corte. El gateway mantiene únicamente `ml_accounts`, `ml_link_tokens` y `ml_event_deliveries`.
+
+Ver [consulta directa, validación y conservación del archivo histórico](ml-live-consumption-20261023.md) antes de cualquier reversión.

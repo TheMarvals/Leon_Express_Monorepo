@@ -28,7 +28,7 @@ async function importShipments(shipmentIds, targetPickupId, adminUserId) {
   const accounts = await mlAccountAccess.getAccounts();
   const accountById = new Map(accounts.map(account => [String(account.ml_account_id), account]));
   // Resolve the exact selection, independently of pagination. Always reread ML before importing.
-  const targetShipments = [];
+  const selection = [];
   for (const key of [...new Set(shipmentIds)]) {
     const parts = typeof key === 'string' ? key.split(':') : [];
     const account = accountById.get(parts[0]);
@@ -38,9 +38,17 @@ async function importShipments(shipmentIds, targetPickupId, adminUserId) {
     if (!account || String(account.client_id) !== String(initialPickup.client_id)) {
       throw Object.assign(new Error('El envío no pertenece al cliente de la recolección.'), { status: 403 });
     }
-    const ship = await mlLive.detail(account, parts[1]);
-    if (!importable(ship)) throw Object.assign(new Error('El envío ya no está disponible para recolectar.'), { status: 409 });
-    targetShipments.push(await require('./mlRecipientService').prepareShipment(ship));
+    selection.push({ account, id: parts[1] });
+  }
+  const targetShipments = [];
+  // Bound network concurrency without holding SQL locks throughout a large selection.
+  for (let i = 0; i < selection.length; i += 4) {
+    const batch = await Promise.all(selection.slice(i, i + 4).map(async ({ account, id }) => {
+      const ship = await mlLive.detail(account, id);
+      if (!importable(ship)) throw Object.assign(new Error('El envío ya no está disponible para recolectar.'), { status: 409 });
+      return require('./mlRecipientService').prepareShipment(ship);
+    }));
+    targetShipments.push(...batch);
   }
   const t = await sequelize.transaction();
   

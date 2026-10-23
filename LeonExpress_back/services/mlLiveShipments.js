@@ -78,7 +78,7 @@ function createService({ request, excludedIds, now = Date.now, ttl = 60000, conc
       .then(() => { snapshot.hasComplete = true; })
       .catch(() => { snapshot.error = 'No se pudo completar la consulta de Mercado Libre. Reintenta la actualización.'; })
       .finally(() => {
-        snapshot.loading = false; snapshot.finished = now(); snapshot.previousRows = [];
+        snapshot.loading = false; snapshot.finished = now(); snapshot.previousRows = []; snapshot.stale = false;
         const expireWhenIdle = () => {
           if (snapshots.get(id) !== snapshot) return;
           const remaining = ttl * 2 - (now() - snapshot.lastAccess);

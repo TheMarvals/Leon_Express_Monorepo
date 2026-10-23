@@ -35,3 +35,14 @@ La primera transferencia del 23 de octubre incluyó 5.193 marcas. Exportación p
 - Prueba de lectura en el VPS: las cinco cuentas vinculadas a León Express completaron la consulta, con 209 envíos elegibles en esa instantánea. No se importaron paquetes de prueba en producción.
 
 Referencias: [búsqueda y filtros de órdenes](https://developers.mercadolibre.cl/es_ar/pedidos-y-opiniones), [notificaciones](https://developers.mercadolivre.com.br/en_us/products-receive-notifications).
+
+## Corte completado
+
+- León Express: `f2e5356`, seguido por `c76080e` para conservar resultados durante refrescos concurrentes.
+- LeónImport: `f4611a2`; etiqueta oficial obtenida directamente desde ML y validada como PDF (58.635 bytes en la prueba).
+- Gateway: `a59520d`; health `credentials-and-events`, seis cuentas autorizadas y entrega de eventos verificada sin reintentos en la prueba inicial.
+- Se repitió la transferencia de las 5.193 marcas después de sustituir los escritores antiguos; no quedaron marcas adicionales pendientes.
+- Retiradas las tablas activas `ml_shipments` (101.954 filas) y `ml_webhook_logs` (2.133.557 filas). La base del gateway ahora tiene solo cuentas, vínculos OAuth y cola de entrega.
+- Copia histórica privada, permisos 0600: `/root/le-ml-live-20261023/retired-shipment-storage.sql.gz`. Se verificó el contenido de ambas tablas y la integridad gzip antes de retirarlas. SHA-256: `4d4994688033716f23059d05aae8b5b65625ebd0f12d5cd7edb4d8f0df96556c`.
+
+Los cambios del gateway y LeónImport se prepararon en worktrees aislados para conservar cambios locales previos sin publicarlos. No se reinició el servicio OCR ni se modificó el esquema operativo de LeónImport.
