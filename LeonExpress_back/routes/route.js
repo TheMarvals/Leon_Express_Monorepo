@@ -1255,6 +1255,12 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para modificar esta ruta.' });
     }
 
+    // Idempotencia: si la ruta ya está en el estado solicitado, retornar 200 OK sin error
+    if (route.status === newStatus) {
+      await t.commit();
+      return res.status(200).json(route);
+    }
+
     // --- LÓGICA PARA INICIAR RUTA ---
     if (newStatus === 'EN_PROGRESO' && route.status === 'PENDIENTE') {
       await assertDriverDayAvailable(route.user_id, route.start_date, t, route.route_id, true);

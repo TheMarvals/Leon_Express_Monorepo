@@ -8,6 +8,7 @@ const { show: showLoading, hide: hideLoading } = useLoading()
 // Axios instance
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL?.trim() || '/api',
+  timeout: 30000, // 30 segundos de timeout para evitar peticiones congeladas
 })
 
 const handleSessionExpiry = createSessionExpiryHandler({

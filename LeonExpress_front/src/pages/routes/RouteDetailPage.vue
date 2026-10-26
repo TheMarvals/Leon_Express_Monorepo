@@ -430,11 +430,15 @@ const handleStatusUpdate = async (newStatus: 'EN_PROGRESO' | 'FINALIZADA') => {
     await api.updateRouteStatus(routeId, newStatus)
     showFinishModal.value = false
     notify({ message: `Ruta marcada como ${newStatus.replace('_', ' ')}.`, color: 'success' })
-    await fetchData()
   } catch (error: any) {
     const errorMessage = error.response?.data?.error || `Error al cambiar el estado.`
     notify({ message: errorMessage, color: 'danger' })
   } finally {
+    try {
+      await fetchData(false)
+    } catch (e) {
+      console.error('Error refrescando datos de ruta:', e)
+    }
     isUpdatingStatus.value = false
   }
 }
