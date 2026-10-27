@@ -9,11 +9,23 @@ import { useUserStore } from '../../../stores/user-store' // 1. Importa el userS
 
 type Pagination = { page: number; perPage: number; total: number }
 type Sorting = { sortBy: string; sortOrder: 'asc' | 'desc' | 'no-sort' }
-type Filters = { search: string; status: string | undefined; userId?: string } // Se añade userId a los filtros
+type Filters = {
+  search: string
+  status: string | undefined
+  userId?: string
+  startDate?: Date | string | null
+  endDate?: Date | string | null
+}
 
 const makePaginationRef = () => ref<Pagination>({ page: 1, perPage: 50, total: 0 })
 const makeSortingRef = () => ref<Sorting>({ sortBy: 'pickup_scheduled_date', sortOrder: 'desc' })
-const makeFiltersRef = () => ref<Partial<Filters>>({ search: '', status: undefined })
+const makeFiltersRef = () =>
+  ref<Partial<Filters>>({
+    search: '',
+    status: undefined,
+    startDate: undefined,
+    endDate: undefined,
+  })
 
 export const usePickups = (options?: {
   pagination?: Ref<Pagination>

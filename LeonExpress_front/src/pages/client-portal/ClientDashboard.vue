@@ -103,20 +103,36 @@
 
     <!-- LISTADO DE ENVÍOS -->
     <VaCard>
-      <VaCardTitle class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <VaCardTitle class="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <span>Mis Envíos Recientes</span>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <VaInput
             v-model="searchFilter"
             placeholder="Buscar por código tracking, destinatario..."
             preset="bordered"
             size="small"
-            class="w-64"
+            class="w-56"
           >
             <template #prependInner>
               <VaIcon name="search" size="small" color="secondary" />
             </template>
           </VaInput>
+          <VaDateInput
+            v-model="startDateFilter"
+            placeholder="Desde"
+            size="small"
+            clearable
+            style="width: 135px"
+            @update:modelValue="loadData"
+          />
+          <VaDateInput
+            v-model="endDateFilter"
+            placeholder="Hasta"
+            size="small"
+            clearable
+            style="width: 135px"
+            @update:modelValue="loadData"
+          />
           <VaButton preset="secondary" size="small" icon="refresh" :loading="isLoadingPackages" @click="loadData" />
         </div>
       </VaCardTitle>
@@ -205,6 +221,8 @@ const activePickups = ref<any[]>([])
 const packages = ref<any[]>([])
 const isLoadingPackages = ref(false)
 const searchFilter = ref('')
+const startDateFilter = ref<Date | null>(null)
+const endDateFilter = ref<Date | null>(null)
 
 const columns = [
   { key: 'tracking_code', label: 'Código Tracking', sortable: true },
@@ -263,7 +281,10 @@ const loadData = async () => {
   isLoadingPackages.value = true
   try {
     // 1. Cargar paquetes del cliente (el backend filtra automáticamente por req.user.client_id)
-    const resPkgs = await api.getPackages({ perPage: 100 } as any)
+    const pkgParams: any = { perPage: 100 }
+    if (startDateFilter.value) pkgParams.startDate = startDateFilter.value
+    if (endDateFilter.value) pkgParams.endDate = endDateFilter.value
+    const resPkgs = await api.getPackages(pkgParams)
     const list = resPkgs.data?.packages || resPkgs.data?.items || resPkgs.data || []
     packages.value = Array.isArray(list) ? list : []
 

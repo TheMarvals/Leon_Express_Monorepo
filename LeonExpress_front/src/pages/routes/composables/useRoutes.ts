@@ -7,11 +7,20 @@ import { useRoutesStore } from '../../../stores/routes'
 
 type Pagination = { page: number; perPage: number; total: number }
 type Sorting = { sortBy: string; sortOrder: 'asc' | 'desc' | 'no-sort' }
-type Filters = { search: string }
+type Filters = {
+  search: string
+  startDate?: Date | string | null
+  endDate?: Date | string | null
+}
 
 const makePaginationRef = () => ref<Pagination>({ page: 1, perPage: 10, total: 0 })
 const makeSortingRef = () => ref<Sorting>({ sortBy: 'start_date', sortOrder: 'desc' })
-const makeFiltersRef = () => ref<Partial<Filters>>({ search: '' })
+const makeFiltersRef = () =>
+  ref<Partial<Filters>>({
+    search: '',
+    startDate: undefined,
+    endDate: undefined,
+  })
 
 export const useRoutes = (options?: {
   pagination?: Ref<Pagination>
@@ -27,7 +36,10 @@ export const useRoutes = (options?: {
     isLoading.value = true
     error.value = null
     try {
-      await routesStore.fetch()
+      await routesStore.fetch({
+        startDate: unref(filters).startDate,
+        endDate: unref(filters).endDate,
+      })
       pagination.value.total = routesStore.pagination.total
     } catch (e) {
       error.value = 'No se pudieron cargar las rutas.'
@@ -35,6 +47,9 @@ export const useRoutes = (options?: {
       isLoading.value = false
     }
   }
+
+  const debouncedFetch = debounce(fetch, 300)
+  watch(() => [unref(filters).startDate, unref(filters).endDate], debouncedFetch)
 
   fetch()
 

@@ -51,12 +51,14 @@ const onRouteDelete = async (route: Route) => {
   <VaCard>
     <VaCardContent>
       <div class="flex flex-col md:flex-row gap-2 mb-2 justify-between">
-        <div class="flex flex-col md:flex-row gap-2 justify-start">
-          <VaInput v-model="filters.search" placeholder="Buscar por conductor, vehículo...">
+        <div class="flex flex-col md:flex-row gap-2 justify-start items-center flex-wrap">
+          <VaInput v-model="filters.search" placeholder="Buscar por conductor, vehículo..." clearable>
             <template #prependInner>
               <FontAwesomeIcon icon="search" style="color: #6c757d; font-size: 1rem; margin-right: 4px" />
             </template>
           </VaInput>
+          <VaDateInput v-model="filters.startDate" placeholder="Desde" clearable style="width: 145px" />
+          <VaDateInput v-model="filters.endDate" placeholder="Hasta" clearable style="width: 145px" />
         </div>
         <VaButton v-if="!isDriver" @click="showModal(null)">Crear Ruta</VaButton>
       </div>

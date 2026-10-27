@@ -9,12 +9,19 @@ const { deliveries, isLoading, filters, sorting, pagination } = useDeliveries()
   <h1 class="page-title">Historial de Entregas</h1>
   <VaCard>
     <VaCardContent>
-      <div class="flex flex-col md:flex-row gap-2 mb-2 justify-between">
-        <VaInput v-model="filters.search" placeholder="Buscar por tracking o destinatario...">
+      <div class="flex flex-col md:flex-row gap-2 mb-2 items-center flex-wrap">
+        <VaInput
+          v-model="filters.search"
+          placeholder="Buscar por tracking o destinatario..."
+          clearable
+          class="flex-1 min-w-[200px]"
+        >
           <template #prependInner>
             <FontAwesomeIcon icon="search" style="color: #6c757d; font-size: 1rem; margin-right: 4px" />
           </template>
         </VaInput>
+        <VaDateInput v-model="filters.startDate" placeholder="Desde" clearable style="width: 145px" />
+        <VaDateInput v-model="filters.endDate" placeholder="Hasta" clearable style="width: 145px" />
       </div>
 
       <div class="table-wrapper">

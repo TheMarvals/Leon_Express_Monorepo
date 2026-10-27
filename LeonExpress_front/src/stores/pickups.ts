@@ -20,6 +20,8 @@ export const usePickupsStore = defineStore('pickups', {
           sortOrder: options.sorting.sortOrder,
           status: options.filters.status, // Filtro por estado
           search: options.filters.search,
+          startDate: options.filters.startDate,
+          endDate: options.filters.endDate,
         })
 
         this.items = data.pickups

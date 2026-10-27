@@ -13,6 +13,7 @@ const { decodeQRFromImage, extractTrackingCodeFromQR } = require('../utils/qrDec
 const { extractData } = require('../utils/smartOcrParser');
 const axios = require('axios');
 const FormData = require('form-data');
+const { parseDateRange } = require('../utils/dateFilter');
 
 const { assignPackage, OPEN_ROUTE_STATUSES, PENDING_STATUSES } = require('../services/routeAssignments');
 
@@ -381,9 +382,15 @@ router.get('/:id/transfer-destinations', authenticateToken, roleValidator(['ADMI
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    const { startDate, endDate } = req.query;
     const whereClause = {};
     if (req.user.role === 'DRIVER') {
       whereClause.user_id = req.user.user_id;
+    }
+
+    const dateRange = parseDateRange(startDate, endDate);
+    if (dateRange) {
+      whereClause.created_at = dateRange;
     }
 
     const routes = await Route.findAll({

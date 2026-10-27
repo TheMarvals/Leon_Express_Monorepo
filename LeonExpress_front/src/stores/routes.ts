@@ -18,9 +18,9 @@ export const useRoutesStore = defineStore('routes', {
     },
   }),
   actions: {
-    async fetch() {
+    async fetch(params?: any) {
       try {
-        const response = await api.getRoutes()
+        const response = await api.getRoutes(params)
         // Correcto: Extraemos el array 'routes' de la respuesta
         this.items = response.data.routes
         // Correcto: Extraemos el 'total' de la respuesta

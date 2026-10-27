@@ -24,6 +24,8 @@ export const usePackagesStore = defineStore('packages', {
           sortOrder: options.sorting.sortOrder,
           search: options.filters.search,
           status: options.filters.status,
+          startDate: options.filters.startDate,
+          endDate: options.filters.endDate,
           // Mapear filtros personalizados a parámetros de API
           isChange: options.filters.changeFilter === 'pending_changes' ? true : undefined,
           changeReceived: options.filters.changeFilter === 'pending_changes' ? false : undefined,

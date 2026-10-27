@@ -83,13 +83,37 @@ type ApiListParams = {
   userId?: string
   isChange?: boolean
   changeReceived?: boolean
+  startDate?: string | Date | null
+  endDate?: string | Date | null
+}
+
+const formatDateForQuery = (d: any): string | undefined => {
+  if (!d) return undefined
+  if (typeof d === 'string') {
+    return d.includes('T') ? d.split('T')[0] : d
+  }
+  if (d instanceof Date && !isNaN(d.getTime())) {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  return undefined
 }
 
 const mapParams = (params: ApiListParams) => {
-  const mapped = { ...params }
+  const mapped: any = { ...params }
   if (mapped.perPage && !mapped.pageSize) {
     mapped.pageSize = mapped.perPage
     delete mapped.perPage
+  }
+  if (mapped.startDate !== undefined) {
+    mapped.startDate = formatDateForQuery(mapped.startDate)
+    if (!mapped.startDate) delete mapped.startDate
+  }
+  if (mapped.endDate !== undefined) {
+    mapped.endDate = formatDateForQuery(mapped.endDate)
+    if (!mapped.endDate) delete mapped.endDate
   }
   return mapped
 }
@@ -241,7 +265,7 @@ const api = {
     axiosInstance.post(`/routes/${routeId}/approve-loading`, { expected_count: expectedCount }),
 
   // ---- Métodos de Entregas (Events) ----
-  getDeliveries: (params: any) => axiosInstance.get('/events', { params }),
+  getDeliveries: (params: any) => axiosInstance.get('/events', { params: mapParams(params) }),
   createDelivery: (packageId: string, formData: FormData) =>
     axiosInstance.post(`/events/packages/${packageId}/deliveries`, formData),
   uploadDeliveryPhoto: (deliveryId: string, photoFile: File) => {

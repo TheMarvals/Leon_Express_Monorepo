@@ -8,11 +8,24 @@ import { usePackagesStore } from '../../../stores/packages'
 
 type Pagination = { page: number; perPage: number; total: number }
 type Sorting = { sortBy: string; sortOrder: 'asc' | 'desc' | 'no-sort' }
-type Filters = { search: string; status: string | undefined; changeFilter: string | undefined }
+type Filters = {
+  search: string
+  status: string | undefined
+  changeFilter: string | undefined
+  startDate: Date | string | null | undefined
+  endDate: Date | string | null | undefined
+}
 
 const makePaginationRef = () => ref<Pagination>({ page: 1, perPage: 50, total: 0 })
 const makeSortingRef = () => ref<Sorting>({ sortBy: 'created_at', sortOrder: 'desc' })
-const makeFiltersRef = () => ref<Partial<Filters>>({ search: '', status: undefined, changeFilter: undefined })
+const makeFiltersRef = () =>
+  ref<Partial<Filters>>({
+    search: '',
+    status: undefined,
+    changeFilter: undefined,
+    startDate: undefined,
+    endDate: undefined,
+  })
 
 export const usePackages = (options?: {
   pagination?: Ref<Pagination>

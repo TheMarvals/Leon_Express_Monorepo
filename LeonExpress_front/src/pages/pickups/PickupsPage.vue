@@ -74,15 +74,18 @@ const onDeletePickup = async (pickup: Pickup) => {
   <VaCard>
     <VaCardContent>
       <div class="flex flex-col md:flex-row md:items-center gap-2 mb-2 justify-between">
-        <div class="flex flex-col md:flex-row gap-2 justify-start">
+        <div class="flex flex-col md:flex-row gap-2 justify-start items-center flex-wrap">
           <VaInput
             v-model="filters.search"
             :placeholder="userStore.isClient ? 'Buscar por #ID de colecta...' : 'Buscar por cliente, driver o #ID...'"
+            clearable
           >
             <template #prependInner>
               <FontAwesomeIcon icon="search" style="color: #6c757d; font-size: 1rem; margin-right: 4px" />
             </template>
           </VaInput>
+          <VaDateInput v-model="filters.startDate" placeholder="Desde" clearable style="width: 145px" />
+          <VaDateInput v-model="filters.endDate" placeholder="Hasta" clearable style="width: 145px" />
         </div>
         <div v-if="userStore.isClient" class="pickup-request-action">
           <RequestPickupButton @created="onPickupRequested" />

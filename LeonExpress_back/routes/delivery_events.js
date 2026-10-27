@@ -11,6 +11,7 @@ const path = require('path');
 const { Op } = require('sequelize');
 const { queueNotificationForRole } = require('../utils/notificationService');
 const { logAudit } = require('../utils/audit');
+const { parseDateRange } = require('../utils/dateFilter');
 
 const router = express.Router();
 router.use(authenticateToken, roleValidator(['ADMIN', 'DRIVER', 'WAREHOUSE_STAFF', 'CUSTOMER_SERVICE']));
@@ -771,12 +772,18 @@ router.post('/packages/:id/returns', authenticateToken, roleValidator(['ADMIN'])
 
 router.get('/', authenticateToken, async (req, res) => {
     try {
-        const { page = 1, perPage = 10, search } = req.query;
+        const { page = 1, perPage = 10, search, startDate, endDate } = req.query;
 
         const whereClause = {};
         // Solo permitir ver sus propias entregas si es conductor
         if (req.user.role === 'DRIVER') {
             whereClause.user_id = req.user.user_id;
+        }
+
+        // Filtro por fecha de intento de entrega
+        const dateRange = parseDateRange(startDate, endDate);
+        if (dateRange) {
+            whereClause.attempted_at = dateRange;
         }
 
         const includeClause = [

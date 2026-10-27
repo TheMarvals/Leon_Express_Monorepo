@@ -34,6 +34,8 @@ const onManualPackageCreated = async () => {
   filters.value.search = ''
   filters.value.status = undefined
   filters.value.changeFilter = undefined
+  filters.value.startDate = undefined
+  filters.value.endDate = undefined
   resetPagination()
   await fetch()
 }
@@ -136,6 +138,20 @@ const statusOptions = [
             text-by="text"
             placeholder="Filtrar por estado"
             clearable
+            @update:modelValue="resetPagination"
+          />
+          <VaDateInput
+            v-model="filters.startDate"
+            placeholder="Desde"
+            clearable
+            style="width: 145px"
+            @update:modelValue="resetPagination"
+          />
+          <VaDateInput
+            v-model="filters.endDate"
+            placeholder="Hasta"
+            clearable
+            style="width: 145px"
             @update:modelValue="resetPagination"
           />
           <VaCheckbox

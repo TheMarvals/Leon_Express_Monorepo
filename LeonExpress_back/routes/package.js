@@ -12,6 +12,7 @@ const roleValidator = require('../middlewares/roleValidator');
 const { ClientLabelBranding } = require('../models');
 const { validateLabelNotes } = require('../utils/labelNotes');
 const { queueNotificationForRole } = require('../utils/notificationService');
+const { parseDateRange } = require('../utils/dateFilter');
 
 const router = express.Router();
 router.use(authenticateToken, (req, res, next) => {
@@ -394,7 +395,7 @@ const validateVerification = [
 router.get("/", authenticateToken, async (req, res) => {
   try {
     // --- INICIO DE LA CORRECCIÓN ---
-    let { page = 1, pageSize = 10, search = "", status, pickupStatus, userId, isChange, changeReceived } = req.query;
+    let { page = 1, pageSize = 10, search = "", status, pickupStatus, userId, isChange, changeReceived, startDate, endDate } = req.query;
 
     console.log('DEBUG - User role:', req.user.role);
     console.log('DEBUG - userId en query:', userId);
@@ -407,6 +408,12 @@ router.get("/", authenticateToken, async (req, res) => {
       { model: User, as: "pendingReturnDriver", attributes: ["user_id", "full_name"], required: false }
     ];
     let distinct = false;
+
+    // Filtro por rango de fechas (created_at)
+    const dateRange = parseDateRange(startDate, endDate);
+    if (dateRange) {
+      whereClause.created_at = dateRange;
+    }
 
     if (search) {
       whereClause[Op.or] = [

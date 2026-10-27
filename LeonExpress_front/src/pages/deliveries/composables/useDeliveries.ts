@@ -6,7 +6,11 @@ export const useDeliveries = () => {
   const isLoading = ref(false)
   const deliveriesStore = useDeliveriesStore()
 
-  const filters = ref({ search: '' })
+  const filters = ref<{ search: string; startDate?: Date | string | null; endDate?: Date | string | null }>({
+    search: '',
+    startDate: undefined,
+    endDate: undefined,
+  })
   const sorting = ref({ sortBy: 'attempted_at', sortingOrder: 'desc' })
   const pagination = ref({ page: 1, perPage: 10, total: 0 })
 
@@ -28,6 +32,13 @@ export const useDeliveries = () => {
   }
 
   const debouncedFetch = debounce(fetch, 300)
+  watch(
+    filters,
+    () => {
+      pagination.value.page = 1
+    },
+    { deep: true },
+  )
   watch([filters, sorting, pagination], debouncedFetch, { deep: true })
 
   fetch() // Carga inicial

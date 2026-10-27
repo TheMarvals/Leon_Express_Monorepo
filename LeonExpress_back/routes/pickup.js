@@ -12,6 +12,7 @@ const { logAudit } = require('../utils/audit');
 const ocrQueue = require('../utils/ocrProcessingQueue');
 const emailService = require('../services/emailService');
 const { getFrontendUrl } = require('../utils/frontendUrl');
+const { parseDateRange } = require('../utils/dateFilter');
 
 const router = express.Router();
 router.use(authenticateToken, (req, res, next) => {
@@ -47,11 +48,18 @@ const validateStatusUpdate = [
 router.get('/', authenticateToken, async (req, res) => {
     // ... tu código de GET /pickups se mantiene igual ...
     try {
-        const { page = 1, pageSize = 10, status, search } = req.query;
+        const { page = 1, pageSize = 10, status, search, startDate, endDate } = req.query;
         const userRole = req.user.role;
         const userId = req.user.user_id;
 
         const whereClause = {};
+
+        // Filtro por fecha programada de recolección
+        const dateRange = parseDateRange(startDate, endDate);
+        if (dateRange) {
+            whereClause.pickup_scheduled_date = dateRange;
+        }
+
         if (status) {
             const statusList = status.split(',').map(s => s.trim());
             whereClause.status = statusList.length > 1 ? { [Op.in]: statusList } : statusList[0];
