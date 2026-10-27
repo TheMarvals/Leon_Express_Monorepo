@@ -218,7 +218,7 @@ onMounted(fetchInvoiceDetails)
         <button :class="{ active: mode === 'detailed' }" @click="mode = 'detailed'">Detallado</button>
         <button :class="{ active: mode === 'summary' }" @click="mode = 'summary'">Resumen (Por Recolección)</button>
       </div>
-      <button class="print-btn" @click="print">🖨️ Imprimir</button>
+      <button class="print-btn" @click="print">Imprimir</button>
     </div>
 
     <!-- Items Table (Detailed) -->

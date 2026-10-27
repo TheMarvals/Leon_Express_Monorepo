@@ -147,7 +147,7 @@ defineExpose({ preparePrint })
 
         <!-- Bloque CAMBIO (Retiro de producto) si aplica -->
         <section v-if="pkg.is_change" class="change-banner">
-          <span class="change-tag">🔄 CAMBIO DE PRODUCTO</span>
+          <span class="change-tag">CAMBIO DE PRODUCTO</span>
           <span class="change-instruction">RETIRAR PRODUCTO AL DESTINATARIO</span>
         </section>
 
