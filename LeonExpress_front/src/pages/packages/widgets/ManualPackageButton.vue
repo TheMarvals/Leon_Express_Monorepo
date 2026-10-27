@@ -46,6 +46,7 @@ const manualForm = reactive({
   commune: '',
   is_cod: false,
   cod_amount: 0,
+  is_change: false,
   notes: '',
 })
 
@@ -70,6 +71,7 @@ const handleCreateManualPackage = async () => {
       destination_address: addressWithNotes,
       is_cod: manualForm.is_cod,
       cod_amount: manualForm.is_cod ? Number(manualForm.cod_amount) : 0,
+      is_change: manualForm.is_change,
     })
 
     const newPkg = res.data?.package || res.data
@@ -109,6 +111,7 @@ const resetManualPackageModal = () => {
   manualForm.commune = ''
   manualForm.is_cod = false
   manualForm.cod_amount = 0
+  manualForm.is_change = false
   manualForm.notes = ''
 }
 
@@ -169,7 +172,7 @@ const printCurrentLabel = () => {
           class="w-full"
         />
 
-        <div class="flex items-center gap-4 pt-2">
+        <div class="flex flex-wrap items-center gap-4 pt-2">
           <VaCheckbox v-model="manualForm.is_cod" label="Cobro Contra Entrega (COD)" />
           <VaInput
             v-if="manualForm.is_cod"
@@ -177,6 +180,11 @@ const printCurrentLabel = () => {
             type="number"
             label="Monto a Cobrar ($)"
             class="w-40"
+          />
+          <VaCheckbox
+            v-model="manualForm.is_change"
+            label="¿Es un Cambio? (Retirar producto)"
+            class="font-semibold text-warning"
           />
         </div>
 

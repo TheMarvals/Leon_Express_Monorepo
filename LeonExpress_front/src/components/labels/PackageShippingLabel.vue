@@ -145,6 +145,12 @@ defineExpose({ preparePrint })
           </div>
         </section>
 
+        <!-- Bloque CAMBIO (Retiro de producto) si aplica -->
+        <section v-if="pkg.is_change" class="change-banner">
+          <span class="change-tag">🔄 CAMBIO DE PRODUCTO</span>
+          <span class="change-instruction">RETIRAR PRODUCTO AL DESTINATARIO</span>
+        </section>
+
         <!-- Bloque COD (Cobro contra entrega) si aplica -->
         <section v-if="pkg.is_cod && Number(pkg.cod_amount) > 0" class="cod-banner">
           <span class="cod-tag">COBRO CONTRA ENTREGA (COD)</span>
@@ -327,6 +333,31 @@ defineExpose({ preparePrint })
   overflow-wrap: anywhere;
 }
 
+.change-banner {
+  border: 0.8mm solid #000;
+  background: #000;
+  color: #fff;
+  padding: 1.8mm 2mm;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2mm;
+}
+
+.change-tag {
+  font-size: 9.5pt;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.change-instruction {
+  font-size: 7pt;
+  font-weight: 800;
+  text-align: right;
+  letter-spacing: 0.2px;
+}
+
 .cod-banner {
   border: 0.6mm solid #000;
   padding: 2mm;
@@ -401,6 +432,15 @@ defineExpose({ preparePrint })
 .thermal-label--compact :deep(.label-branding),
 .thermal-label--compact :deep(.label-branding img) {
   height: 12mm;
+}
+.thermal-label--compact .change-banner {
+  padding: 1.2mm 1.5mm;
+}
+.thermal-label--compact .change-tag {
+  font-size: 8.5pt;
+}
+.thermal-label--compact .change-instruction {
+  font-size: 6.5pt;
 }
 .thermal-label--compact .notes-block {
   padding: 1.5mm;

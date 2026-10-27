@@ -20,6 +20,7 @@ const form = reactive({
   notes: '',
   is_cod: false,
   cod_amount: 0,
+  is_change: false,
 })
 const canManage = computed(
   () =>
@@ -43,6 +44,7 @@ function edit() {
     notes: notes?.[1]?.trim() || '',
     is_cod: !!props.pkg.is_cod,
     cod_amount: Number(props.pkg.cod_amount || 0),
+    is_change: !!props.pkg.is_change,
   })
   open.value = true
 }
@@ -67,6 +69,7 @@ async function save() {
       destination_address: `${form.destination_address.trim()}${notes ? ` (Obs: ${notes})` : ''}`,
       is_cod: form.is_cod,
       cod_amount: form.is_cod ? Number(form.cod_amount) : 0,
+      is_change: form.is_change,
     })
     open.value = false
     notify({ message: 'Envío actualizado. Vuelve a imprimir la etiqueta.', color: 'success' })
@@ -157,8 +160,10 @@ async function remove() {
           :maxlength="MAX_LABEL_NOTES"
           rows="2"
         />
-        <p class="counter" aria-live="polite">{{ form.notes.length }}/{{ MAX_LABEL_NOTES }} caracteres</p>
-        <VaCheckbox v-model="form.is_cod" label="Cobro contra entrega" />
+        <div class="flex flex-wrap items-center gap-4">
+          <VaCheckbox v-model="form.is_cod" label="Cobro contra entrega" />
+          <VaCheckbox v-model="form.is_change" label="¿Es un Cambio? (Retirar producto)" class="font-semibold" />
+        </div>
         <VaInput v-if="form.is_cod" v-model.number="form.cod_amount" label="Monto a cobrar ($)" type="number" min="1" />
         <p v-if="error" class="form-error" role="alert">{{ error }}</p>
         <div class="actions">

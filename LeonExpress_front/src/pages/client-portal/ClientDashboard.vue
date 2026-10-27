@@ -139,6 +139,7 @@
                 class="text-[10px] font-bold"
               />
               <VaBadge v-else text="MANUAL" color="secondary" class="text-[10px] font-bold" />
+              <VaBadge v-if="row.is_change" text="CAMBIO" color="warning" class="text-[10px] font-bold" />
             </div>
           </template>
 
