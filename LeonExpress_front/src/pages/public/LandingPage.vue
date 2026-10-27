@@ -123,7 +123,7 @@ async function submit() {
         </RouterLink>
         <nav aria-label="Accesos">
           <RouterLink to="/auth/login" class="staff-link">Acceso personal</RouterLink>
-          <RouterLink to="/portal/login" class="portal-link">Portal clientes <VaIconArrowUpRight /></RouterLink>
+          <RouterLink to="/portal/login" class="portal-link">Portal Partners <VaIconArrowUpRight /></RouterLink>
         </nav>
       </header>
       <main class="hero" aria-labelledby="hero-title">
@@ -150,7 +150,7 @@ async function submit() {
             </div>
             <div class="hero-services" aria-label="Servicios">
               <span>Colectas</span>
-              <span>Portal de seguimiento para clientes</span>
+              <span>Portal de seguimiento para partners</span>
             </div>
           </div>
         </div>
@@ -159,7 +159,7 @@ async function submit() {
         </div>
       </main>
       <nav class="mobile-access" aria-label="Accesos móviles">
-        <RouterLink to="/portal/login" class="portal-link">Portal clientes <VaIconArrowUpRight /></RouterLink>
+        <RouterLink to="/portal/login" class="portal-link">Portal Partners <VaIconArrowUpRight /></RouterLink>
         <RouterLink to="/auth/login" class="staff-link">Acceso personal</RouterLink>
       </nav>
       <footer class="site-footer">
@@ -279,7 +279,7 @@ async function submit() {
             <button class="submit-button" type="submit" :disabled="submitting" :aria-busy="submitting">
               {{ submitting ? 'Enviando solicitud…' : 'Enviar solicitud' }}<VaIconArrowUpRight v-if="!submitting" />
             </button>
-            <p class="form-footnote">Revisaremos tu solicitud antes de habilitar una cuenta de cliente.</p>
+            <p class="form-footnote">Revisaremos tu solicitud antes de habilitar tu cuenta de partner.</p>
           </form>
         </template>
       </div>

@@ -1,8 +1,8 @@
 <template>
   <div>
-    <!-- Encabezado exclusivo para Clientes -->
+    <!-- Encabezado exclusivo para Partners -->
     <div class="mb-6">
-      <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">Acceso a tu Cuenta</h1>
+      <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">Portal Partners</h1>
       <p class="text-sm text-gray-500 mt-1">
         Gestiona tus envíos, solicita colectas y sincroniza Mercado Libre con León Express.
       </p>

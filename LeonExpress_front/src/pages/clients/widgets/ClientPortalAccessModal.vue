@@ -42,7 +42,7 @@ const copyAccess = async () => {
         Edita este cliente y registra un correo válido antes de compartir el acceso.
       </VaAlert>
       <VaInput :model-value="client.email || 'Sin correo registrado'" label="Correo de acceso" readonly />
-      <VaInput :model-value="portalUrl" label="Portal de clientes" readonly />
+      <VaInput :model-value="portalUrl" label="Portal Partners" readonly />
       <p class="text-sm">
         El cliente debe ingresar con este correo y solicitar su código de acceso. Al entrar por primera vez, su usuario
         se vincula a este mismo registro, conservando sus envíos, colectas y tarifas.

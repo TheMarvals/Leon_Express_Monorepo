@@ -15,7 +15,7 @@
       </p>
       <div class="pt-4 flex justify-center gap-3">
         <RouterLink :to="{ name: 'client-login' }">
-          <VaButton color="#03323a">Ir al Portal de Clientes</VaButton>
+          <VaButton color="#03323a">Ir al Portal Partners</VaButton>
         </RouterLink>
       </div>
     </div>
