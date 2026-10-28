@@ -44,18 +44,21 @@ const columns = defineVaDataTableColumns([
     label: 'Dirección de Entrega',
     key: 'destination_address',
     sortable: true,
+    width: '260px',
   },
   {
     label: 'Tracking Externo',
     key: 'external_tracking_code',
     sortable: true,
+    width: '180px',
   },
   {
     label: 'Destinatario',
     key: 'recipient_name',
     sortable: true,
+    width: '160px',
   },
-  { label: 'Estado', key: 'status', sortable: true },
+  { label: 'Estado', key: 'status', sortable: true, width: '160px' },
 ])
 
 const routePackageColumns = computed(() => {
@@ -65,7 +68,7 @@ const routePackageColumns = computed(() => {
     (routeData.value?.status === 'PENDIENTE' && loadingStatus.value !== 'APPROVED') ||
     ((isAdmin.value || userStore.isWarehouseStaff) && pendingPackages.value.length > 0)
   ) {
-    cols.push({ label: ' ', key: 'actions', align: 'right' })
+    cols.push({ label: 'Acciones', key: 'actions', align: 'right', width: '130px' })
   }
   return cols
 })
@@ -91,16 +94,22 @@ const fetchData = async (showLoading = true) => {
   const routeId = route.params.id as string
   loadError.value = ''
   try {
-    const [routeRes, packagesRes] = await Promise.all([
-      api.getRouteById(routeId),
-      // Mostrar paquetes disponibles en almacén (Recibidos, Devueltos o Recolectados)
-      api.getPackages({
-        status: 'RECIBIDO_EN_ALMACEN,DEVUELTO_ALMACEN,RECOLECTADO_EN_ORIGEN,INCIDENCIA_ENTREGA,REPROGRAMADO',
-        perPage: 1000,
-      }),
-    ])
+    const routeRes = await api.getRouteById(routeId)
     if (route.params.id !== routeId) return
     routeData.value = routeRes.data
+
+    // Mostrar paquetes disponibles en almacén únicamente a admin/bodega y cuando la ruta está PENDIENTE
+    if (!isDriver.value && (isAdmin.value || userStore.isWarehouseStaff) && routeData.value?.status === 'PENDIENTE') {
+      const packagesRes = await api.getPackages({
+        status: 'RECIBIDO_EN_ALMACEN,DEVUELTO_ALMACEN,RECOLECTADO_EN_ORIGEN,INCIDENCIA_ENTREGA,REPROGRAMADO',
+        perPage: 1000,
+      })
+      if (route.params.id !== routeId) return
+      availablePackages.value = packagesRes.data.packages || []
+    } else {
+      availablePackages.value = []
+    }
+
     targetRoutes.value = []
     targetRoutesError.value = ''
     if (
@@ -112,7 +121,6 @@ const fetchData = async (showLoading = true) => {
     }
     if (route.params.id !== routeId) return
     selectedPending.value = []
-    availablePackages.value = packagesRes.data.packages || []
   } catch (error: any) {
     if (route.params.id !== routeId) return
     loadError.value = isSessionExpiredError(error)
@@ -369,36 +377,87 @@ const updateFilteredPackages = async () => {
   filteredAvailablePackages.value = filtered
 }
 
+const CLOSED_PACKAGE_STATUSES = [
+  'ENTREGADO',
+  'INCIDENCIA_ENTREGA',
+  'REPROGRAMADO',
+  'DEVUELTO_ALMACEN',
+  'DEVUELTO_A_CLIENTE',
+  'CANCELADO',
+]
+
+const isPackageClosed = (pkg: Package) => CLOSED_PACKAGE_STATUSES.includes(pkg.status)
+
 // Paquetes en ruta filtrados por búsqueda
 const filteredPackagesInRoute = computed(() => {
   let filtered = packagesInRoute.value
 
-  // Filtrar por dirección si hay término de búsqueda
+  // Filtrar por dirección, tracking o destinatario si hay término de búsqueda
   if (addressSearch.value && addressSearch.value.trim()) {
     const searchTerm = addressSearch.value.trim().toLowerCase()
     filtered = filtered.filter((pkg) => {
       const address = (pkg.destination_address || '').toLowerCase()
-      return address.includes(searchTerm)
+      const tracking = (pkg.external_tracking_code || '').toLowerCase()
+      const internalTracking = (pkg.tracking_code || '').toLowerCase()
+      const recipient = (pkg.recipient_name || '').toLowerCase()
+      return (
+        address.includes(searchTerm) ||
+        tracking.includes(searchTerm) ||
+        internalTracking.includes(searchTerm) ||
+        recipient.includes(searchTerm)
+      )
     })
   }
 
   return filtered
 })
 
+const pendingPackagesInRoute = computed(() =>
+  filteredPackagesInRoute.value.filter((pkg) => !isPackageClosed(pkg)),
+)
+
+const closedPackagesInRoute = computed(() =>
+  filteredPackagesInRoute.value.filter((pkg) => isPackageClosed(pkg)),
+)
+
+const totalPendingCount = computed(() =>
+  packagesInRoute.value.filter((pkg) => !isPackageClosed(pkg)).length,
+)
+
+const totalClosedCount = computed(() =>
+  packagesInRoute.value.filter((pkg) => isPackageClosed(pkg)).length,
+)
+
+const activeRouteTab = ref<'pending' | 'closed' | 'all'>('pending')
+
+const displayedRoutePackages = computed(() => {
+  if (activeRouteTab.value === 'pending') {
+    return pendingPackagesInRoute.value
+  }
+  if (activeRouteTab.value === 'closed') {
+    return closedPackagesInRoute.value
+  }
+  return filteredPackagesInRoute.value
+})
+
+const emptyRouteTableText = computed(() => {
+  if (addressSearch.value?.trim()) {
+    return 'No se encontraron paquetes con ese criterio de búsqueda'
+  }
+  if (activeRouteTab.value === 'pending') {
+    return 'No quedan paquetes pendientes en esta ruta'
+  }
+  if (activeRouteTab.value === 'closed') {
+    return 'Aún no hay paquetes gestionados o cerrados'
+  }
+  return 'Aún no hay paquetes en esta ruta'
+})
+
 const canFinishRoute = computed(() => {
   if (!packagesInRoute.value || packagesInRoute.value.length === 0) {
     return true
   }
-  // Estados que se consideran "finalizados" para una ruta
-  const finalStates = [
-    'ENTREGADO',
-    'INCIDENCIA_ENTREGA',
-    'REPROGRAMADO',
-    'DEVUELTO_ALMACEN',
-    'DEVUELTO_A_CLIENTE',
-    'CANCELADO',
-  ]
-  return packagesInRoute.value.every((pkg) => finalStates.includes(pkg.status))
+  return packagesInRoute.value.every((pkg) => CLOSED_PACKAGE_STATUSES.includes(pkg.status))
 })
 
 // --- Lógica de Acciones ---
@@ -576,13 +635,17 @@ const canStartRoute = computed(() => {
     (loadingStatus.value === 'APPROVED' || loadingStatus.value === 'NOT_STARTED')
   )
 })
+const showAvailableWarehousePackages = computed(() => {
+  if (isDriver.value) return false
+  if (routeData.value?.status !== 'PENDIENTE') return false
+  return isAdmin.value || userStore.isWarehouseStaff
+})
 const showScanner = computed(() => {
   return (
     isDriver.value &&
     canManageRoute.value &&
-    (routeData.value?.status === 'EN_PROGRESO' ||
-      (routeData.value?.status === 'PENDIENTE' &&
-        (loadingStatus.value === 'NOT_STARTED' || loadingStatus.value === 'LOADING')))
+    routeData.value?.status === 'PENDIENTE' &&
+    (loadingStatus.value === 'NOT_STARTED' || loadingStatus.value === 'LOADING')
   )
 })
 const showFinishLoading = computed(() => {
@@ -609,7 +672,7 @@ const showApproveButton = computed(() => {
       <VaCardTitle>Acciones de Ruta</VaCardTitle>
       <VaCardContent class="route-actions-container">
         <VaButton
-          v-if="canManageRoute && ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status) && (isAdmin || showScanner)"
+          v-if="canManageRoute && routeData.status === 'PENDIENTE' && (showAvailableWarehousePackages || showScanner)"
           icon="add"
           class="route-action-button"
           @click="scrollToSection('route-add-packages')"
@@ -676,8 +739,7 @@ const showApproveButton = computed(() => {
           Finalizar Ruta
         </VaButton>
         <VaAlert v-if="routeData.status === 'EN_PROGRESO' && canManageRoute" color="info" class="route-alert">
-          Puedes agregar paquetes mientras la ruta esté abierta. Puedes reasignarlos entre tus propias rutas; para otro
-          conductor se requiere un administrador.
+          Puedes reasignar paquetes pendientes entre tus rutas. Para reasignar a otro conductor se requiere un administrador.
         </VaAlert>
         <VaAlert v-if="routeData.status === 'EN_PROGRESO' && !canFinishRoute" color="warning" class="route-alert">
           <p>
@@ -844,10 +906,11 @@ const showApproveButton = computed(() => {
       </VaCardContent>
     </VaCard>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0 w-full">
       <VaCard
-        v-if="isAdmin && ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status) && !showScanner"
+        v-if="showAvailableWarehousePackages"
         id="route-add-packages"
+        class="min-w-0"
       >
         <VaCardTitle>Paquetes Disponibles en Almacén</VaCardTitle>
         <VaCardContent>
@@ -911,7 +974,7 @@ const showApproveButton = computed(() => {
                   <template v-if="rowData.pending_return_user_id">
                     <VaBadge
                       color="warning"
-                      :text="'🏠 En poder de: ' + (rowData.pendingReturnDriver?.full_name || 'Conductor')"
+                      :text="'En poder de: ' + (rowData.pendingReturnDriver?.full_name || 'Conductor')"
                       class="mt-1"
                     />
                     <VaButton
@@ -932,11 +995,16 @@ const showApproveButton = computed(() => {
         </VaCardContent>
       </VaCard>
 
-      <VaCard :class="{ 'lg:col-span-2': routeData.status !== 'PENDIENTE' }">
+      <VaCard :class="{ 'lg:col-span-2': !showAvailableWarehousePackages }" class="min-w-0">
         <VaCardTitle>
-          <div class="flex items-center justify-between">
-            <span>Paquetes en esta Ruta ({{ packagesInRoute.length }})</span>
-            <VaInput v-model="addressSearch" placeholder="Buscar por dirección..." class="w-64" clearable>
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 w-full">
+            <span class="font-semibold text-lg">Paquetes en esta Ruta ({{ packagesInRoute.length }})</span>
+            <VaInput
+              v-model="addressSearch"
+              placeholder="Buscar por dirección o tracking..."
+              class="w-full sm:w-72"
+              clearable
+            >
               <template #prependInner>
                 <VaIcon name="fa4-search" />
               </template>
@@ -944,13 +1012,36 @@ const showApproveButton = computed(() => {
           </div>
         </VaCardTitle>
         <VaCardContent>
+          <VaTabs v-model="activeRouteTab" class="mb-4">
+            <template #tabs>
+              <VaTab name="pending">
+                <div class="flex items-center gap-2">
+                  <span>Pendientes</span>
+                  <VaBadge :text="totalPendingCount.toString()" color="warning" />
+                </div>
+              </VaTab>
+              <VaTab name="closed">
+                <div class="flex items-center gap-2">
+                  <span>Gestionados / Cerrados</span>
+                  <VaBadge :text="totalClosedCount.toString()" color="success" />
+                </div>
+              </VaTab>
+              <VaTab name="all">
+                <div class="flex items-center gap-2">
+                  <span>Todos</span>
+                  <VaBadge :text="packagesInRoute.length.toString()" color="secondary" />
+                </div>
+              </VaTab>
+            </template>
+          </VaTabs>
+
           <div class="table-wrapper">
             <VaDataTable
               :columns="routePackageColumns"
-              :items="filteredPackagesInRoute"
+              :items="displayedRoutePackages"
               :per-page="100"
               sticky-header
-              no-items-text="Aún no hay paquetes en esta ruta"
+              :no-items-text="emptyRouteTableText"
             >
               <template #cell(external_tracking_code)="{ rowData }">
                 <div class="font-mono text-xs">
@@ -985,7 +1076,7 @@ const showApproveButton = computed(() => {
                   <template v-if="rowData.pending_return_user_id">
                     <VaBadge
                       color="warning"
-                      :text="'🏠 En poder de: ' + (rowData.pendingReturnDriver?.full_name || 'Conductor')"
+                      :text="'En poder de: ' + (rowData.pendingReturnDriver?.full_name || 'Conductor')"
                       class="mt-1"
                     />
                     <VaButton
@@ -1050,14 +1141,16 @@ const showApproveButton = computed(() => {
           otro conductor. El conductor de destino quedará a cargo del paquete y del cobro contra entrega, si
           corresponde. La remuneración de la entrega se asignará a ese conductor cuando la registre.
         </p>
-        <VaDataTable
-          v-model="selectedPending"
-          :items="pendingPackages"
-          :columns="columns"
-          selectable
-          select-mode="multiple"
-          :per-page="20"
-        />
+        <div class="table-wrapper my-3">
+          <VaDataTable
+            v-model="selectedPending"
+            :items="pendingPackages"
+            :columns="columns"
+            selectable
+            select-mode="multiple"
+            :per-page="20"
+          />
+        </div>
         <VaSelect
           v-model="targetRouteId"
           :options="targetRouteOptions"
@@ -1088,7 +1181,7 @@ const showApproveButton = computed(() => {
       </VaCardContent>
     </VaCard>
 
-    <div v-if="isAdmin && ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status)" class="flex justify-center mt-6">
+    <div v-if="showAvailableWarehousePackages" class="flex justify-center mt-6">
       <VaButton
         size="large"
         :loading="isSaving"
@@ -1111,12 +1204,20 @@ const showApproveButton = computed(() => {
   margin-bottom: 1rem;
 }
 
-/* Wrapper de la tabla con scroll */
+/* Wrapper de la tabla con scroll horizontal y vertical fluido */
 .table-wrapper {
   width: 100%;
+  max-width: 100%;
   max-height: 60vh;
-  overflow: auto;
+  overflow-x: auto !important;
+  overflow-y: auto;
   position: relative;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+}
+
+.table-wrapper :deep(.va-data-table__table) {
+  min-width: 720px;
 }
 
 /* Estilos para móvil */
