@@ -235,6 +235,8 @@ router.post('/', authenticateToken, roleValidator(['ADMIN']), validateRouteCreat
       link: `/routes/${newRoute.route_id}`
     }, { transaction: t });
 
+    await t.commit();
+
     // Log de auditoría
     await logAudit(req.user.user_id, 'CREATE_ROUTE', {
       route_id: newRoute.route_id,
@@ -244,7 +246,6 @@ router.post('/', authenticateToken, roleValidator(['ADMIN']), validateRouteCreat
       route_type
     });
 
-    await t.commit();
     res.status(201).json(newRoute);
 
   } catch (error) {
@@ -293,8 +294,8 @@ router.put('/:id', authenticateToken, roleValidator(['ADMIN']), validateRouteCre
       await assertDriverDayAvailable(user_id, start_date, t, route.route_id);
     }
     await route.update({ user_id, vehicle_id, warehouse_id, start_date, route_type, route_name: route_name || null }, { transaction: t });
-    await logAudit(req.user.user_id, 'UPDATE_ROUTE', { route_id: route.route_id });
     await t.commit();
+    await logAudit(req.user.user_id, 'UPDATE_ROUTE', { route_id: route.route_id });
     res.json(route);
   } catch (error) {
     if (!t.finished) await t.rollback();
@@ -1383,15 +1384,6 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
     }
     await route.save({ transaction: t });
 
-    // Log de auditoría para cambio de estado
-    await logAudit(req.user.user_id, 'UPDATE_ROUTE', {
-      route_id: route.route_id,
-      route_name: route.route_name,
-      old_status: oldStatus,
-      new_status: newStatus,
-      action_type: 'status_change'
-    });
-
     const driver = await User.findByPk(route.user_id, { transaction: t, attributes: ['full_name'] });
     const routeLabel = route.route_name || route.route_id;
 
@@ -1404,6 +1396,16 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
     }
 
     await t.commit();
+
+    // Log de auditoría para cambio de estado (ejecutado tras el commit para no bloquear)
+    await logAudit(req.user.user_id, 'UPDATE_ROUTE', {
+      route_id: route.route_id,
+      route_name: route.route_name,
+      old_status: oldStatus,
+      new_status: newStatus,
+      action_type: 'status_change'
+    });
+
     res.status(200).json(route);
 
   } catch (error) {
@@ -1492,13 +1494,14 @@ router.delete('/:id', authenticateToken, roleValidator(['ADMIN']), async (req, r
     // 2. Eliminar la ruta (las entradas en RoutePackage se eliminan por CASCADE según el modelo)
     await route.destroy({ transaction: t });
 
+    await t.commit();
+
     await logAudit(req.user.user_id, 'DELETE_ROUTE', {
       route_id: routeId,
       route_name: route.route_name,
       package_count: packageIds.length
     });
 
-    await t.commit();
     res.status(200).json({ message: 'Ruta eliminada exitosamente y paquetes liberados' });
 
   } catch (error) {
@@ -1602,12 +1605,13 @@ router.delete('/:id/packages/:packageId', authenticateToken, async (req, res) =>
       await route.update({ loading_status: 'LOADING' }, { transaction: t });
     }
 
+    await t.commit();
+
     await logAudit(req.user.user_id, 'REMOVE_PACKAGE_FROM_ROUTE', {
       route_id: routeId,
       package_id: packageId
     });
 
-    await t.commit();
     res.status(200).json({ message: 'Paquete eliminado de la ruta exitosamente' });
 
   } catch (error) {

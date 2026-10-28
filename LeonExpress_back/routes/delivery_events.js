@@ -640,7 +640,11 @@ router.post(
                 }, { transaction: t });
             }
 
-            // Log de auditoría
+            const route_id = routePackage?.route_id || null;
+
+            await t.commit();
+
+            // Log de auditoría (después del commit para evitar bloqueos)
             await logAudit(driverId, 'CREATE_DELIVERY', {
                 delivery_id: newDelivery.delivery_id,
                 package_id: packageId,
@@ -651,9 +655,6 @@ router.post(
                 has_photo: !!req.file
             });
 
-            const route_id = routePackage?.route_id || null;
-
-            await t.commit();
             res.status(201).json({
                 message: 'Intento de entrega registrado exitosamente.',
                 delivery: newDelivery,
