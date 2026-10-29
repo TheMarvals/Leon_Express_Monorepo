@@ -3,33 +3,72 @@
 import { defineStore } from 'pinia'
 import api from '../services/api'
 import { User } from '../pages/users/types'
+import { isSessionExpiredError } from '../services/sessionExpiry'
+
+function getStoredUser(): User | null {
+  try {
+    const raw = localStorage.getItem('user')
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+let restorePromise: Promise<void> | null = null
 
 export const useUserStore = defineStore('user', {
   state: () => ({
-    user: null as User | null,
-    // --- AÑADE ESTA LÍNEA ---
-    sessionChecked: false, // Para saber si ya intentamos restaurar la sesión
+    user: getStoredUser(),
+    sessionChecked: false,
   }),
   actions: {
     async restoreSession() {
+      if (restorePromise) {
+        return restorePromise
+      }
+
       const token = localStorage.getItem('token')
       if (!token) {
+        this.user = null
         this.sessionChecked = true
-        return // No hay token, no hay nada que hacer
+        return
       }
-      try {
-        const { data } = await api.getMe()
-        this.user = data // La respuesta de /auth/me viene directamente
-        console.log('Usuario cargado:', this.user)
-      } catch (error) {
-        // Si el token es inválido, limpiamos todo
-        this.logout()
-      } finally {
-        this.sessionChecked = true
-      }
+
+      restorePromise = (async () => {
+        try {
+          const { data } = await api.getMe()
+          this.user = data
+          try {
+            localStorage.setItem('user', JSON.stringify(data))
+          } catch (e) {
+            console.warn('No se pudo guardar usuario en localStorage', e)
+          }
+        } catch (error: any) {
+          if (isSessionExpiredError(error)) {
+            console.warn('Sesión expirada o token inválido:', error)
+            this.logout()
+          } else {
+            // Error de red, 502/503/timeout o servidor reiniciando: no destruir la sesión
+            console.warn('Error de red/servidor al verificar sesión, conservando sesión local:', error?.message || error)
+            if (!this.user) {
+              this.user = getStoredUser()
+            }
+          }
+        } finally {
+          this.sessionChecked = true
+          restorePromise = null
+        }
+      })()
+
+      return restorePromise
     },
     setUser(userData: User) {
       this.user = userData
+      try {
+        localStorage.setItem('user', JSON.stringify(userData))
+      } catch (e) {
+        console.warn('No se pudo persistir usuario en localStorage', e)
+      }
     },
     logout() {
       this.$reset()
@@ -45,3 +84,4 @@ export const useUserStore = defineStore('user', {
     isClient: (state) => state.user?.role === 'CLIENT',
   },
 })
+

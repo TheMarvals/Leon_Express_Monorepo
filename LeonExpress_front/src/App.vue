@@ -1,31 +1,30 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { useUserStore } from '@/stores/user-store'
+import { ref } from 'vue'
 import { useRegisterSW } from 'virtual:pwa-register/vue'
 import LoadingOverlay from '@/components/LoadingOverlay.vue'
 
-const userStore = useUserStore()
-
 // PWA Auto-update configuration
 const updateAvailable = ref(false)
+const isUpdating = ref(false)
+
 const { needRefresh, updateServiceWorker } = useRegisterSW({
   immediate: true,
   onRegisteredSW(swScriptUrl, registration) {
-    console.log('✅ Service Worker registrado:', swScriptUrl)
-
-    // Verificar actualizaciones cada 60 segundos
     if (registration) {
+      // Verificar actualizaciones cada 15 minutos o cuando la pestaña vuelve a primer plano
       setInterval(() => {
-        console.log('🔄 Verificando actualizaciones...')
         registration.update()
-      }, 60000) // Cada 1 minuto
+      }, 15 * 60 * 1000)
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          registration.update()
+        }
+      })
     }
   },
   onRegisterError(error) {
-    console.error('❌ Error al registrar Service Worker:', error)
-  },
-  onOfflineReady() {
-    console.log('✅ App lista para trabajar offline')
+    console.error('Error al registrar Service Worker:', error)
   },
 })
 
@@ -36,62 +35,40 @@ const clearServiceWorkerCache = async () => {
       const messageChannel = new MessageChannel()
       messageChannel.port1.onmessage = (event) => {
         if (event.data && event.data.type === 'CACHE_CLEARED') {
-          console.log('✅ Caché del Service Worker limpiado')
           resolve()
         }
       }
       navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_CACHE' }, [messageChannel.port2])
-      // Timeout de seguridad
       setTimeout(() => resolve(), 1000)
     })
   }
   return Promise.resolve()
 }
 
-// Auto-actualizar cuando hay una nueva versión
-const isUpdating = ref(false)
+// Actualizar manualmente cuando el usuario lo solicite
 const handleUpdate = async () => {
-  if (import.meta.env.DEV) {
-    console.log('ℹ️ Modo desarrollo: se omite recarga automática del Service Worker')
-    return
-  }
   if (isUpdating.value) return
   isUpdating.value = true
 
-  console.log('🆕 Nueva versión detectada, limpiando caché y actualizando...')
-  updateAvailable.value = true
-
-  // Limpiar caché antes de actualizar
-  await clearServiceWorkerCache()
-
-  // Esperar 2 segundos antes de recargar para que el usuario vea la notificación
-  setTimeout(async () => {
+  try {
+    await clearServiceWorkerCache()
     await updateServiceWorker(true)
-    // Limpiar también el caché del navegador
     if ('caches' in window) {
       const cacheNames = await caches.keys()
-      await Promise.all(
-        cacheNames.map((cacheName) => {
-          console.log('🗑️ Eliminando cache del navegador:', cacheName)
-          return caches.delete(cacheName)
-        }),
-      )
+      await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)))
     }
+  } catch (err) {
+    console.error('Error durante la actualización:', err)
+  } finally {
     window.location.reload()
-  }, 2000)
+  }
 }
 
-// Observar cambios en needRefresh para auto-actualizar
 import { watch } from 'vue'
 watch(needRefresh, (newValue) => {
   if (newValue && !import.meta.env.DEV) {
-    handleUpdate()
+    updateAvailable.value = true
   }
-})
-
-onMounted(() => {
-  userStore.restoreSession()
-  console.log('🚀 Leon Express PWA iniciado con auto-actualización')
 })
 </script>
 
@@ -100,12 +77,18 @@ onMounted(() => {
     <!-- Loading Overlay Global -->
     <LoadingOverlay />
 
-    <!-- Notificación de actualización -->
+    <!-- Notificación de actualización amigable sin emojis -->
     <Transition name="slide-fade">
       <div v-if="updateAvailable" class="update-notification">
         <div class="update-content">
-          <span class="update-icon">🔄</span>
-          <span class="update-text">Nueva versión disponible, actualizando...</span>
+          <VaIcon name="sync" spin class="mr-1" />
+          <span class="update-text">Nueva versión disponible.</span>
+          <VaButton size="small" color="#ffffff" preset="secondary" class="ml-2 font-bold text-primary" :loading="isUpdating" @click="handleUpdate">
+            Actualizar ahora
+          </VaButton>
+          <VaButton size="small" preset="plain" color="#ffffff" class="ml-1" @click="updateAvailable = false">
+            Más tarde
+          </VaButton>
         </div>
       </div>
     </Transition>

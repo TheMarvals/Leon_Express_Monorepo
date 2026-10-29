@@ -351,11 +351,22 @@ router.beforeEach(async (to, from, next) => {
     return next({ name: 'deliveries' })
   }
 
-  if (to.meta.requiresAuth && !isLoggedIn) {
+  const requiresAuth = to.matched.some((record) => record.meta?.requiresAuth)
+
+  if (requiresAuth && !isLoggedIn) {
+    let isClient = false
+    try {
+      const stored = localStorage.getItem('user')
+      if (stored && JSON.parse(stored).role === 'CLIENT') isClient = true
+    } catch {}
+
+    if (isClient || to.path.startsWith('/portal')) {
+      return next({ name: 'client-login', query: { message: 'Por favor, inicia sesión.' } })
+    }
     return next({ name: 'login', query: { message: 'Por favor, inicia sesión.' } })
   }
 
-  if (requiredRoles && requiredRoles.length > 0 && !requiredRoles.includes(userRole)) {
+  if (requiredRoles && requiredRoles.length > 0 && (!userRole || !requiredRoles.includes(userRole))) {
     init({
       message: 'No tienes permisos para acceder a esta página.',
       color: 'danger',

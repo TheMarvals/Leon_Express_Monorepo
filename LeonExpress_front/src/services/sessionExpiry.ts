@@ -23,7 +23,7 @@ export const createSessionExpiryHandler = ({
   let redirecting = false
 
   return (error: SessionError) => {
-    if (!isSessionExpiredError(error) || /\/auth\/login(?:[?#]|$)/.test(error.config?.url || '')) return
+    if (!isSessionExpiredError(error) || /\/auth\/(login|otp|invitation)(?:[?#]|$)/.test(error.config?.url || '')) return
 
     const token = storage.getItem('token')
     // Una respuesta tardía de una sesión anterior no debe cerrar una sesión nueva.
