@@ -937,7 +937,6 @@ const showApproveButton = computed(() => {
               v-model="selectedAvailable"
               :columns="columns"
               :items="filteredAvailablePackages"
-              :per-page="100"
               selectable
               select-mode="multiple"
               sticky-header
@@ -1041,7 +1040,6 @@ const showApproveButton = computed(() => {
             <VaDataTable
               :columns="routePackageColumns"
               :items="displayedRoutePackages"
-              :per-page="100"
               sticky-header
               :no-items-text="emptyRouteTableText"
             >
@@ -1132,7 +1130,7 @@ const showApproveButton = computed(() => {
       id="route-transfer-packages"
       class="mb-6"
     >
-      <VaCardTitle>Reasignar paquetes sin incidencia</VaCardTitle>
+      <VaCardTitle>Reasignar paquetes sin incidencia ({{ pendingPackages.length }})</VaCardTitle>
       <VaCardContent>
         <p class="mb-3">
           Selecciona los paquetes pendientes y una ruta de destino de la misma bodega. Confirma el traspaso físico antes
@@ -1150,7 +1148,6 @@ const showApproveButton = computed(() => {
             :columns="columns"
             selectable
             select-mode="multiple"
-            :per-page="20"
           />
         </div>
         <VaSelect
@@ -1212,14 +1209,25 @@ const showApproveButton = computed(() => {
   max-width: 100%;
   max-height: 60vh;
   overflow-x: auto !important;
-  overflow-y: auto;
+  overflow-y: auto !important;
   position: relative;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x pan-y;
+}
+
+.table-wrapper :deep(.va-data-table) {
+  width: max-content;
+  min-width: 100%;
+  overflow: visible !important;
+}
+
+.table-wrapper :deep(.va-data-table__table-wrapper) {
+  overflow: visible !important;
+  width: 100%;
 }
 
 .table-wrapper :deep(.va-data-table__table) {
   min-width: 720px;
+  width: 100%;
 }
 
 /* Estilos para móvil */

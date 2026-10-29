@@ -149,18 +149,17 @@ pre {
   overflow-x: auto !important;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x pan-y;
   position: relative;
 
   .va-data-table {
-    width: 100%;
+    width: max-content;
     min-width: 100%;
+    overflow: visible !important;
   }
 
   .va-data-table__table-wrapper {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x pan-y;
+    overflow: visible !important;
+    width: 100%;
   }
 
   .va-data-table__table {
