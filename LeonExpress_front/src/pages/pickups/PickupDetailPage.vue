@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
 import { Pickup, Package } from './types'
@@ -22,6 +22,11 @@ const doShowVerificationModal = ref(false)
 const showOcrProcessingModal = ref(false)
 const dismissedOcrModal = ref(false)
 const pollingInterval = ref<any>(null)
+
+// Filtros y paginación de paquetes en la recolección
+const searchQuery = ref('')
+const currentPage = ref(1)
+const perPage = ref(50)
 
 const handleOcrModalDismiss = () => {
   showOcrProcessingModal.value = false
@@ -64,6 +69,34 @@ const tableItems = computed(() => {
   }))
 
   return [...mappedOcr, ...pkgs]
+})
+
+const filteredItems = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) return tableItems.value
+
+  return tableItems.value.filter((item: any) => {
+    const tracking = String(item.tracking_code || '').toLowerCase()
+    const ext = String(item.external_tracking_code || '').toLowerCase()
+    const recipient = String(item.recipient_name || '').toLowerCase()
+    const status = String(item.status || '').toLowerCase()
+    const address = String(item.destination_address || '').toLowerCase()
+    const sales = String(item.sales_codes || '').toLowerCase()
+    return (
+      tracking.includes(query) ||
+      ext.includes(query) ||
+      recipient.includes(query) ||
+      status.includes(query) ||
+      address.includes(query) ||
+      sales.includes(query)
+    )
+  })
+})
+
+const totalPages = computed(() => Math.ceil(filteredItems.value.length / perPage.value) || 1)
+
+watch([searchQuery, perPage], () => {
+  currentPage.value = 1
 })
 
 const packageColumns = defineVaDataTableColumns([
@@ -230,10 +263,39 @@ const updateStatus = async (newStatus: string) => {
     </div>
 
     <VaCard>
-      <VaCardTitle>Paquetes en la Recolección ({{ tableItems.length }})</VaCardTitle>
+      <VaCardTitle class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+        <span>Paquetes en la Recolección ({{ filteredItems.length }}<span v-if="filteredItems.length !== tableItems.length"> de {{ tableItems.length }}</span>)</span>
+      </VaCardTitle>
       <VaCardContent>
+        <div class="flex flex-col sm:flex-row gap-3 justify-between items-center mb-4">
+          <VaInput
+            v-model="searchQuery"
+            placeholder="Buscar por tracking, código externo o destinatario..."
+            clearable
+            class="w-full sm:w-96"
+          >
+            <template #prependInner>
+              <VaIcon name="fa4-search" color="secondary" />
+            </template>
+          </VaInput>
+          <div class="flex items-center gap-2 self-end sm:self-auto">
+            <span class="text-xs text-gray-500 whitespace-nowrap">Mostrar:</span>
+            <VaSelect
+              v-model="perPage"
+              :options="[25, 50, 100, 200, 500]"
+              style="width: 90px"
+            />
+          </div>
+        </div>
+
         <div class="package-table-wrapper">
-          <VaDataTable :columns="packageColumns" :items="tableItems" :per-page="100" sticky-header>
+          <VaDataTable
+            :columns="packageColumns"
+            :items="filteredItems"
+            :per-page="perPage"
+            v-model:current-page="currentPage"
+            sticky-header
+          >
             <template #cell(tracking_code)="{ rowData }">
               <span>{{ rowData.tracking_code }}</span>
             </template>
@@ -242,7 +304,7 @@ const updateStatus = async (newStatus: string) => {
                 <span>{{ value }}</span>
                 <VaBadge
                   v-if="rowData.has_multiple_labels"
-                  text="🏷️ MÚLTIPLES ETIQUETAS"
+                  text="MÚLTIPLES ETIQUETAS"
                   color="info"
                   class="text-xs"
                 />
@@ -271,6 +333,18 @@ const updateStatus = async (newStatus: string) => {
               </div>
             </template>
           </VaDataTable>
+        </div>
+
+        <div v-if="filteredItems.length > perPage" class="flex flex-col sm:flex-row justify-between items-center gap-3 mt-4">
+          <span class="text-xs text-gray-500">
+            Mostrando {{ (currentPage - 1) * perPage + 1 }} a {{ Math.min(currentPage * perPage, filteredItems.length) }} de {{ filteredItems.length }} paquetes
+          </span>
+          <VaPagination
+            v-model="currentPage"
+            :pages="totalPages"
+            :visible-pages="5"
+            buttons-preset="secondary"
+          />
         </div>
       </VaCardContent>
     </VaCard>
@@ -406,8 +480,10 @@ const updateStatus = async (newStatus: string) => {
 .package-table-wrapper {
   width: 100%;
   max-height: 600px;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
   position: relative;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Estilos para móvil */

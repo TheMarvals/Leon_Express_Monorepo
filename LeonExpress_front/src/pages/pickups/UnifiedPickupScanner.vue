@@ -92,7 +92,7 @@
             class="bg-white rounded-2xl p-5 border border-gray-150 shadow-sm mb-4"
           >
             <h3 class="font-bold text-gray-800 text-base mb-3 flex items-center gap-2">
-              <span>⌨️</span> Ingresar Código Manualmente
+              <VaIcon name="keyboard" size="1.2rem" color="primary" /> Ingresar Código Manualmente
             </h3>
             <div class="flex gap-3">
               <VaInput
