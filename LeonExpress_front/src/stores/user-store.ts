@@ -50,9 +50,6 @@ export const useUserStore = defineStore('user', {
           } else {
             // Error de red, 502/503/timeout o servidor reiniciando: no destruir la sesión
             console.warn('Error de red/servidor al verificar sesión, conservando sesión local:', error?.message || error)
-            if (!this.user) {
-              this.user = getStoredUser()
-            }
           }
         } finally {
           this.sessionChecked = true

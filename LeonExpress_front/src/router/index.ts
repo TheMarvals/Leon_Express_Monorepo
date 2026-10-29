@@ -354,16 +354,8 @@ router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some((record) => record.meta?.requiresAuth)
 
   if (requiresAuth && !isLoggedIn) {
-    let isClient = false
-    try {
-      const stored = localStorage.getItem('user')
-      if (stored && JSON.parse(stored).role === 'CLIENT') isClient = true
-    } catch {}
-
-    if (isClient || to.path.startsWith('/portal')) {
-      return next({ name: 'client-login', query: { message: 'Por favor, inicia sesión.' } })
-    }
-    return next({ name: 'login', query: { message: 'Por favor, inicia sesión.' } })
+    const isClient = userStore.isClient || to.path.startsWith('/portal')
+    return next({ name: isClient ? 'client-login' : 'login', query: { message: 'Por favor, inicia sesión.' } })
   }
 
   if (requiredRoles && requiredRoles.length > 0 && (!userRole || !requiredRoles.includes(userRole))) {

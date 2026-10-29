@@ -28,30 +28,12 @@ const { needRefresh, updateServiceWorker } = useRegisterSW({
   },
 })
 
-// Limpiar caché del Service Worker
-const clearServiceWorkerCache = async () => {
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    return new Promise<void>((resolve) => {
-      const messageChannel = new MessageChannel()
-      messageChannel.port1.onmessage = (event) => {
-        if (event.data && event.data.type === 'CACHE_CLEARED') {
-          resolve()
-        }
-      }
-      navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_CACHE' }, [messageChannel.port2])
-      setTimeout(() => resolve(), 1000)
-    })
-  }
-  return Promise.resolve()
-}
-
 // Actualizar manualmente cuando el usuario lo solicite
 const handleUpdate = async () => {
   if (isUpdating.value) return
   isUpdating.value = true
 
   try {
-    await clearServiceWorkerCache()
     await updateServiceWorker(true)
     if ('caches' in window) {
       const cacheNames = await caches.keys()
