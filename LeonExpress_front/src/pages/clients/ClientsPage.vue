@@ -136,7 +136,7 @@ const beforeEditFormModalClose = async (hide: () => void) => {
   <VaModal
     v-slot="{ cancel }"
     v-model="doShowEditClientModal"
-    size="small"
+    size="medium"
     mobile-fullscreen
     close-button
     hide-default-actions
