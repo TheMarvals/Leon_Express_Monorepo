@@ -13,7 +13,7 @@ import { Client } from '../pages/clients/types'
 export const useClientsStore = defineStore('clients', {
   state: () => ({
     items: [] as Client[],
-    pagination: { page: 1, perPage: 10, total: 0 } as Pagination,
+    pagination: { page: 1, perPage: 100, total: 0 } as Pagination,
   }),
 
   actions: {

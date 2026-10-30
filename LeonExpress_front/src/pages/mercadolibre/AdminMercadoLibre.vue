@@ -72,7 +72,10 @@ const logisticTypeLabels: Record<string, string> = {
 
 // Form Generator
 const showLinkModal = ref(false)
-const { clients: localClients } = useClients({ filters: ref({ search: '' }) })
+const { clients: localClients } = useClients({
+  filters: ref({ search: '' }),
+  pagination: ref({ page: 1, perPage: 500, total: 0 }),
+})
 const selectedClientForLink = ref<string>('')
 const generatedLink = ref<string>('')
 const selectedAvailableAccount = ref<string>('')
@@ -374,49 +377,51 @@ onUnmounted(() => {
       <!-- Cuentas -->
       <VaCard>
         <VaCardTitle>
-          Cuentas Vinculadas
+          Cuentas Vinculadas ({{ accounts.length }})
           <VaSpacer />
           <VaButton size="small" icon="link" @click="openLinkModal">Vincular Nueva Cuenta</VaButton>
         </VaCardTitle>
         <VaCardContent>
-          <VaDataTable :items="accounts" :columns="['ml_nickname', 'client_id', 'auth_status', 'actions']" striped>
-            <template #cell(auth_status)="{ rowData }">
-              <span
-                :class="(rowData as MlAccount).last_sync_error ? 'text-danger' : 'text-success'"
-                :title="(rowData as MlAccount).last_sync_error || 'Autorización operativa'"
-                >{{ (rowData as MlAccount).last_sync_error ? 'Revisar autorización' : 'Vinculada' }}</span
-              >
-            </template>
-            <template #cell(client_id)="{ value }">
-              {{ localClients.find((c) => c.client_id === value)?.client_name || value }}
-            </template>
-            <template #cell(actions)="{ rowData }">
-              <VaButton
-                size="small"
-                preset="plain"
-                color="primary"
-                icon="sync"
-                title="Sincronizar cuenta ahora"
-                class="mr-2"
-                @click="syncSpecificAccount(rowData as MlAccount)"
-              />
-              <VaButton
-                size="small"
-                preset="plain"
-                color="danger"
-                icon="link_off"
-                title="Desvincular cuenta"
-                @click="unlinkAccount(rowData as MlAccount)"
-              />
-            </template>
-            <template v-if="accounts.length === 0" #bodyAppend>
-              <tr>
-                <td colspan="4" class="text-center py-4">
-                  No hay cuentas vinculadas. Genera un link para tus clientes.
-                </td>
-              </tr>
-            </template>
-          </VaDataTable>
+          <div class="table-wrapper accounts-table-wrapper">
+            <VaDataTable :items="accounts" :columns="['ml_nickname', 'client_id', 'auth_status', 'actions']" striped sticky-header>
+              <template #cell(auth_status)="{ rowData }">
+                <span
+                  :class="(rowData as MlAccount).last_sync_error ? 'text-danger' : 'text-success'"
+                  :title="(rowData as MlAccount).last_sync_error || 'Autorización operativa'"
+                  >{{ (rowData as MlAccount).last_sync_error ? 'Revisar autorización' : 'Vinculada' }}</span
+                >
+              </template>
+              <template #cell(client_id)="{ value }">
+                {{ localClients.find((c) => c.client_id === value)?.client_name || value }}
+              </template>
+              <template #cell(actions)="{ rowData }">
+                <VaButton
+                  size="small"
+                  preset="plain"
+                  color="primary"
+                  icon="sync"
+                  title="Sincronizar cuenta ahora"
+                  class="mr-2"
+                  @click="syncSpecificAccount(rowData as MlAccount)"
+                />
+                <VaButton
+                  size="small"
+                  preset="plain"
+                  color="danger"
+                  icon="link_off"
+                  title="Desvincular cuenta"
+                  @click="unlinkAccount(rowData as MlAccount)"
+                />
+              </template>
+              <template v-if="accounts.length === 0" #bodyAppend>
+                <tr>
+                  <td colspan="4" class="text-center py-4">
+                    No hay cuentas vinculadas. Genera un link para tus clientes.
+                  </td>
+                </tr>
+              </template>
+            </VaDataTable>
+          </div>
         </VaCardContent>
       </VaCard>
 
@@ -472,46 +477,48 @@ onUnmounted(() => {
           />
         </div>
 
-        <VaDataTable :columns="shipmentColumns" :items="tableItems" :loading="isLoading" sticky-header>
-          <template #header(select)>
-            <VaCheckbox :model-value="allPageSelected" @update:modelValue="toggleSelectAll" />
-          </template>
+        <div class="table-wrapper shipments-table-wrapper">
+          <VaDataTable :columns="shipmentColumns" :items="tableItems" :loading="isLoading" sticky-header>
+            <template #header(select)>
+              <VaCheckbox :model-value="allPageSelected" @update:modelValue="toggleSelectAll" />
+            </template>
 
-          <template #cell(select)="{ rowData }">
-            <VaCheckbox
-              :model-value="isSelected(rowData.ml_shipment_id)"
-              @update:modelValue="toggleSelection(rowData.ml_shipment_id)"
-            />
-          </template>
+            <template #cell(select)="{ rowData }">
+              <VaCheckbox
+                :model-value="isSelected(rowData.ml_shipment_id)"
+                @update:modelValue="toggleSelection(rowData.ml_shipment_id)"
+              />
+            </template>
 
-          <template #cell(ml_shipment_external_id)="{ rowData }">
-            <div class="ellipsis max-w-[150px]">{{ rowData.ml_shipment_external_id }}</div>
-          </template>
+            <template #cell(ml_shipment_external_id)="{ rowData }">
+              <div class="ellipsis max-w-[150px]">{{ rowData.ml_shipment_external_id }}</div>
+            </template>
 
-          <template #cell(client_name)="{ rowData }">
-            <div class="ellipsis max-w-[200px]">{{ rowData.client_name }}</div>
-          </template>
+            <template #cell(client_name)="{ rowData }">
+              <div class="ellipsis max-w-[200px]">{{ rowData.client_name }}</div>
+            </template>
 
-          <template #cell(buyer_name)="{ rowData }">
-            <div class="ellipsis max-w-[200px]">{{ rowData.buyer_name }}</div>
-          </template>
+            <template #cell(buyer_name)="{ rowData }">
+              <div class="ellipsis max-w-[200px]">{{ rowData.buyer_name }}</div>
+            </template>
 
-          <template #cell(buyer_address)="{ rowData }">
-            <div class="ellipsis max-w-[300px]">{{ formatAddress(rowData.buyer_address) }}</div>
-          </template>
+            <template #cell(buyer_address)="{ rowData }">
+              <div class="ellipsis max-w-[300px]">{{ formatAddress(rowData.buyer_address) }}</div>
+            </template>
 
-          <template #cell(created_at)="{ rowData }">
-            {{ new Date(rowData.created_at).toLocaleDateString() }}
-          </template>
+            <template #cell(created_at)="{ rowData }">
+              {{ new Date(rowData.created_at).toLocaleDateString() }}
+            </template>
 
-          <template v-if="!isLoading && tableItems.length === 0" #bodyAppend>
-            <tr>
-              <td colspan="7" class="text-center py-8 text-secondary">
-                {{ searchQuery ? 'No se encontraron envíos con esa búsqueda.' : 'No hay envíos pendientes.' }}
-              </td>
-            </tr>
-          </template>
-        </VaDataTable>
+            <template v-if="!isLoading && tableItems.length === 0" #bodyAppend>
+              <tr>
+                <td colspan="7" class="text-center py-8 text-secondary">
+                  {{ searchQuery ? 'No se encontraron envíos con esa búsqueda.' : 'No hay envíos pendientes.' }}
+                </td>
+              </tr>
+            </template>
+          </VaDataTable>
+        </div>
 
         <!-- Paginación -->
         <div class="flex flex-col-reverse md:flex-row gap-2 justify-between items-center py-3 mt-2">
@@ -637,5 +644,82 @@ onUnmounted(() => {
     opacity: 0.4;
     transform: scale(0.8);
   }
+}
+
+/* Scroll para Cuentas Vinculadas */
+.accounts-table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  max-height: 400px;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
+}
+
+.accounts-table-wrapper :deep(.va-data-table) {
+  width: max-content;
+  min-width: 100%;
+  overflow: visible !important;
+}
+
+.accounts-table-wrapper :deep(.va-data-table__table-wrapper) {
+  overflow: visible !important;
+  width: 100%;
+}
+
+.accounts-table-wrapper :deep(.va-data-table__table) {
+  min-width: 500px;
+  width: 100%;
+}
+
+/* Scroll para Envíos */
+.shipments-table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  max-height: 60vh;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shipments-table-wrapper :deep(.va-data-table) {
+  width: max-content;
+  min-width: 100%;
+  overflow: visible !important;
+}
+
+.shipments-table-wrapper :deep(.va-data-table__table-wrapper) {
+  overflow: visible !important;
+  width: 100%;
+}
+
+.shipments-table-wrapper :deep(.va-data-table__table) {
+  min-width: 720px;
+  width: 100%;
+}
+
+.accounts-table-wrapper::-webkit-scrollbar,
+.shipments-table-wrapper::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.accounts-table-wrapper::-webkit-scrollbar-track,
+.shipments-table-wrapper::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 5px;
+}
+
+.accounts-table-wrapper::-webkit-scrollbar-thumb,
+.shipments-table-wrapper::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 5px;
+}
+
+.accounts-table-wrapper::-webkit-scrollbar-thumb:hover,
+.shipments-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 </style>

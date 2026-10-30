@@ -4,7 +4,7 @@ import { Client } from '../types'
 import { useClientsStore } from '../../../stores/clients'
 import { debounce } from 'lodash'
 
-const makePaginationRef = () => ref<Pagination>({ page: 1, perPage: 10, total: 0 })
+const makePaginationRef = () => ref<Pagination>({ page: 1, perPage: 100, total: 0 })
 const makeSortingRef = () => ref<Sorting>({ sortBy: 'client_name', sortOrder: 'ASC' })
 const makeFiltersRef = () => ref<Partial<Filters>>({ search: '' })
 

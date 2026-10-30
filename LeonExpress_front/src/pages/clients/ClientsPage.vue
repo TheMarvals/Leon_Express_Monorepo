@@ -27,6 +27,7 @@ const {
   remove,
 } = useClients({
   filters: ref({ search: '' }),
+  pagination: ref({ page: 1, perPage: 100, total: 0 }),
 })
 
 const { init: notify } = useToast()
@@ -126,6 +127,7 @@ const beforeEditFormModalClose = async (hide: () => void) => {
           @deleteClient="onClientDelete"
           @portalAccess="showPortalAccess"
           @update:perPage="pagination.perPage = $event"
+          @update:page="pagination.page = $event"
         />
       </div>
     </VaCardContent>
@@ -165,9 +167,28 @@ const beforeEditFormModalClose = async (hide: () => void) => {
 /* Wrapper de la tabla con scroll */
 .table-wrapper {
   width: 100%;
-  max-height: 70vh;
-  overflow: auto;
+  max-width: 100%;
+  max-height: 65vh;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
   position: relative;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-wrapper :deep(.va-data-table) {
+  width: max-content;
+  min-width: 100%;
+  overflow: visible !important;
+}
+
+.table-wrapper :deep(.va-data-table__table-wrapper) {
+  overflow: visible !important;
+  width: 100%;
+}
+
+.table-wrapper :deep(.va-data-table__table) {
+  min-width: 720px;
+  width: 100%;
 }
 
 /* Estilos para móvil */
