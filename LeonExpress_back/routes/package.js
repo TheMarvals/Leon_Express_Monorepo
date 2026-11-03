@@ -405,7 +405,8 @@ router.get("/", authenticateToken, async (req, res) => {
       { model: Client, as: "client", attributes: ["client_id", "client_name"] },
       { model: PackageCost, as: "packageCosts" },
       { model: User, as: "changeReceivedByUser", attributes: ["user_id", "full_name"], required: false },
-      { model: User, as: "pendingReturnDriver", attributes: ["user_id", "full_name"], required: false }
+      { model: User, as: "pendingReturnDriver", attributes: ["user_id", "full_name"], required: false },
+      { model: User, as: "returnConfirmedByUser", attributes: ["user_id", "full_name"], required: false }
     ];
     let distinct = false;
 
@@ -852,7 +853,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
     const packageInstance = await Package.findByPk(packageId, {
       include: [
         { model: Client, as: 'client', attributes: ['client_id', 'client_name'] },
-        { model: PackageCost, as: 'packageCosts' }
+        { model: PackageCost, as: 'packageCosts' },
+        { model: User, as: 'returnConfirmedByUser', attributes: ['user_id', 'full_name'] }
       ]
     });
 
@@ -1173,6 +1175,124 @@ router.put('/:id/return-to-client', authenticateToken, roleValidator(['DRIVER', 
   } catch (error) {
     await t.rollback();
     console.error('Error al confirmar devolución al cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+});
+
+// PUT /api/packages/:id/confirm-return-client - Acuse de recibo de devolución por parte de la tienda/cliente
+router.put('/:id/confirm-return-client', authenticateToken, roleValidator(['CLIENT', 'ADMIN']), async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const packageId = req.params.id;
+    const pkg = await Package.findByPk(packageId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!pkg) {
+      await t.rollback();
+      return res.status(404).json({ error: 'Paquete no encontrado.' });
+    }
+
+    if (req.user.role === 'CLIENT' && String(pkg.client_id) !== String(req.user.client_id)) {
+      await t.rollback();
+      return res.status(403).json({ error: 'No tienes permiso para confirmar este paquete.' });
+    }
+
+    if (pkg.status !== 'DEVUELTO_A_CLIENTE') {
+      await t.rollback();
+      return res.status(409).json({ error: 'Solo se puede confirmar la recepción de paquetes en estado DEVUELTO_A_CLIENTE.' });
+    }
+
+    if (pkg.client_return_confirmed_at) {
+      await t.rollback();
+      return res.status(409).json({ error: 'Este paquete ya fue confirmado previamente.' });
+    }
+
+    const notes = typeof req.body.notes === 'string' ? req.body.notes.trim().slice(0, 500) : null;
+    const now = new Date();
+    await pkg.update({
+      client_return_confirmed_at: now,
+      client_return_confirmed_by: req.user.user_id,
+      client_return_notes: notes
+    }, { transaction: t });
+
+    await logAudit(req.user.user_id, 'CLIENT_CONFIRM_RETURN_RECEIVED', {
+      package_id: packageId,
+      tracking_code: pkg.tracking_code,
+      client_id: pkg.client_id,
+      notes: notes || null
+    });
+
+    const client = await Client.findByPk(pkg.client_id, { transaction: t, attributes: ['client_name'] });
+    const clientName = client?.client_name || 'El cliente';
+    await Promise.all(['ADMIN', 'WAREHOUSE_STAFF'].map((roleName) =>
+      queueNotificationForRole(roleName, {
+        title: 'Devolución confirmada por el cliente',
+        message: `${clientName} confirmó la recepción del paquete devuelto ${pkg.tracking_code} en su tienda.`,
+        link: `/packages/${packageId}`
+      }, { transaction: t })
+    ));
+
+    await t.commit();
+    res.json({ message: 'Recepción confirmada exitosamente.', package: pkg });
+  } catch (error) {
+    if (t) await t.rollback();
+    console.error('Error al confirmar recepción del cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+});
+
+// POST /api/packages/batch-confirm-returns-client - Confirmar lote de paquetes devueltos
+router.post('/batch-confirm-returns-client', authenticateToken, roleValidator(['CLIENT', 'ADMIN']), async (req, res) => {
+  const { package_ids, notes } = req.body;
+  if (!Array.isArray(package_ids) || package_ids.length === 0) {
+    return res.status(400).json({ error: 'Debes proporcionar un array package_ids' });
+  }
+  const t = await sequelize.transaction();
+  try {
+    const where = {
+      package_id: { [Op.in]: package_ids },
+      status: 'DEVUELTO_A_CLIENTE',
+      client_return_confirmed_at: null
+    };
+    if (req.user.role === 'CLIENT') {
+      where.client_id = req.user.client_id;
+    }
+    const packages = await Package.findAll({ where, transaction: t, lock: t.LOCK.UPDATE });
+    if (packages.length === 0) {
+      await t.rollback();
+      return res.status(404).json({ error: 'No se encontraron paquetes pendientes de confirmación.' });
+    }
+
+    const trimmedNotes = typeof notes === 'string' ? notes.trim().slice(0, 500) : null;
+    const now = new Date();
+    for (const pkg of packages) {
+      await pkg.update({
+        client_return_confirmed_at: now,
+        client_return_confirmed_by: req.user.user_id,
+        client_return_notes: trimmedNotes
+      }, { transaction: t });
+
+      await logAudit(req.user.user_id, 'CLIENT_CONFIRM_RETURN_RECEIVED', {
+        package_id: pkg.package_id,
+        tracking_code: pkg.tracking_code,
+        client_id: pkg.client_id,
+        notes: trimmedNotes
+      });
+    }
+
+    const client = await Client.findByPk(packages[0].client_id, { transaction: t, attributes: ['client_name'] });
+    const clientName = client?.client_name || 'El cliente';
+    await Promise.all(['ADMIN', 'WAREHOUSE_STAFF'].map((roleName) =>
+      queueNotificationForRole(roleName, {
+        title: 'Devoluciones confirmadas por el cliente',
+        message: `${clientName} confirmó la recepción de ${packages.length} paquete(s) devuelto(s) en su tienda.`,
+        link: '/packages'
+      }, { transaction: t })
+    ));
+
+    await t.commit();
+    res.json({ message: `${packages.length} paquetes confirmados exitosamente.`, confirmed_count: packages.length });
+  } catch (error) {
+    if (t) await t.rollback();
+    console.error('Error al confirmar lote de devoluciones:', error);
     res.status(500).json({ error: 'Error interno del servidor.' });
   }
 });

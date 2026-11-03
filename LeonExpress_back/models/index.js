@@ -188,7 +188,10 @@ const Package = sequelize.define('Package', {
   destination_address: { type: DataTypes.TEXT, allowNull: false },
   recipient_name: { type: DataTypes.STRING(100), allowNull: false },
   recipient_phone: { type: DataTypes.STRING(20) },
-  pending_return_user_id: { type: DataTypes.STRING(36) }
+  pending_return_user_id: { type: DataTypes.STRING(36) },
+  client_return_confirmed_at: { type: DataTypes.DATE },
+  client_return_confirmed_by: { type: DataTypes.STRING(36) },
+  client_return_notes: { type: DataTypes.TEXT }
 }, { tableName: 'packages', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
 
 const OcrProcessingQueue = sequelize.define('OcrProcessingQueue', {
@@ -522,6 +525,7 @@ Package.hasMany(PackageCost, { foreignKey: 'package_id', as: 'packageCosts' });
 Package.hasMany(InvoiceItem, { foreignKey: 'package_id', as: 'invoiceItems' });
 Package.hasMany(PayoutItem, { foreignKey: 'package_id', as: 'payoutItems' });
 Package.belongsTo(User, { foreignKey: 'pending_return_user_id', as: 'pendingReturnDriver' });
+Package.belongsTo(User, { foreignKey: 'client_return_confirmed_by', as: 'returnConfirmedByUser' });
 
 // Route
 Route.belongsTo(User, { foreignKey: 'user_id', onDelete: 'RESTRICT', as: 'user' });

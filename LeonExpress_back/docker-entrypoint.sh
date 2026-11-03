@@ -239,6 +239,25 @@ run_pending_migrations() {
         echo "Aplicando migración scanned_at_origin_datetime NULL..."
         mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" < "/app/migrations/20261021_allow_null_scanned_at_origin.sql" 2>&1 || true
     fi
+
+    # --- Migración: Confirmación de recepción de devoluciones por clientes ---
+    RETURN_COL_EXISTS=$(mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl -D "$DB_NAME" -sN -e "
+        SELECT COUNT(*) 
+        FROM information_schema.COLUMNS 
+        WHERE TABLE_SCHEMA = '$DB_NAME' 
+        AND TABLE_NAME = 'packages' 
+        AND COLUMN_NAME = 'client_return_confirmed_at';
+    " 2>/dev/null || echo "0")
+
+    if [ "$RETURN_COL_EXISTS" = "0" ]; then
+        echo "Agregando columnas de confirmación de devoluciones por clientes..."
+        mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl "$DB_NAME" -e "
+            ALTER TABLE packages 
+            ADD COLUMN client_return_confirmed_at DATETIME NULL,
+            ADD COLUMN client_return_confirmed_by VARCHAR(36) NULL,
+            ADD COLUMN client_return_notes TEXT NULL;
+        " 2>&1 || true
+    fi
 }
 
 # Flujo principal

@@ -91,4 +91,11 @@ export interface Package {
     user_id: string
     full_name: string
   }
+  client_return_confirmed_at?: string | null
+  client_return_confirmed_by?: string | null
+  client_return_notes?: string | null
+  returnConfirmedByUser?: {
+    user_id: string
+    full_name: string
+  }
 }

@@ -144,6 +144,31 @@ const confirmReturnToClient = async () => {
   }
 }
 
+// Confirmación de recepción de devolución por parte del cliente
+const showClientConfirmModal = ref(false)
+const clientConfirmNotes = ref('')
+const isConfirmingClientReturn = ref(false)
+
+const handleClientConfirmReturn = async () => {
+  if (!pkg.value) return
+  isConfirmingClientReturn.value = true
+  try {
+    await api.confirmReturnByClient(pkg.value.package_id, clientConfirmNotes.value)
+    notify({ message: 'Recepción del paquete confirmada exitosamente.', color: 'success' })
+    showClientConfirmModal.value = false
+    clientConfirmNotes.value = ''
+    await fetchData()
+  } catch (err: any) {
+    notify({
+      message: err.response?.data?.error || 'Error al confirmar la recepción del paquete.',
+      color: 'danger',
+      duration: 5000,
+    })
+  } finally {
+    isConfirmingClientReturn.value = false
+  }
+}
+
 const doShowMapModal = ref(false)
 const selectedMapUrl = ref('')
 
@@ -527,10 +552,60 @@ const printThermalLabel = () => {
         </div>
         <div>
           <p class="va-text-secondary">Estado Actual</p>
-          <VaBadge :text="pkg.status.replace(/_/g, ' ')" size="large" />
+          <VaBadge
+            v-if="pkg.status === 'DEVUELTO_A_CLIENTE'"
+            :text="pkg.client_return_confirmed_at ? 'DEVUELTO (CONFIRMADO POR TIENDA)' : 'DEVUELTO AL CLIENTE (PENDIENTE ACUSE)'"
+            :color="pkg.client_return_confirmed_at ? 'success' : 'warning'"
+            size="large"
+          />
+          <VaBadge v-else :text="pkg.status.replace(/_/g, ' ')" size="large" />
         </div>
       </VaCardContent>
     </VaCard>
+
+    <!-- Banner informativo de devolución a cliente / acuse de recibo -->
+    <VaAlert
+      v-if="pkg.status === 'DEVUELTO_A_CLIENTE' && pkg.client_return_confirmed_at"
+      color="success"
+      icon="check_circle"
+      class="mb-6 shadow-sm"
+    >
+      <div class="flex flex-col gap-1">
+        <h4 class="font-bold text-base">Recepción confirmada en la tienda</h4>
+        <p class="text-sm">
+          Fecha y hora de confirmación: <strong>{{ formatDate(pkg.client_return_confirmed_at) }}</strong>
+        </p>
+        <p v-if="pkg.returnConfirmedByUser?.full_name" class="text-sm">
+          Confirmado por: <strong>{{ pkg.returnConfirmedByUser.full_name }}</strong>
+        </p>
+        <p v-if="pkg.client_return_notes" class="text-sm italic mt-1">
+          Observaciones: "{{ pkg.client_return_notes }}"
+        </p>
+      </div>
+    </VaAlert>
+
+    <VaAlert
+      v-else-if="pkg.status === 'DEVUELTO_A_CLIENTE' && !pkg.client_return_confirmed_at"
+      color="warning"
+      icon="schedule"
+      class="mb-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+    >
+      <div>
+        <h4 class="font-bold text-base">Devolución pendiente de confirmación en tienda</h4>
+        <p class="text-sm">
+          El paquete fue entregado de vuelta al cliente, pero aún está pendiente registrar el acuse de recibo de la tienda.
+        </p>
+      </div>
+      <VaButton
+        v-if="userStore.isClient || userStore.isAdmin"
+        color="warning"
+        preset="primary"
+        class="font-bold whitespace-nowrap"
+        @click="showClientConfirmModal = true"
+      >
+        Confirmar recepción en tienda
+      </VaButton>
+    </VaAlert>
 
     <VaCard class="mb-6">
       <VaCardTitle>Detalles del Envío</VaCardTitle>
@@ -817,6 +892,40 @@ const printThermalLabel = () => {
         </VaButton>
         <VaButton color="warning" :loading="isReturningToClient" @click="confirmReturnToClient">
           Confirmar devolución
+        </VaButton>
+      </div>
+    </template>
+  </VaModal>
+
+  <VaModal
+    v-model="showClientConfirmModal"
+    title="Confirmar recepción en tienda"
+    size="small"
+    hide-default-actions
+    :no-dismiss="isConfirmingClientReturn"
+  >
+    <VaAlert color="info" icon="info" class="mb-4">
+      <div>
+        Confirma que has recibido físicamente este paquete devuelto en tu tienda o local:
+      </div>
+      <strong>{{ pkg?.tracking_code }}</strong>
+    </VaAlert>
+    <VaInput
+      v-model="clientConfirmNotes"
+      label="Observaciones (opcional)"
+      placeholder="Ej.: Recibido conforme en buen estado"
+      type="textarea"
+      autosize
+      :max-length="500"
+      :disabled="isConfirmingClientReturn"
+    />
+    <template #footer>
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 w-full mt-4">
+        <VaButton preset="secondary" :disabled="isConfirmingClientReturn" @click="showClientConfirmModal = false">
+          Cancelar
+        </VaButton>
+        <VaButton color="success" :loading="isConfirmingClientReturn" @click="handleClientConfirmReturn">
+          Confirmar recepción
         </VaButton>
       </div>
     </template>

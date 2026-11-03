@@ -278,6 +278,10 @@ const api = {
   },
   returnPackageToClient: (packageId: string, notes?: string) =>
     axiosInstance.put(`/packages/${packageId}/return-to-client`, { notes }),
+  confirmReturnByClient: (packageId: string, notes?: string) =>
+    axiosInstance.put(`/packages/${packageId}/confirm-return-client`, { notes }),
+  batchConfirmReturnsByClient: (packageIds: string[], notes?: string) =>
+    axiosInstance.post('/packages/batch-confirm-returns-client', { package_ids: packageIds, notes }),
 
   // --- Métodos de Liquidaciones (Payouts) ---
   getDriverPayouts: (params: any) => axiosInstance.get('/driver-payouts', { params }),

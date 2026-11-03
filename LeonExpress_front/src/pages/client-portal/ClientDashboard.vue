@@ -101,6 +101,30 @@
       </VaCardContent>
     </VaCard>
 
+    <!-- BANNER DE DEVOLUCIONES PENDIENTES DE CONFIRMAR -->
+    <VaAlert
+      v-if="pendingReturnPackages.length > 0"
+      color="warning"
+      icon="inventory_2"
+      class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm"
+    >
+      <div>
+        <strong>Devoluciones pendientes de acuse:</strong>
+        <span class="ml-1">
+          Tienes {{ pendingReturnPackages.length }} paquete(s) devuelto(s) pendiente(s) de confirmar recepción en tu tienda.
+        </span>
+      </div>
+      <VaButton
+        color="warning"
+        preset="primary"
+        size="small"
+        class="whitespace-nowrap font-bold"
+        @click="openBatchConfirmModal"
+      >
+        Confirmar recepción de todos ({{ pendingReturnPackages.length }})
+      </VaButton>
+    </VaAlert>
+
     <!-- LISTADO DE ENVÍOS -->
     <VaCard>
       <VaCardTitle class="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -159,8 +183,24 @@
             </div>
           </template>
 
-          <template #cell(status)="{ value }">
-            <VaBadge :text="formatStatus(value)" :color="statusColor(value)" class="text-[11px] font-semibold" />
+          <template #cell(status)="{ value, row, rowData }">
+            <div class="flex flex-col gap-1 items-start">
+              <VaBadge
+                :text="formatStatus(value, row || rowData)"
+                :color="statusColor(value, row || rowData)"
+                class="text-[11px] font-semibold"
+              />
+              <VaButton
+                v-if="value === 'DEVUELTO_A_CLIENTE' && !(row || rowData)?.client_return_confirmed_at"
+                preset="plain"
+                size="small"
+                color="warning"
+                class="text-xs p-0 font-bold underline"
+                @click="openSingleConfirmModal(row || rowData)"
+              >
+                Confirmar recibido
+              </VaButton>
+            </div>
           </template>
 
           <template #cell(created_at)="{ value }">
@@ -182,6 +222,45 @@
         </VaDataTable>
       </VaCardContent>
     </VaCard>
+
+    <!-- MODAL CONFIRMAR RECEPCIÓN DE DEVOLUCIÓN -->
+    <VaModal
+      v-model="showConfirmReturnModal"
+      :title="isBatchConfirm ? 'Confirmar recepción de devoluciones' : 'Confirmar recepción del paquete'"
+      size="small"
+      hide-default-actions
+      :no-dismiss="isSubmittingReturnConfirm"
+    >
+      <div class="space-y-3">
+        <VaAlert color="info" icon="info" class="mb-3">
+          <span v-if="isBatchConfirm">
+            Estás confirmando que has recibido físicamente en tu tienda <strong>{{ pendingReturnPackages.length }}</strong> paquete(s) devuelto(s).
+          </span>
+          <span v-else>
+            Estás confirmando la recepción física del paquete <strong>{{ targetPackage?.tracking_code }}</strong> devuelto en tu tienda.
+          </span>
+        </VaAlert>
+        <VaInput
+          v-model="confirmNotes"
+          label="Observaciones (opcional)"
+          placeholder="Ej.: Recibido conforme por el personal de la tienda"
+          type="textarea"
+          autosize
+          :max-length="500"
+          :disabled="isSubmittingReturnConfirm"
+        />
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-2 w-full mt-4">
+          <VaButton preset="secondary" :disabled="isSubmittingReturnConfirm" @click="showConfirmReturnModal = false">
+            Cancelar
+          </VaButton>
+          <VaButton color="success" :loading="isSubmittingReturnConfirm" @click="submitReturnConfirmation">
+            Confirmar recibido
+          </VaButton>
+        </div>
+      </template>
+    </VaModal>
   </div>
 </template>
 
@@ -245,6 +324,61 @@ const filteredPackages = computed(() => {
   )
 })
 
+const pendingReturnPackages = computed(() =>
+  packages.value.filter((p) => p.status === 'DEVUELTO_A_CLIENTE' && !p.client_return_confirmed_at),
+)
+
+// Estado y confirmación de devoluciones por el cliente
+const showConfirmReturnModal = ref(false)
+const isBatchConfirm = ref(false)
+const targetPackage = ref<any>(null)
+const confirmNotes = ref('')
+const isSubmittingReturnConfirm = ref(false)
+
+const openSingleConfirmModal = (pkg: any) => {
+  targetPackage.value = pkg
+  isBatchConfirm.value = false
+  confirmNotes.value = ''
+  showConfirmReturnModal.value = true
+}
+
+const openBatchConfirmModal = () => {
+  targetPackage.value = null
+  isBatchConfirm.value = true
+  confirmNotes.value = ''
+  showConfirmReturnModal.value = true
+}
+
+const submitReturnConfirmation = async () => {
+  isSubmittingReturnConfirm.value = true
+  try {
+    if (isBatchConfirm.value) {
+      const ids = pendingReturnPackages.value.map((p) => p.package_id)
+      await api.batchConfirmReturnsByClient(ids, confirmNotes.value)
+      notify({
+        message: `${ids.length} paquete(s) confirmados exitosamente.`,
+        color: 'success',
+      })
+    } else if (targetPackage.value) {
+      await api.confirmReturnByClient(targetPackage.value.package_id, confirmNotes.value)
+      notify({
+        message: `Paquete ${targetPackage.value.tracking_code} confirmado exitosamente.`,
+        color: 'success',
+      })
+    }
+    showConfirmReturnModal.value = false
+    await loadData()
+  } catch (err: any) {
+    notify({
+      message: err.response?.data?.error || 'Error al confirmar la recepción del paquete.',
+      color: 'danger',
+      duration: 5000,
+    })
+  } finally {
+    isSubmittingReturnConfirm.value = false
+  }
+}
+
 const formatDateTime = (val: string) => {
   if (!val) return 'N/A'
   return new Date(val).toLocaleString('es-CL', {
@@ -256,7 +390,10 @@ const formatDateTime = (val: string) => {
   })
 }
 
-const formatStatus = (s: string) => {
+const formatStatus = (s: string, row?: any) => {
+  if (s === 'DEVUELTO_A_CLIENTE') {
+    return row?.client_return_confirmed_at ? 'Recibido en tu Tienda' : 'Devuelto (Pendiente Acuse)'
+  }
   const map: Record<string, string> = {
     PENDIENTE_RECOLECCION: 'Pendiente Retiro',
     RECOLECTADO_EN_ORIGEN: 'Recolectado',
@@ -279,11 +416,14 @@ const formatStatus = (s: string) => {
   return map[s] || s.replace(/_/g, ' ')
 }
 
-const statusColor = (s: string) => {
+const statusColor = (s: string, row?: any) => {
+  if (s === 'DEVUELTO_A_CLIENTE') {
+    return row?.client_return_confirmed_at ? 'success' : 'warning'
+  }
   if (s === 'ENTREGADO') return 'success'
   if (['EN_RUTA_ENTREGA', 'EN_RUTA', 'RECOLECTADO_EN_ORIGEN', 'RECOLECTADO', 'RECIBIDO_EN_ALMACEN'].includes(s)) return 'primary'
   if (['INCIDENCIA_ENTREGA', 'FALLIDO', 'CANCELADO'].includes(s)) return 'danger'
-  if (['DEVUELTO_ALMACEN', 'EN_RUTA_DEVOLUCION', 'DEVUELTO_A_CLIENTE', 'DEVUELTO_A_ORIGEN'].includes(s)) return 'warning'
+  if (['DEVUELTO_ALMACEN', 'EN_RUTA_DEVOLUCION', 'DEVUELTO_A_ORIGEN'].includes(s)) return 'warning'
   return 'secondary'
 }
 

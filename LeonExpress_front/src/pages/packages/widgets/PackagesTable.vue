@@ -73,11 +73,15 @@ const statusColors: Record<string, string> = {
   DEVUELTO_A_CLIENTE: 'danger',
 }
 
-const formatPackageStatus = (status: string) => {
+const formatPackageStatus = (status: string, row?: Package) => {
+  if (status === 'DEVUELTO_A_CLIENTE') {
+    return row?.client_return_confirmed_at
+      ? 'DEVUELTO (CONFIRMADO POR TIENDA)'
+      : 'DEVUELTO AL CLIENTE (PENDIENTE ACUSE)'
+  }
   const map: Record<string, string> = {
     RECIBIDO_EN_ALMACEN: 'EN BODEGA LEÓN EXPRESS',
     DEVUELTO_ALMACEN: 'EN BODEGA (DEVOLUCIÓN)',
-    DEVUELTO_A_CLIENTE: 'DEVUELTO AL CLIENTE',
     EN_RUTA_DEVOLUCION: 'EN RUTA DEVOLUCIÓN',
     PENDIENTE_RECOLECCION: 'PENDIENTE RECOLECCIÓN',
     RECOLECTADO_EN_ORIGEN: 'RECOLECTADO EN ORIGEN',
@@ -86,6 +90,13 @@ const formatPackageStatus = (status: string) => {
     INCIDENCIA_ENTREGA: 'INCIDENCIA ENTREGA',
   }
   return map[status] || status.replace(/_/g, ' ')
+}
+
+const getPackageStatusColor = (status: string, row?: Package) => {
+  if (status === 'DEVUELTO_A_CLIENTE') {
+    return row?.client_return_confirmed_at ? 'success' : 'warning'
+  }
+  return statusColors[status] || 'secondary'
 }
 </script>
 
@@ -100,8 +111,8 @@ const formatPackageStatus = (status: string) => {
     <template #cell(status)="{ value, rowData }">
       <div class="flex flex-col gap-1">
         <VaBadge
-          :text="formatPackageStatus(value)"
-          :color="statusColors[value] || 'secondary'"
+          :text="formatPackageStatus(value, rowData)"
+          :color="getPackageStatusColor(value, rowData)"
         />
         <!-- Badge para múltiples etiquetas -->
         <VaBadge v-if="rowData.has_multiple_labels" text="MÚLTIPLES ETIQUETAS" color="info" class="text-xs" />
