@@ -167,12 +167,13 @@ router.get('/diagnostics', async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // Contar entregas sin pagar a conductores
+    // Contar entregas sin pagar a conductores (Solo paquetes en estado ENTREGADO)
     const deliveriesToPay = await sequelize.query(`
       SELECT COUNT(DISTINCT p.package_id) as count
       FROM packages p
       JOIN deliveries d ON p.package_id = d.package_id
       WHERE d.status_at_delivery = 'ENTREGADO'
+        AND p.status = 'ENTREGADO'
         AND DATE(d.attempted_at) BETWEEN ? AND ?
         AND NOT EXISTS (
           SELECT 1 FROM payout_items pi

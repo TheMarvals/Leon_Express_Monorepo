@@ -21,11 +21,13 @@ CREATE PROCEDURE `sp_generate_weekly_driver_payouts` (IN `p_start_date` DATE, IN
         END IF;
         CALL sp_get_or_create_weekly_payout(v_user_id, p_end_date, v_payout_id);
         
-        -- Inserts de entregas (deliveries)
+        -- Inserts de entregas (deliveries; cancelados no se pagan)
         INSERT INTO payout_items (payout_item_id, payout_id, package_id, item_description, amount)
         SELECT UUID(), v_payout_id, p.package_id, CONCAT('Entrega - ', p.tracking_code), p.delivery_cost
         FROM packages p JOIN deliveries d ON p.package_id = d.package_id
-        WHERE d.user_id = v_user_id AND d.status_at_delivery = 'ENTREGADO'
+        WHERE d.user_id = v_user_id 
+          AND d.status_at_delivery = 'ENTREGADO'
+          AND p.status = 'ENTREGADO'
           AND DATE(d.attempted_at) BETWEEN p_start_date AND p_end_date
           AND NOT EXISTS (SELECT 1 FROM payout_items pi WHERE pi.package_id = p.package_id AND pi.payout_id = v_payout_id);
         
@@ -37,12 +39,15 @@ CREATE PROCEDURE `sp_generate_weekly_driver_payouts` (IN `p_start_date` DATE, IN
           AND DATE(pi.verified_at_warehouse_at) BETWEEN p_start_date AND p_end_date
           AND NOT EXISTS (SELECT 1 FROM payout_items p_it WHERE p_it.pickup_id = pi.pickup_id AND p_it.payout_id = v_payout_id);
         
-        -- Inserts de costos del conductor (CORRECCIÓN: especificar columnas explícitamente)
+        -- Inserts de costos del conductor (CORRECCIÓN: especificar columnas explícitamente y filtrar paquetes entregados)
         INSERT INTO payout_items (payout_item_id, payout_id, package_id, pickup_id, item_description, amount)
         SELECT UUID(), v_payout_id, pc.package_id, NULL, c.cost_name, pc.applied_value
         FROM package_costs pc JOIN costs c ON pc.cost_id = c.cost_id
         JOIN packages p ON pc.package_id = p.package_id JOIN deliveries d ON p.package_id = d.package_id
-        WHERE d.user_id = v_user_id AND pc.cost_type = 'DRIVER_CREDIT'
+        WHERE d.user_id = v_user_id 
+          AND pc.cost_type = 'DRIVER_CREDIT'
+          AND d.status_at_delivery = 'ENTREGADO'
+          AND p.status = 'ENTREGADO'
           AND DATE(d.attempted_at) BETWEEN p_start_date AND p_end_date
           AND NOT EXISTS (SELECT 1 FROM payout_items pi WHERE pi.package_id = pc.package_id AND pi.payout_id = v_payout_id AND pi.amount = pc.applied_value);
     END LOOP;

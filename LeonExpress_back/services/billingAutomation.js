@@ -307,11 +307,13 @@ async function generateDriverPayouts(startDate, endDate) {
         payoutId = payout.payout_id;
       }
 
-      // 3. Procesar Entregas
+      // 3. Procesar Entregas (Solo se pagan paquetes con estado ENTREGADO; cancelados no se pagan)
       const deliveries = await sequelize.query(`
         SELECT DISTINCT p.package_id, p.tracking_code, p.delivery_cost
         FROM packages p JOIN deliveries d ON p.package_id = d.package_id
-        WHERE d.user_id = :userId AND d.status_at_delivery = 'ENTREGADO'
+        WHERE d.user_id = :userId 
+          AND d.status_at_delivery = 'ENTREGADO'
+          AND p.status = 'ENTREGADO'
           AND DATE(d.attempted_at) BETWEEN :startDate AND :endDate
           AND NOT EXISTS (SELECT 1 FROM payout_items pi WHERE pi.package_id = p.package_id AND pi.item_description LIKE 'Entrega - %')
       `, {
@@ -373,6 +375,7 @@ async function generateDriverPayouts(startDate, endDate) {
         FROM deliveries d JOIN packages p ON d.package_id = p.package_id
         WHERE d.user_id = :userId 
           AND d.status_at_delivery = 'ENTREGADO'
+          AND p.status = 'ENTREGADO'
           AND d.collected_amount > 0
           AND DATE(d.attempted_at) BETWEEN :startDate AND :endDate
           AND NOT EXISTS (
@@ -399,7 +402,7 @@ async function generateDriverPayouts(startDate, endDate) {
             item_description = CASE 
                 WHEN item_description NOT LIKE '%Retención COD%' THEN CONCAT(item_description, ' (+ Retención COD $', :codAmtStr, ')')
                 ELSE item_description
-              END
+            END
         `, {
           replacements: {
             uuid: uuidv4(),
@@ -414,12 +417,13 @@ async function generateDriverPayouts(startDate, endDate) {
         totalItems++;
       }
 
-      // 6. Procesar Créditos/Costos
+      // 6. Procesar Créditos/Costos (Solo sobre paquetes entregados)
       const costs = await sequelize.query(`
         SELECT pc.package_id, c.cost_name, pc.applied_value
         FROM package_costs pc JOIN costs c ON pc.cost_id = c.cost_id
         JOIN packages p ON pc.package_id = p.package_id JOIN deliveries d ON p.package_id = d.package_id
         WHERE d.user_id = :userId AND pc.cost_type = 'DRIVER_CREDIT'
+          AND p.status = 'ENTREGADO'
           AND DATE(d.attempted_at) BETWEEN :startDate AND :endDate
           AND NOT EXISTS (SELECT 1 FROM payout_items pi WHERE pi.package_id = pc.package_id AND pi.payout_id = :payoutId AND pi.amount = pc.applied_value)
       `, {

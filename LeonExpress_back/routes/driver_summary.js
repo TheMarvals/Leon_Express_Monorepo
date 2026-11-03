@@ -44,7 +44,7 @@ router.get('/', authenticateToken, roleValidator(['ADMIN', 'DRIVER']), async (re
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Ganancias por entregas (delivery_cost de paquetes entregados)
+    // Ganancias por entregas (delivery_cost de paquetes entregados; cancelados no se pagan)
     const deliveriesQuery = `
       SELECT 
         DATE(d.attempted_at) as date,
@@ -54,6 +54,7 @@ router.get('/', authenticateToken, roleValidator(['ADMIN', 'DRIVER']), async (re
       INNER JOIN packages p ON d.package_id = p.package_id
       WHERE d.user_id = :userId
         AND d.status_at_delivery = 'ENTREGADO'
+        AND p.status = 'ENTREGADO'
         AND DATE(d.attempted_at) >= :startDate
       GROUP BY DATE(d.attempted_at)
       ORDER BY DATE(d.attempted_at) DESC
@@ -95,6 +96,7 @@ router.get('/', authenticateToken, roleValidator(['ADMIN', 'DRIVER']), async (re
       WHERE d.user_id = :userId
         AND pc.cost_type = 'DRIVER_CREDIT'
         AND d.status_at_delivery = 'ENTREGADO'
+        AND p.status = 'ENTREGADO'
         AND DATE(d.attempted_at) >= :startDate
       GROUP BY DATE(d.attempted_at)
       ORDER BY DATE(d.attempted_at) DESC
