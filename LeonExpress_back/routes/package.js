@@ -1208,12 +1208,13 @@ router.put('/:id/receive-at-warehouse', authenticateToken, roleValidator(['ADMIN
       where: { package_id: packageId, released_at: null }, transaction: t
     });
 
-    // Si el paquete viene de un intento fallido o rechazo en ruta, el estado en bodega debe ser DEVUELTO_ALMACEN
+    // Si el paquete viene de un rechazo definitivo del comprador o ya venía marcado para devolución, queda como DEVUELTO_ALMACEN.
+    // Si fue una incidencia temporal (ej. no había nadie, reprogramado), queda como RECIBIDO_EN_ALMACEN listo para reintento.
     const lastDelivery = pkg.deliveries?.[0];
-    const isReturn = pkg.status === 'INCIDENCIA_ENTREGA'
-      || lastDelivery?.status_at_delivery === 'RECHAZADO_POR_CLIENTE'
-      || (pkg.deliveries && pkg.deliveries.length > 0);
-    const newStatus = isReturn ? 'DEVUELTO_ALMACEN' : 'RECIBIDO_EN_ALMACEN';
+    const isDefinitiveReturn = lastDelivery?.status_at_delivery === 'RECHAZADO_POR_CLIENTE'
+      || pkg.status === 'DEVUELTO_ALMACEN'
+      || pkg.status === 'CANCELADO';
+    const newStatus = isDefinitiveReturn ? 'DEVUELTO_ALMACEN' : 'RECIBIDO_EN_ALMACEN';
 
     // 1. Limpiar marca de pendiente por devolver y actualizar estado
     await pkg.update({
