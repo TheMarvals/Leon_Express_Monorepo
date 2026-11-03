@@ -66,8 +66,26 @@ const statusColors: Record<string, string> = {
   EN_RUTA_ENTREGA: 'info',
   ENTREGADO: 'success',
   INCIDENCIA_ENTREGA: 'danger',
+  REPROGRAMADO: 'warning',
+  DEVUELTO_ALMACEN: 'danger',
+  EN_RUTA_DEVOLUCION: 'warning',
   CANCELADO: 'secondary',
   DEVUELTO_A_CLIENTE: 'danger',
+}
+
+const formatPackageStatus = (status: string) => {
+  const map: Record<string, string> = {
+    RECIBIDO_EN_ALMACEN: 'EN BODEGA LEÓN EXPRESS',
+    DEVUELTO_ALMACEN: 'EN BODEGA (DEVOLUCIÓN)',
+    DEVUELTO_A_CLIENTE: 'DEVUELTO AL CLIENTE',
+    EN_RUTA_DEVOLUCION: 'EN RUTA DEVOLUCIÓN',
+    PENDIENTE_RECOLECCION: 'PENDIENTE RECOLECCIÓN',
+    RECOLECTADO_EN_ORIGEN: 'RECOLECTADO EN ORIGEN',
+    ASIGNADO_A_RUTA: 'ASIGNADO A RUTA',
+    EN_RUTA_ENTREGA: 'EN RUTA DE ENTREGA',
+    INCIDENCIA_ENTREGA: 'INCIDENCIA ENTREGA',
+  }
+  return map[status] || status.replace(/_/g, ' ')
 }
 </script>
 
@@ -82,7 +100,7 @@ const statusColors: Record<string, string> = {
     <template #cell(status)="{ value, rowData }">
       <div class="flex flex-col gap-1">
         <VaBadge
-          :text="value === 'DEVUELTO_A_CLIENTE' ? 'DEVUELTO AL CLIENTE' : value.replace(/_/g, ' ')"
+          :text="formatPackageStatus(value)"
           :color="statusColors[value] || 'secondary'"
         />
         <!-- Badge para múltiples etiquetas -->

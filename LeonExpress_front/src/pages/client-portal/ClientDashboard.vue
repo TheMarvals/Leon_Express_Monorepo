@@ -259,21 +259,32 @@ const formatDateTime = (val: string) => {
 const formatStatus = (s: string) => {
   const map: Record<string, string> = {
     PENDIENTE_RECOLECCION: 'Pendiente Retiro',
+    RECOLECTADO_EN_ORIGEN: 'Recolectado',
     RECOLECTADO: 'Recolectado',
-    EN_ALMACEN: 'En Almacén',
+    RECIBIDO_EN_ALMACEN: 'En Bodega León Express',
+    EN_ALMACEN: 'En Bodega León Express',
+    ASIGNADO_A_RUTA: 'En Preparación de Ruta',
+    EN_RUTA_ENTREGA: 'En Ruta de Entrega',
     EN_RUTA: 'En Ruta de Entrega',
     ENTREGADO: 'Entregado',
+    INCIDENCIA_ENTREGA: 'Intento Fallido / Incidencia',
     FALLIDO: 'No Entregado',
-    DEVUELTO_A_ORIGEN: 'Devuelto',
+    REPROGRAMADO: 'Reprogramado',
+    DEVUELTO_ALMACEN: 'En Bodega León Express (Devolución)',
+    EN_RUTA_DEVOLUCION: 'En Ruta de Retorno a Tienda',
+    DEVUELTO_A_CLIENTE: 'Devuelto a tu Tienda',
+    DEVUELTO_A_ORIGEN: 'Devuelto a tu Tienda',
+    CANCELADO: 'Cancelado',
   }
-  return map[s] || s
+  return map[s] || s.replace(/_/g, ' ')
 }
 
 const statusColor = (s: string) => {
   if (s === 'ENTREGADO') return 'success'
-  if (s === 'EN_RUTA' || s === 'RECOLECTADO') return 'primary'
-  if (s === 'FALLIDO' || s === 'DEVUELTO_A_ORIGEN') return 'danger'
-  return 'warning'
+  if (['EN_RUTA_ENTREGA', 'EN_RUTA', 'RECOLECTADO_EN_ORIGEN', 'RECOLECTADO', 'RECIBIDO_EN_ALMACEN'].includes(s)) return 'primary'
+  if (['INCIDENCIA_ENTREGA', 'FALLIDO', 'CANCELADO'].includes(s)) return 'danger'
+  if (['DEVUELTO_ALMACEN', 'EN_RUTA_DEVOLUCION', 'DEVUELTO_A_CLIENTE', 'DEVUELTO_A_ORIGEN'].includes(s)) return 'warning'
+  return 'secondary'
 }
 
 // Cargar información inicial

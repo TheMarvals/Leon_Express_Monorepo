@@ -86,15 +86,36 @@ const isReturningToClient = ref(false)
 const returnToClientNotes = ref('')
 
 const canReturnToClient = computed(() => {
-  if (!pkg.value || !userStore.isDriver) return false
+  if (!pkg.value || userStore.isClient) return false
 
-  const wasRejected = pkg.value.deliveries?.some((delivery) => delivery.status_at_delivery === 'RECHAZADO_POR_CLIENTE')
+  const hasIncidentOrRejection =
+    pkg.value.deliveries?.some((delivery) =>
+      ['RECHAZADO_POR_CLIENTE', 'DIRECCION_NO_EXISTE', 'DESTINATARIO_AUSENTE'].includes(
+        delivery.status_at_delivery || '',
+      ),
+    ) || Boolean(pkg.value.deliveries && pkg.value.deliveries.length > 0)
 
-  return (
-    pkg.value.status === 'CANCELADO' ||
-    pkg.value.status === 'EN_RUTA_DEVOLUCION' ||
-    (pkg.value.status === 'INCIDENCIA_ENTREGA' && wasRejected)
-  )
+  // Administrador y personal de bodega pueden confirmar la entrega física de vuelta al cliente
+  if (userStore.isAdmin || userStore.isWarehouseStaff) {
+    return (
+      ['DEVUELTO_ALMACEN', 'CANCELADO', 'EN_RUTA_DEVOLUCION', 'INCIDENCIA_ENTREGA'].includes(pkg.value.status) ||
+      (pkg.value.status === 'RECIBIDO_EN_ALMACEN' && hasIncidentOrRejection)
+    )
+  }
+
+  // Chofer asignado
+  if (userStore.isDriver) {
+    const wasRejected = pkg.value.deliveries?.some(
+      (delivery) => delivery.status_at_delivery === 'RECHAZADO_POR_CLIENTE',
+    )
+    return (
+      pkg.value.status === 'CANCELADO' ||
+      pkg.value.status === 'EN_RUTA_DEVOLUCION' ||
+      (pkg.value.status === 'INCIDENCIA_ENTREGA' && wasRejected)
+    )
+  }
+
+  return false
 })
 
 const handleCloseDeliveryConfirm = () => {
