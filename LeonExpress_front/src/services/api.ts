@@ -267,12 +267,13 @@ const api = {
   // ---- Métodos de Entregas (Events) ----
   getDeliveries: (params: any) => axiosInstance.get('/events', { params: mapParams(params) }),
   createDelivery: (packageId: string, formData: FormData) =>
-    axiosInstance.post(`/events/packages/${packageId}/deliveries`, formData),
+    axiosInstance.post(`/events/packages/${packageId}/deliveries`, formData, { timeout: 60000 }),
   uploadDeliveryPhoto: (deliveryId: string, photoFile: File) => {
     const formData = new FormData()
     formData.append('delivery_photo', photoFile)
     return axiosInstance.post(`/events/deliveries/${deliveryId}/photos`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
     })
   },
   returnPackageToClient: (packageId: string, notes?: string) =>

@@ -11,13 +11,16 @@ const { needRefresh, updateServiceWorker } = useRegisterSW({
   immediate: true,
   onRegisteredSW(swScriptUrl, registration) {
     if (registration) {
-      // Verificar actualizaciones cada 15 minutos o cuando la pestaña vuelve a primer plano
+      // Verificar actualizaciones cada 60 minutos o al volver a primer plano tras un tiempo prolongado
       setInterval(() => {
         registration.update()
-      }, 15 * 60 * 1000)
+      }, 60 * 60 * 1000)
 
+      let lastCheck = Date.now()
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
+        const now = Date.now()
+        if (document.visibilityState === 'visible' && now - lastCheck > 60 * 60 * 1000) {
+          lastCheck = now
           registration.update()
         }
       })

@@ -489,6 +489,7 @@ const handleStatusUpdate = async (newStatus: 'EN_PROGRESO' | 'FINALIZADA') => {
     await api.updateRouteStatus(routeId, newStatus)
     showFinishModal.value = false
     notify({ message: `Ruta marcada como ${newStatus.replace('_', ' ')}.`, color: 'success' })
+  } catch (error: any) {
     const errorMessage =
       error.response?.data?.details ||
       error.response?.data?.error ||

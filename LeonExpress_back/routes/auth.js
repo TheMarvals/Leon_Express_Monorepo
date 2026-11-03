@@ -127,7 +127,7 @@ router.post('/login', validateLogin, async (req, res) => {
         client_id: user.client_id || null
       },
       process.env.JWT_SECRET,
-      { expiresIn: '8h' }
+      { expiresIn: '7d' }
     );
 
     // Log del login exitoso
@@ -396,7 +396,7 @@ router.post('/otp/verify', [
         client_id: user.client_id || (user.client ? user.client.client_id : null)
       },
       process.env.JWT_SECRET,
-      { expiresIn: '12h' }
+      { expiresIn: '30d' }
     );
 
     // Auditoría
@@ -617,7 +617,7 @@ router.post('/invitation/accept', [
         client_id: client.client_id
       },
       process.env.JWT_SECRET,
-      { expiresIn: '12h' }
+      { expiresIn: '30d' }
     );
 
     await t.commit();

@@ -12,10 +12,12 @@ const CACHE_NAME = 'leon-express-cache-v1'
 
 console.log('[SW] Service Worker iniciado - Versión:', SW_VERSION)
 
-// Forzar activación inmediata de la nueva versión
-// eslint-disable-next-line no-undef
-self.skipWaiting()
-clientsClaim()
+// Escuchar mensaje para saltar espera de forma controlada cuando el usuario lo confirme
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
+})
 
 // Limpiar caches antiguos al activarse
 self.addEventListener('activate', (event) => {

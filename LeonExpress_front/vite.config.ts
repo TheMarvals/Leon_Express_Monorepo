@@ -33,17 +33,15 @@ export default defineConfig({
       include: resolve(dirname(fileURLToPath(import.meta.url)), './src/i18n/locales/**'),
     }),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.js',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'site.webmanifest'],
-      // Forzar actualización en cada build generando un hash único
+      // Control de registro manual/prompt para evitar recargas automáticas durante el uso
       injectRegister: 'auto',
       workbox: {
         cleanupOutdatedCaches: true,
-        skipWaiting: true,
-        clientsClaim: true,
         // Limpiar caches antiguos automáticamente
         runtimeCaching: [],
       },
