@@ -12,7 +12,7 @@ const emailService = require("../services/emailService");
 const { getFrontendUrl } = require('../utils/frontendUrl');
 const { syncClientEmail } = require('../services/clientEmailService');
 const mlLiveShipments = require('../services/mlLiveShipments');
-const mlGateway = require('../services/mlGatewayClient');
+const mlAccountAccess = require('../services/mlAccountAccessService');
 const { Op } = require("sequelize");
 const { isAfter } = require("date-fns");
 
@@ -1089,29 +1089,15 @@ router.get('/merge-preview/:sourceId/:targetId', authenticateToken, roleValidato
         // Cuentas de Mercado Libre vinculadas al cliente origen
         let mlAccounts = [];
         try {
-            const configRow = await SystemConfig.findOne({ where: { config_key: 'mercadolibre_account_links' } });
-            const manualLinks = (configRow && configRow.config_value)
-                ? (typeof configRow.config_value === 'string' ? JSON.parse(configRow.config_value) : configRow.config_value)
-                : {};
-
-            const linkedAccountIds = Object.keys(manualLinks).filter(accId => String(manualLinks[accId]) === String(sourceId));
-
-            if (linkedAccountIds.length > 0) {
-                try {
-                    const allGatewayAccounts = await mlGateway.getAccounts();
-                    mlAccounts = linkedAccountIds.map(accId => {
-                        const gwAcc = allGatewayAccounts.find(a => String(a.id) === String(accId));
-                        return {
-                            id: accId,
-                            nickname: gwAcc ? gwAcc.nickname : accId,
-                        };
-                    });
-                } catch {
-                    mlAccounts = linkedAccountIds.map(accId => ({ id: accId, nickname: accId }));
-                }
-            }
+            const allAccounts = await mlAccountAccess.getAccounts();
+            mlAccounts = (allAccounts || [])
+                .filter(a => String(a.client_id) === String(sourceId))
+                .map(a => ({
+                    id: String(a.ml_account_id),
+                    nickname: a.ml_nickname || a.nickname || String(a.ml_account_id),
+                }));
         } catch (mlErr) {
-            console.warn('Error fetching ML links for merge preview:', mlErr.message);
+            console.warn('Error fetching ML accounts for merge preview:', mlErr.message);
         }
 
         res.json({
@@ -1206,25 +1192,43 @@ router.post('/merge/:sourceId/:targetId', authenticateToken, roleValidator(['ADM
 
         // 6. Transferir cuentas de Mercado Libre en SystemConfig
         let migratedMlAccountIds = [];
-        const configRow = await SystemConfig.findOne({
-            where: { config_key: 'mercadolibre_account_links' },
-            transaction: t,
-            lock: t.LOCK.UPDATE,
-        });
+        try {
+            const allAccounts = await mlAccountAccess.getAccounts();
+            const sourceAccounts = (allAccounts || []).filter(a => String(a.client_id) === String(sourceId));
 
-        if (configRow) {
+            const [configRow] = await SystemConfig.findOrCreate({
+                where: { config_key: 'mercadolibre_account_links' },
+                defaults: {
+                    config_key: 'mercadolibre_account_links',
+                    config_value: {},
+                    description: 'Vinculaciones locales de cuentas ML en Leon Express',
+                },
+                transaction: t,
+                lock: t.LOCK.UPDATE,
+            });
+
             const manualLinks = (configRow.config_value && typeof configRow.config_value === 'string')
                 ? JSON.parse(configRow.config_value)
                 : (configRow.config_value || {});
 
+            for (const acc of sourceAccounts) {
+                const accId = String(acc.ml_account_id);
+                manualLinks[accId] = String(targetId);
+                migratedMlAccountIds.push(accId);
+            }
+
             for (const [accId, linkedClientId] of Object.entries(manualLinks)) {
                 if (String(linkedClientId) === String(sourceId)) {
                     manualLinks[accId] = String(targetId);
-                    migratedMlAccountIds.push(accId);
+                    if (!migratedMlAccountIds.includes(accId)) {
+                        migratedMlAccountIds.push(accId);
+                    }
                 }
             }
 
             await configRow.update({ config_value: manualLinks }, { transaction: t });
+        } catch (mlErr) {
+            console.warn('Error al transferir cuentas ML en la fusión:', mlErr.message);
         }
 
         // 7. Desactivar y renombrar cliente origen
