@@ -4,12 +4,14 @@ import { useModal, useToast } from 'vuestic-ui'
 import ClientsTable from './widgets/ClientsTable.vue'
 import EditClientForm from './widgets/EditClientForm.vue'
 import InviteClientModal from './widgets/InviteClientModal.vue'
+import MergeClientsModal from './widgets/MergeClientsModal.vue'
 import ClientPortalAccessModal from './widgets/ClientPortalAccessModal.vue'
 import { Client } from './types'
 import { useClients } from './composables/useClients'
 
 const doShowEditClientModal = ref(false)
 const doShowInviteModal = ref(false)
+const doShowMergeModal = ref(false)
 const portalClient = ref<Client | null>(null)
 const doShowPortalAccess = ref(false)
 const showPortalAccess = (client: Client) => {
@@ -109,6 +111,9 @@ const beforeEditFormModalClose = async (hide: () => void) => {
           </VaInput>
         </div>
         <div class="flex items-center gap-2">
+          <VaButton preset="secondary" color="warning" icon="call_merge" @click="doShowMergeModal = true">
+            Fusionar Clientes
+          </VaButton>
           <VaButton color="primary" icon="mail" @click="doShowInviteModal = true"> Invitar Cliente </VaButton>
         </div>
       </div>
@@ -155,6 +160,8 @@ const beforeEditFormModalClose = async (hide: () => void) => {
   <ClientPortalAccessModal v-model="doShowPortalAccess" :client="portalClient" />
 
   <InviteClientModal v-model="doShowInviteModal" @created="debouncedFetch" />
+
+  <MergeClientsModal v-model="doShowMergeModal" :clients="clients" @merged="debouncedFetch" />
 </template>
 
 <style scoped>

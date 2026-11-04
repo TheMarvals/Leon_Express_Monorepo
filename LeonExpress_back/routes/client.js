@@ -4,13 +4,15 @@ const express = require("express");
 const { body, validationResult } = require("express-validator");
 const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
-const { Client, ClientPricing, ClientInvitation, sequelize } = require("../models"); // Importa sequelize para transacciones
+const { Client, ClientPricing, ClientInvitation, Package, Pickup, User, Invoice, SystemConfig, sequelize } = require("../models"); // Importa sequelize para transacciones
 const { logAudit } = require("../utils/audit");
 const authenticateToken = require("../middlewares/authenticateToken");
 const roleValidator = require("../middlewares/roleValidator");
 const emailService = require("../services/emailService");
 const { getFrontendUrl } = require('../utils/frontendUrl');
 const { syncClientEmail } = require('../services/clientEmailService');
+const mlLiveShipments = require('../services/mlLiveShipments');
+const mlGateway = require('../services/mlGatewayClient');
 const { Op } = require("sequelize");
 const { isAfter } = require("date-fns");
 
@@ -1050,4 +1052,240 @@ router.delete('/invitations/:id', authenticateToken, roleValidator(['ADMIN']), a
     }
 });
 
+/**
+ * GET /clients/merge-preview/:sourceId/:targetId - Vista previa de fusión de clientes
+ */
+router.get('/merge-preview/:sourceId/:targetId', authenticateToken, roleValidator(['ADMIN']), async (req, res) => {
+    try {
+        const { sourceId, targetId } = req.params;
+
+        if (!sourceId || !targetId) {
+            return res.status(400).json({ error: 'Debes especificar cliente origen y cliente destino' });
+        }
+        if (String(sourceId) === String(targetId)) {
+            return res.status(400).json({ error: 'El cliente origen y destino no pueden ser el mismo' });
+        }
+
+        const [sourceClient, targetClient] = await Promise.all([
+            Client.findByPk(sourceId),
+            Client.findByPk(targetId),
+        ]);
+
+        if (!sourceClient) {
+            return res.status(404).json({ error: 'Cliente origen no encontrado' });
+        }
+        if (!targetClient) {
+            return res.status(404).json({ error: 'Cliente destino no encontrado' });
+        }
+
+        // Contar entidades asociadas al cliente origen
+        const [packagesCount, pickupsCount, usersCount, invoicesCount] = await Promise.all([
+            Package.count({ where: { client_id: sourceId } }),
+            Pickup.count({ where: { client_id: sourceId } }),
+            User.count({ where: { client_id: sourceId } }),
+            Invoice.count({ where: { client_id: sourceId } }),
+        ]);
+
+        // Cuentas de Mercado Libre vinculadas al cliente origen
+        let mlAccounts = [];
+        try {
+            const configRow = await SystemConfig.findOne({ where: { config_key: 'mercadolibre_account_links' } });
+            const manualLinks = (configRow && configRow.config_value)
+                ? (typeof configRow.config_value === 'string' ? JSON.parse(configRow.config_value) : configRow.config_value)
+                : {};
+
+            const linkedAccountIds = Object.keys(manualLinks).filter(accId => String(manualLinks[accId]) === String(sourceId));
+
+            if (linkedAccountIds.length > 0) {
+                try {
+                    const allGatewayAccounts = await mlGateway.getAccounts();
+                    mlAccounts = linkedAccountIds.map(accId => {
+                        const gwAcc = allGatewayAccounts.find(a => String(a.id) === String(accId));
+                        return {
+                            id: accId,
+                            nickname: gwAcc ? gwAcc.nickname : accId,
+                        };
+                    });
+                } catch {
+                    mlAccounts = linkedAccountIds.map(accId => ({ id: accId, nickname: accId }));
+                }
+            }
+        } catch (mlErr) {
+            console.warn('Error fetching ML links for merge preview:', mlErr.message);
+        }
+
+        res.json({
+            source_client: {
+                client_id: sourceClient.client_id,
+                client_name: sourceClient.client_name,
+                is_active: sourceClient.is_active,
+            },
+            target_client: {
+                client_id: targetClient.client_id,
+                client_name: targetClient.client_name,
+                is_active: targetClient.is_active,
+            },
+            preview: {
+                packages_count: packagesCount,
+                pickups_count: pickupsCount,
+                users_count: usersCount,
+                invoices_count: invoicesCount,
+                ml_accounts: mlAccounts,
+            },
+        });
+    } catch (error) {
+        console.error('Error en vista previa de fusión de clientes:', error);
+        res.status(500).json({ error: 'Error del servidor al obtener vista previa', details: error.message });
+    }
+});
+
+/**
+ * POST /clients/merge/:sourceId/:targetId - Fusionar cliente origen en cliente destino
+ */
+router.post('/merge/:sourceId/:targetId', authenticateToken, roleValidator(['ADMIN']), async (req, res) => {
+    let t;
+    try {
+        const { sourceId, targetId } = req.params;
+
+        if (!sourceId || !targetId) {
+            return res.status(400).json({ error: 'Debes especificar cliente origen y cliente destino' });
+        }
+        if (String(sourceId) === String(targetId)) {
+            return res.status(400).json({ error: 'El cliente origen y destino no pueden ser el mismo' });
+        }
+
+        t = await sequelize.transaction();
+
+        const [sourceClient, targetClient] = await Promise.all([
+            Client.findByPk(sourceId, { transaction: t }),
+            Client.findByPk(targetId, { transaction: t }),
+        ]);
+
+        if (!sourceClient) {
+            await t.rollback();
+            return res.status(404).json({ error: 'Cliente origen no encontrado' });
+        }
+        if (!targetClient) {
+            await t.rollback();
+            return res.status(404).json({ error: 'Cliente destino no encontrado' });
+        }
+        if (!targetClient.is_active) {
+            await t.rollback();
+            return res.status(400).json({ error: 'El cliente destino debe estar activo para recibir los datos' });
+        }
+
+        // 1. Transferir paquetes
+        const [packagesUpdated] = await Package.update(
+            { client_id: targetId },
+            { where: { client_id: sourceId }, transaction: t }
+        );
+
+        // 2. Transferir pickups
+        const [pickupsUpdated] = await Pickup.update(
+            { client_id: targetId },
+            { where: { client_id: sourceId }, transaction: t }
+        );
+
+        // 3. Transferir usuarios del portal cliente
+        const [usersUpdated] = await User.update(
+            { client_id: targetId },
+            { where: { client_id: sourceId }, transaction: t }
+        );
+
+        // 4. Transferir facturas
+        const [invoicesUpdated] = await Invoice.update(
+            { client_id: targetId },
+            { where: { client_id: sourceId }, transaction: t }
+        );
+
+        // 5. Transferir invitaciones pendientes
+        await ClientInvitation.update(
+            { client_id: targetId },
+            { where: { client_id: sourceId }, transaction: t }
+        );
+
+        // 6. Transferir cuentas de Mercado Libre en SystemConfig
+        let migratedMlAccountIds = [];
+        const configRow = await SystemConfig.findOne({
+            where: { config_key: 'mercadolibre_account_links' },
+            transaction: t,
+            lock: t.LOCK.UPDATE,
+        });
+
+        if (configRow) {
+            const manualLinks = (configRow.config_value && typeof configRow.config_value === 'string')
+                ? JSON.parse(configRow.config_value)
+                : (configRow.config_value || {});
+
+            for (const [accId, linkedClientId] of Object.entries(manualLinks)) {
+                if (String(linkedClientId) === String(sourceId)) {
+                    manualLinks[accId] = String(targetId);
+                    migratedMlAccountIds.push(accId);
+                }
+            }
+
+            await configRow.update({ config_value: manualLinks }, { transaction: t });
+        }
+
+        // 7. Desactivar y renombrar cliente origen
+        const originalSourceName = sourceClient.client_name;
+        const cleanSourceName = originalSourceName.startsWith('[FUSIONADO]')
+            ? originalSourceName
+            : `[FUSIONADO] ${originalSourceName}`;
+
+        await sourceClient.update(
+            {
+                is_active: false,
+                client_name: cleanSourceName,
+                address: sourceClient.address
+                    ? `${sourceClient.address} (Fusionado en ${targetClient.client_name})`
+                    : `(Fusionado en ${targetClient.client_name})`,
+            },
+            { transaction: t }
+        );
+
+        await t.commit();
+
+        // Invalidar cachés de Mercado Libre fuera de la transacción
+        for (const accId of migratedMlAccountIds) {
+            try {
+                mlLiveShipments.invalidateLiveShipmentCache(accId);
+            } catch (cacheErr) {
+                console.warn(`Error al invalidar caché para cuenta ML ${accId}:`, cacheErr.message);
+            }
+        }
+
+        // Auditoría
+        await logAudit(req.user.user_id, 'MERGE_CLIENTS', {
+            source_client_id: sourceId,
+            source_client_name: originalSourceName,
+            target_client_id: targetId,
+            target_client_name: targetClient.client_name,
+            packages_updated: packagesUpdated,
+            pickups_updated: pickupsUpdated,
+            users_updated: usersUpdated,
+            invoices_updated: invoicesUpdated,
+            ml_accounts_migrated: migratedMlAccountIds,
+        });
+
+        res.json({
+            message: `Cliente "${originalSourceName}" fusionado exitosamente en "${targetClient.client_name}"`,
+            summary: {
+                source_client_name: originalSourceName,
+                target_client_name: targetClient.client_name,
+                packages_updated: packagesUpdated,
+                pickups_updated: pickupsUpdated,
+                users_updated: usersUpdated,
+                invoices_updated: invoicesUpdated,
+                ml_accounts_migrated_count: migratedMlAccountIds.length,
+            },
+        });
+    } catch (error) {
+        if (t) await t.rollback();
+        console.error('Error al fusionar clientes:', error);
+        res.status(500).json({ error: 'Error del servidor al fusionar clientes', details: error.message });
+    }
+});
+
 module.exports = router;
+

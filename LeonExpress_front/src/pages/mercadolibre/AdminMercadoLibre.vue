@@ -275,71 +275,6 @@ const copyLink = () => {
   notify({ message: 'Enlace copiado al portapapeles', color: 'info' })
 }
 
-// === Migrar Cuenta a Otro Cliente ===
-const showMigrateModal = ref(false)
-const selectedAccountForMigration = ref<MlAccount | null>(null)
-const targetClientIdForMigration = ref<string>('')
-const migrateHistoricalPackages = ref(true)
-const migrateAllFromSourceClient = ref(false)
-const isMigratingAccount = ref(false)
-
-const clientOptionsForMigration = computed(() => {
-  if (!localClients.value) return []
-  return localClients.value
-    .filter((c: any) => c.is_active !== false && c.client_id !== selectedAccountForMigration.value?.client_id)
-    .map((c: any) => ({
-      value: c.client_id,
-      text: c.client_name,
-    }))
-})
-
-const openMigrateModal = (account: MlAccount) => {
-  selectedAccountForMigration.value = account
-  targetClientIdForMigration.value = ''
-  migrateHistoricalPackages.value = true
-  migrateAllFromSourceClient.value = false
-  showMigrateModal.value = true
-}
-
-const submitMigration = async () => {
-  if (!selectedAccountForMigration.value || !targetClientIdForMigration.value) return
-
-  const targetClient = localClients.value?.find((c: any) => c.client_id === targetClientIdForMigration.value)
-  const ok = await confirm({
-    title: 'Confirmar migración de cuenta',
-    message: `¿Estás seguro de transferir la cuenta "${selectedAccountForMigration.value.ml_nickname}" al cliente "${targetClient?.client_name || targetClientIdForMigration.value}"?`,
-    okText: 'Sí, migrar cuenta',
-    cancelText: 'Cancelar',
-  })
-  if (!ok) return
-
-  isMigratingAccount.value = true
-  try {
-    const res = await mercadolibreService.migrateAccount(
-      selectedAccountForMigration.value.ml_account_id,
-      targetClientIdForMigration.value,
-      {
-        migratePackages: migrateHistoricalPackages.value,
-        migrateAllFromSource: migrateAllFromSourceClient.value,
-      },
-    )
-    notify({
-      message: res.message || 'Cuenta migrada exitosamente',
-      color: 'success',
-      duration: 5000,
-    })
-    showMigrateModal.value = false
-    await fetchData()
-  } catch (err: any) {
-    notify({
-      message: err.response?.data?.error || 'Error al migrar la cuenta de Mercado Libre',
-      color: 'danger',
-      duration: 6000,
-    })
-  } finally {
-    isMigratingAccount.value = false
-  }
-}
 
 // === Importar Envíos ===
 const openImportModal = async () => {
@@ -461,15 +396,6 @@ onUnmounted(() => {
                 {{ localClients.find((c) => c.client_id === value)?.client_name || value }}
               </template>
               <template #cell(actions)="{ rowData }">
-                <VaButton
-                  size="small"
-                  preset="plain"
-                  color="warning"
-                  icon="swap_horiz"
-                  title="Migrar cuenta a otro cliente"
-                  class="mr-2"
-                  @click="openMigrateModal(rowData as MlAccount)"
-                />
                 <VaButton
                   size="small"
                   preset="plain"
@@ -672,76 +598,6 @@ onUnmounted(() => {
           label="Seleccionar Pickup de Destino"
           searchable
         />
-      </div>
-    </VaModal>
-
-    <!-- Modal Migrar Cuenta a Otro Cliente -->
-    <VaModal
-      v-model="showMigrateModal"
-      title="Migrar Cuenta de Mercado Libre a Otro Cliente"
-      hide-default-actions
-      :no-dismiss="isMigratingAccount"
-    >
-      <div class="flex flex-col gap-4">
-        <VaAlert color="info" dense>
-          Esta acción reasigna la cuenta <strong>{{ selectedAccountForMigration?.ml_nickname }}</strong> a otro cliente en León Express. Las ventas y envíos sincronizados pertenecerán al nuevo cliente.
-        </VaAlert>
-
-        <div class="p-3 bg-gray-50 rounded-lg flex flex-col gap-1 border">
-          <div class="flex justify-between items-center text-sm">
-            <span class="text-secondary">Cuenta ML:</span>
-            <span class="font-bold">{{ selectedAccountForMigration?.ml_nickname }}</span>
-          </div>
-          <div class="flex justify-between items-center text-sm">
-            <span class="text-secondary">Cliente Actual:</span>
-            <span class="font-bold text-primary">{{ getClientName(selectedAccountForMigration?.ml_account_id || '') }}</span>
-          </div>
-        </div>
-
-        <VaSelect
-          v-model="targetClientIdForMigration"
-          :options="clientOptionsForMigration"
-          value-by="value"
-          text-by="text"
-          label="Nuevo Cliente Propietario"
-          searchable
-          clearable
-          :disabled="isMigratingAccount"
-        />
-
-        <div class="flex flex-col gap-2 pt-1">
-          <VaCheckbox
-            v-model="migrateHistoricalPackages"
-            label="Migrar paquetes históricos importados de esta cuenta"
-            :disabled="isMigratingAccount"
-          />
-          <span class="text-xs text-secondary ml-6">
-            Actualiza los paquetes de esta cuenta de Mercado Libre al nuevo cliente para que aparezcan en su dashboard y facturas.
-          </span>
-
-          <VaCheckbox
-            v-model="migrateAllFromSourceClient"
-            label="Migrar también todas las colectas y paquetes del cliente anterior"
-            :disabled="isMigratingAccount"
-          />
-          <span class="text-xs text-secondary ml-6">
-            Útil si creaste un cliente duplicado temporalmente (ej: "Cliente 2"). Traslada todos sus paquetes y colectas al nuevo cliente.
-          </span>
-        </div>
-
-        <div class="flex justify-end gap-2 mt-2">
-          <VaButton preset="secondary" :disabled="isMigratingAccount" @click="showMigrateModal = false">
-            Cancelar
-          </VaButton>
-          <VaButton
-            color="warning"
-            :loading="isMigratingAccount"
-            :disabled="!targetClientIdForMigration || targetClientIdForMigration === selectedAccountForMigration?.client_id"
-            @click="submitMigration"
-          >
-            Migrar Cuenta
-          </VaButton>
-        </div>
       </div>
     </VaModal>
   </div>

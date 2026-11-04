@@ -208,6 +208,10 @@ const api = {
   }) => axiosInstance.post('/clients/invitations', data),
   getClientInvitations: () => axiosInstance.get('/clients/invitations'),
   deleteClientInvitation: (id: string) => axiosInstance.delete(`/clients/invitations/${id}`),
+  getClientMergePreview: (sourceId: string, targetId: string) =>
+    axiosInstance.get(`/clients/merge-preview/${sourceId}/${targetId}`),
+  mergeClients: (sourceId: string, targetId: string) =>
+    axiosInstance.post(`/clients/merge/${sourceId}/${targetId}`),
 
   // --- Metodos Packages ----
   getPackages: (params: ApiListParams) => axiosInstance.get('/packages', { params: mapParams(params) }),
