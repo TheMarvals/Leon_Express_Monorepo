@@ -530,7 +530,11 @@ router.get("/", authenticateToken, async (req, res) => {
       ]
     } : {};
 
-    whereClause.is_active = isActive !== 'false';
+    if (isActive === 'true') {
+      whereClause.is_active = true;
+    } else if (isActive === 'false') {
+      whereClause.is_active = false;
+    }
     if (req.user.role === 'CLIENT') whereClause.client_id = req.user.client_id;
     const { count, rows: clients } = await Client.findAndCountAll({
       where: whereClause,
@@ -1226,7 +1230,7 @@ router.post('/merge/:sourceId/:targetId', authenticateToken, roleValidator(['ADM
                 }
             }
 
-            await configRow.update({ config_value: manualLinks }, { transaction: t });
+            await configRow.update({ config_value: JSON.stringify(manualLinks) }, { transaction: t });
         } catch (mlErr) {
             console.warn('Error al transferir cuentas ML en la fusión:', mlErr.message);
         }
@@ -1253,7 +1257,7 @@ router.post('/merge/:sourceId/:targetId', authenticateToken, roleValidator(['ADM
         // Invalidar cachés de Mercado Libre fuera de la transacción
         for (const accId of migratedMlAccountIds) {
             try {
-                mlLiveShipments.invalidateLiveShipmentCache(accId);
+                mlLiveShipments.invalidate(accId);
             } catch (cacheErr) {
                 console.warn(`Error al invalidar caché para cuenta ML ${accId}:`, cacheErr.message);
             }

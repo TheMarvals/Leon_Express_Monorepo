@@ -145,6 +145,32 @@ const sourceClientId = ref<string>('')
 const targetClientId = ref<string>('')
 const isMerging = ref(false)
 const isLoadingPreview = ref(false)
+const clientList = ref<Client[]>([])
+const isLoadingClients = ref(false)
+
+const loadClients = async () => {
+  isLoadingClients.value = true
+  try {
+    const res = await api.getClients({ perPage: 300, isActive: 'all' })
+    const items = res.data?.clients || res.data || []
+    clientList.value = items
+  } catch (err) {
+    clientList.value = props.clients || []
+  } finally {
+    isLoadingClients.value = false
+  }
+}
+
+watch(isOpen, (newVal) => {
+  if (newVal) {
+    loadClients()
+  }
+})
+
+const effectiveClients = computed(() => {
+  return clientList.value.length > 0 ? clientList.value : props.clients
+})
+
 const previewData = ref<{
   packages_count: number
   pickups_count: number
@@ -154,14 +180,14 @@ const previewData = ref<{
 } | null>(null)
 
 const sourceClientOptions = computed(() => {
-  return props.clients.map((c) => ({
+  return effectiveClients.value.map((c) => ({
     value: c.client_id,
     text: `${c.client_name}${c.is_active === false ? ' (Inactivo)' : ''}`,
   }))
 })
 
 const targetClientOptions = computed(() => {
-  return props.clients
+  return effectiveClients.value
     .filter((c) => c.client_id !== sourceClientId.value && c.is_active !== false)
     .map((c) => ({
       value: c.client_id,
@@ -170,12 +196,12 @@ const targetClientOptions = computed(() => {
 })
 
 const sourceClientName = computed(() => {
-  const c = props.clients.find((item) => item.client_id === sourceClientId.value)
+  const c = effectiveClients.value.find((item) => item.client_id === sourceClientId.value)
   return c ? c.client_name : ''
 })
 
 const targetClientName = computed(() => {
-  const c = props.clients.find((item) => item.client_id === targetClientId.value)
+  const c = effectiveClients.value.find((item) => item.client_id === targetClientId.value)
   return c ? c.client_name : ''
 })
 
