@@ -124,6 +124,10 @@ defineExpose({ preparePrint })
           <div class="tracking-details">
             <span class="section-title">N° DE SEGUIMIENTO</span>
             <p class="tracking-code">{{ pkg.tracking_code }}</p>
+            <div v-if="pkg.sales_codes" class="sale-code-block">
+              <span class="section-title">N° DE VENTA</span>
+              <p class="sale-code">{{ pkg.sales_codes }}</p>
+            </div>
           </div>
         </section>
 
@@ -284,6 +288,30 @@ defineExpose({ preparePrint })
   letter-spacing: 0.6px;
   overflow-wrap: anywhere;
   line-height: 1.25;
+}
+
+.sale-code-block {
+  margin-top: 2mm;
+  padding-top: 1.5mm;
+  border-top: 0.3mm dashed #000;
+}
+
+.sale-code {
+  margin: 1mm 0 0;
+  font-family: monospace;
+  font-size: 11pt;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+
+.thermal-label--compact .sale-code-block {
+  margin-top: 1mm;
+  padding-top: 1mm;
+}
+
+.thermal-label--compact .sale-code {
+  font-size: 9.5pt;
 }
 
 .recipient-section {

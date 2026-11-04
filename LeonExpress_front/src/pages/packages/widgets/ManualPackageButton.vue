@@ -42,6 +42,7 @@ const createdPackageForLabel = ref<any>(null)
 const manualForm = reactive({
   recipient_name: '',
   recipient_phone: '',
+  sales_code: '',
   destination_address: '',
   commune: '',
   is_cod: false,
@@ -68,6 +69,7 @@ const handleCreateManualPackage = async () => {
     const res = await api.createManualPackage({
       recipient_name: manualForm.recipient_name,
       recipient_phone: manualForm.recipient_phone,
+      sales_codes: manualForm.sales_code?.trim() || null,
       destination_address: addressWithNotes,
       is_cod: manualForm.is_cod,
       cod_amount: manualForm.is_cod ? Number(manualForm.cod_amount) : 0,
@@ -107,6 +109,7 @@ const resetManualPackageModal = () => {
   labelError.value = ''
   manualForm.recipient_name = ''
   manualForm.recipient_phone = ''
+  manualForm.sales_code = ''
   manualForm.destination_address = ''
   manualForm.commune = ''
   manualForm.is_cod = false
@@ -169,6 +172,13 @@ const printCurrentLabel = () => {
           v-model="manualForm.destination_address"
           label="Dirección Completa de Destino *"
           placeholder="Av. Providencia 1234, Depto 501"
+          class="w-full"
+        />
+
+        <VaInput
+          v-model="manualForm.sales_code"
+          label="Número de Venta (Opcional)"
+          placeholder="Ej: 200000123456 o NV-8921"
           class="w-full"
         />
 

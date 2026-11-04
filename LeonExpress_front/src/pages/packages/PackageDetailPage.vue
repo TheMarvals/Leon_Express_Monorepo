@@ -630,8 +630,8 @@ const printThermalLabel = () => {
           <p class="va-text-secondary">Fecha de Escaneo en Origen</p>
           <p>{{ formatDate(pkg.scanned_at_origin_datetime) }}</p>
         </div>
-        <div v-if="pkg.has_multiple_labels && pkg.sales_codes">
-          <p class="va-text-secondary">Códigos de Venta</p>
+        <div v-if="pkg.sales_codes">
+          <p class="va-text-secondary">Código / Número de Venta</p>
           <p>
             <VaBadge
               v-for="code in pkg.sales_codes.split(',')"

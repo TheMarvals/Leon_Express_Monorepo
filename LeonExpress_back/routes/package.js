@@ -27,6 +27,7 @@ const validatePackage = [
   body("client_id").optional({ nullable: true }).isUUID(4).withMessage("ID de cliente inválido"),
   body("recipient_name").isString().notEmpty().withMessage("Nombre del destinatario es requerido"),
   body("destination_address").isString().notEmpty().withMessage("Dirección de destino es requerida").custom(validateLabelNotes),
+  body("sales_codes").optional({ nullable: true }).isString().trim(),
   body("client_price").optional().isFloat({ min: 0 }).withMessage("Precio al cliente debe ser un número positivo"),
   body("delivery_cost").optional().isFloat({ min: 0 }).withMessage("Costo de entrega debe ser un número positivo"),
   body("scanned_at_origin_datetime").optional({ nullable: true }).isISO8601().toDate().withMessage("Fecha de escaneo inválida"),
@@ -676,6 +677,8 @@ router.post("/", authenticateToken, validatePackage, async (req, res) => {
       destination_address: packageData.destination_address,
       recipient_name: packageData.recipient_name,
       recipient_phone: packageData.recipient_phone,
+      sales_codes: packageData.sales_codes ? String(packageData.sales_codes).trim() : null,
+      has_multiple_labels: Boolean(packageData.has_multiple_labels),
     };
 
     const newPackage = await Package.create(newPackageData, { transaction: t });
