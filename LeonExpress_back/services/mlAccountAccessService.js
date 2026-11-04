@@ -107,10 +107,144 @@ async function syncAccessibleAccounts() {
   return { message: `Consulta directa iniciada para ${accounts.length} cuenta(s).` };
 }
 
+async function migrateAccount(accountId, targetClientId, options = {}) {
+  const { migratePackages = true, migrateAllFromSource = false } = options;
+  const { Client, Package, Pickup, MlImport, sequelize } = require('../models');
+  const { Op } = require('sequelize');
+
+  const [targetClient, gatewayData, manualLinks, excluded] = await Promise.all([
+    Client.findOne({ where: { client_id: targetClientId, is_active: true } }),
+    mlGatewayClient.getAccounts(),
+    readJsonConfig(LINKS_KEY, {}),
+    getExcludedIds(),
+  ]);
+
+  if (!targetClient) {
+    const error = new Error('El cliente destino no existe o está inactivo.');
+    error.status = 404;
+    throw error;
+  }
+
+  const account = (gatewayData.accounts || []).find(item => String(item.ml_account_id) === String(accountId));
+  if (!account) {
+    const error = new Error('La cuenta de Mercado Libre no existe o no está registrada en el gateway.');
+    error.status = 404;
+    throw error;
+  }
+
+  const currentClientId = manualLinks[String(accountId)] || account.client_id;
+  if (String(currentClientId) === String(targetClientId)) {
+    const error = new Error('La cuenta ya pertenece al cliente seleccionado.');
+    error.status = 400;
+    throw error;
+  }
+
+  const t = await sequelize.transaction();
+  let migratedPackagesCount = 0;
+  let migratedPickupsCount = 0;
+
+  try {
+    // 1. Reasignar cuenta localmente
+    manualLinks[String(accountId)] = String(targetClientId);
+    excluded.delete(String(accountId));
+
+    await Promise.all([
+      SystemConfig.upsert({
+        config_key: LINKS_KEY,
+        config_value: JSON.stringify(manualLinks),
+        description: 'Vinculaciones locales de cuentas ML en Leon Express',
+      }, { transaction: t }),
+      SystemConfig.upsert({
+        config_key: EXCLUSIONS_KEY,
+        config_value: JSON.stringify([...excluded]),
+        description: 'Cuentas del gateway ocultas únicamente en Leon Express',
+      }, { transaction: t }),
+    ]);
+
+    // 2. Si se solicitó migrar paquetes
+    if (migratePackages || migrateAllFromSource) {
+      let packageCondition = null;
+      if (migrateAllFromSource && currentClientId) {
+        packageCondition = { client_id: String(currentClientId) };
+      } else {
+        const mlImports = await MlImport.findAll({
+          where: { ml_account_id: String(accountId) },
+          attributes: ['package_id'],
+          transaction: t,
+          raw: true,
+        });
+        const packageIds = mlImports.map(r => r.package_id).filter(Boolean);
+        if (packageIds.length > 0) {
+          packageCondition = { package_id: { [Op.in]: packageIds } };
+        }
+      }
+
+      if (packageCondition) {
+        const [updatedCount] = await Package.update(
+          { client_id: String(targetClientId) },
+          { where: packageCondition, transaction: t }
+        );
+        migratedPackagesCount = updatedCount;
+
+        // Actualizar colectas asociadas
+        if (migrateAllFromSource && currentClientId) {
+          const [pUpdated] = await Pickup.update(
+            { client_id: String(targetClientId) },
+            { where: { client_id: String(currentClientId) }, transaction: t }
+          );
+          migratedPickupsCount = pUpdated;
+        } else {
+          const pkgs = await Package.findAll({
+            where: packageCondition,
+            attributes: ['pickup_id'],
+            transaction: t,
+            raw: true,
+          });
+          const pickupIds = [...new Set(pkgs.map(p => p.pickup_id).filter(Boolean))];
+          if (pickupIds.length > 0 && currentClientId) {
+            const [pUpdated] = await Pickup.update(
+              { client_id: String(targetClientId) },
+              {
+                where: {
+                  pickup_id: { [Op.in]: pickupIds },
+                  client_id: String(currentClientId),
+                },
+                transaction: t,
+              }
+            );
+            migratedPickupsCount = pUpdated;
+          }
+        }
+      }
+    }
+
+    await t.commit();
+
+    try {
+      require('./mlLiveShipments').invalidate(accountId);
+    } catch (e) {
+      // Ignorar si el cache no estaba inicializado
+    }
+
+    return {
+      success: true,
+      account: { ...account, client_id: String(targetClientId) },
+      from_client_id: String(currentClientId),
+      to_client_id: String(targetClientId),
+      migrated_packages_count: migratedPackagesCount,
+      migrated_pickups_count: migratedPickupsCount,
+    };
+  } catch (err) {
+    if (t) await t.rollback();
+    throw err;
+  }
+}
+
 module.exports = {
   getAccounts,
   getAvailableAccounts,
   linkAccount,
+  migrateAccount,
   excludeAccount,
   assertAccessible,
   getPendingShipments,

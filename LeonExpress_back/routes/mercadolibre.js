@@ -42,6 +42,38 @@ router.post('/accounts/:id/link', authMiddleware, hasRole(['ADMIN']), async (req
   }
 });
 
+// POST /api/mercadolibre/accounts/:id/migrate
+// Migra una cuenta de Mercado Libre de un cliente a otro, con opción de transferir paquetes históricos
+router.post('/accounts/:id/migrate', authMiddleware, hasRole(['ADMIN']), async (req, res) => {
+  try {
+    const { target_client_id, migrate_packages, migrate_all_from_source } = req.body;
+    if (!target_client_id) {
+      return res.status(400).json({ error: 'Debe seleccionar el cliente de destino' });
+    }
+
+    const result = await mlAccountAccess.migrateAccount(req.params.id, target_client_id, {
+      migratePackages: migrate_packages !== false,
+      migrateAllFromSource: Boolean(migrate_all_from_source),
+    });
+
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req.user.user_id, 'MIGRATE_ML_ACCOUNT', {
+      account_id: req.params.id,
+      from_client_id: result.from_client_id,
+      to_client_id: result.to_client_id,
+      migrated_packages_count: result.migrated_packages_count,
+      migrated_pickups_count: result.migrated_pickups_count,
+    });
+
+    res.json({
+      message: `Cuenta de Mercado Libre migrada exitosamente.${result.migrated_packages_count > 0 ? ` Se transfirieron ${result.migrated_packages_count} paquete(s).` : ''}`,
+      result,
+    });
+  } catch (error) {
+    res.status(error.status || 400).json({ error: error.message });
+  }
+});
+
 // GET /api/mercadolibre/shipments/pending
 // Retorna los envíos que están pendientes de importar a LE
 router.get('/shipments/pending', authMiddleware, hasRole(['ADMIN']), async (req, res) => {

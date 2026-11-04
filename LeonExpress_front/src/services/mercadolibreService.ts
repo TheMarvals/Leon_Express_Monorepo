@@ -43,6 +43,19 @@ const mercadolibreService = {
     return response.data
   },
 
+  async migrateAccount(
+    accountId: string,
+    targetClientId: string,
+    options?: { migratePackages?: boolean; migrateAllFromSource?: boolean },
+  ): Promise<any> {
+    const response = await apiClient.post(`/mercadolibre/accounts/${accountId}/migrate`, {
+      target_client_id: targetClientId,
+      migrate_packages: options?.migratePackages !== false,
+      migrate_all_from_source: Boolean(options?.migrateAllFromSource),
+    })
+    return response.data
+  },
+
   /**
    * Obtiene los envíos pendientes del Gateway con soporte para paginación y búsqueda.
    */
