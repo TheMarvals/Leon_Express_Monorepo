@@ -1269,6 +1269,26 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
       return res.status(200).json(route);
     }
 
+    // A pending route can be canceled without losing its transfer history,
+    // but only after every active package has been moved out of it.
+    if (newStatus === 'CANCELADA' && route.status === 'PENDIENTE') {
+      if (route.routePackages.length > 0) {
+        await t.rollback();
+        return res.status(409).json({ error: 'Solo se puede cancelar una ruta pendiente sin paquetes activos. Transfiere o quita los paquetes primero.' });
+      }
+      route.status = 'CANCELADA';
+      route.end_date = new Date();
+      await route.save({ transaction: t });
+      await t.commit();
+      await logAudit(req.user.user_id, 'UPDATE_ROUTE', {
+        route_id: route.route_id,
+        route_name: route.route_name,
+        old_status: 'PENDIENTE',
+        new_status: 'CANCELADA',
+      });
+      return res.status(200).json(route);
+    }
+
     // --- LÓGICA PARA INICIAR RUTA ---
     if (newStatus === 'EN_PROGRESO' && route.status === 'PENDIENTE') {
       await assertDriverDayAvailable(route.user_id, route.start_date, t, route.route_id, true);

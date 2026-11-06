@@ -482,13 +482,16 @@ const handleAssignPackages = async () => {
   }
 }
 
-const handleStatusUpdate = async (newStatus: 'EN_PROGRESO' | 'FINALIZADA') => {
+const handleStatusUpdate = async (newStatus: 'EN_PROGRESO' | 'FINALIZADA' | 'CANCELADA') => {
+  if (newStatus === 'CANCELADA' && !confirm('¿Cancelar esta ruta pendiente vacía? Se conservará el historial de paquetes transferidos.')) {
+    return
+  }
   isUpdatingStatus.value = true
   const routeId = route.params.id as string
   try {
     await api.updateRouteStatus(routeId, newStatus)
     showFinishModal.value = false
-    notify({ message: `Ruta marcada como ${newStatus.replace('_', ' ')}.`, color: 'success' })
+    notify({ message: newStatus === 'CANCELADA' ? 'Ruta cancelada.' : `Ruta marcada como ${newStatus.replace('_', ' ')}.`, color: 'success' })
   } catch (error: any) {
     const errorMessage =
       error.response?.data?.details ||
@@ -704,6 +707,17 @@ const showApproveButton = computed(() => {
           @click="handleStatusUpdate('EN_PROGRESO')"
         >
           Iniciar Reparto
+        </VaButton>
+        <VaButton
+          v-if="canManageRoute && routeData.status === 'PENDIENTE' && packagesInRoute.length === 0"
+          preset="secondary"
+          color="warning"
+          icon="fa4-ban"
+          :loading="isUpdatingStatus"
+          class="route-action-button"
+          @click="handleStatusUpdate('CANCELADA')"
+        >
+          Cancelar Ruta Vacía
         </VaButton>
         <VaButton
           v-if="isAdmin && routeData.status === 'PENDIENTE' && loadingStatus !== 'APPROVED'"
