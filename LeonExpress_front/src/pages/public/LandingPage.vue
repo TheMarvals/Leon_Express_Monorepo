@@ -197,7 +197,7 @@ async function submit() {
             <p class="modal-intro">Cuéntanos sobre tu negocio y coordinemos tus próximos envíos.</p>
             <p class="form-intro">Los campos con * son obligatorios.</p>
             <div class="form-grid">
-              <label class="full"
+              <label
                 >Nombre de tu empresa o tienda *<input
                   v-model="form.company"
                   name="company"
@@ -208,7 +208,7 @@ async function submit() {
                   maxlength="120"
                   placeholder="¿Cómo se llama tu negocio?"
               /></label>
-              <label class="full"
+              <label
                 >Nombre de contacto *<input
                   v-model="form.contact_name"
                   name="contact_name"
@@ -513,7 +513,7 @@ async function submit() {
 .application-dialog {
   border: 1px solid #d6dfd9;
   border-radius: 13px;
-  width: min(580px, calc(100% - 32px));
+  width: min(700px, calc(100% - 32px));
   max-height: calc(100svh - 40px);
   margin: auto;
   padding: 0;
@@ -577,15 +577,17 @@ async function submit() {
 }
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 20px;
 }
 .form-grid label {
-  font-size: 11px;
+  min-width: 0;
+  font-size: 12px;
   font-weight: 600;
+  line-height: 1.45;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .full {
   grid-column: 1/-1;
@@ -598,7 +600,8 @@ async function submit() {
   border: 1px solid #d4deda;
   border-radius: 5px;
   background: #fafcf9;
-  padding: 10px 11px;
+  min-height: 46px;
+  padding: 11px 12px;
   font-family: inherit;
   font-size: 13px;
   color: var(--ink);
@@ -613,7 +616,7 @@ async function submit() {
 }
 .form-grid textarea {
   resize: vertical;
-  min-height: 75px;
+  min-height: 100px;
 }
 .optional {
   display: contents;
@@ -886,6 +889,13 @@ async function submit() {
     max-height: calc(100svh - 24px);
     width: calc(100% - 24px);
     border-radius: 10px;
+  }
+  .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 15px;
+  }
+  .form-grid .full {
+    grid-column: auto;
   }
   .modal-content {
     padding: 24px 20px;

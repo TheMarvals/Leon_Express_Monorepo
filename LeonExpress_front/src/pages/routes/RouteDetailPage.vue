@@ -483,7 +483,7 @@ const handleAssignPackages = async () => {
 }
 
 const handleStatusUpdate = async (newStatus: 'EN_PROGRESO' | 'FINALIZADA' | 'CANCELADA') => {
-  if (newStatus === 'CANCELADA' && !confirm('¿Cancelar esta ruta pendiente vacía? Se conservará el historial de paquetes transferidos.')) {
+  if (newStatus === 'CANCELADA' && !confirm('¿Cancelar esta ruta vacía? Se conservará el historial de paquetes transferidos.')) {
     return
   }
   isUpdatingStatus.value = true
@@ -709,7 +709,7 @@ const showApproveButton = computed(() => {
           Iniciar Reparto
         </VaButton>
         <VaButton
-          v-if="canManageRoute && routeData.status === 'PENDIENTE' && packagesInRoute.length === 0"
+          v-if="canManageRoute && ['PENDIENTE', 'EN_PROGRESO'].includes(routeData.status) && packagesInRoute.length === 0"
           preset="secondary"
           color="warning"
           icon="fa4-ban"
@@ -720,7 +720,7 @@ const showApproveButton = computed(() => {
           Cancelar Ruta Vacía
         </VaButton>
         <VaButton
-          v-if="isAdmin && routeData.status === 'PENDIENTE' && loadingStatus !== 'APPROVED'"
+          v-if="isAdmin && (routeData.status === 'PENDIENTE' || packagesInRoute.length === 0)"
           size="large"
           icon="fa4-trash"
           color="danger"
@@ -745,7 +745,7 @@ const showApproveButton = computed(() => {
           <p>La carga ha sido finalizada. Esperando aprobación del administrador.</p>
         </VaAlert>
         <VaButton
-          v-if="routeData.status === 'EN_PROGRESO' && canManageRoute"
+          v-if="canManageRoute && (routeData.status === 'EN_PROGRESO' || (routeData.status === 'PENDIENTE' && packagesInRoute.length === 0))"
           size="large"
           icon="fa4-check-circle"
           color="success"

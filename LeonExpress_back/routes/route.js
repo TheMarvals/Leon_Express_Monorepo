@@ -33,10 +33,38 @@ async function assertDriverDayAvailable(userId, startDate, transaction, excludeR
   }
   const openRoutes = await Route.findAll({
     where: { user_id: userId, status: { [Op.in]: OPEN_ROUTE_STATUSES } },
-    attributes: ['route_id', 'route_name', 'start_date', 'status'], transaction,
+    include: [{
+      model: RoutePackage,
+      as: 'routePackages',
+      where: { released_at: null },
+      required: false,
+    }],
+    transaction,
   });
-  const earlier = openRoutes.filter(item => item.route_id !== excludeRouteId &&
-    (historicalStart ? routeDay(item.start_date) < day : routeDay(item.start_date) !== day));
+
+  // Auto-cancelar rutas vacías de fechas anteriores para evitar bloquear al conductor
+  for (const item of openRoutes) {
+    const activeCount = item.routePackages ? item.routePackages.length : 0;
+    if (activeCount === 0 && routeDay(item.start_date) < day) {
+      item.status = 'CANCELADA';
+      item.end_date = new Date();
+      await item.save({ transaction });
+      await logAudit(userId, 'AUTO_CANCEL_EMPTY_ROUTE', {
+        route_id: item.route_id,
+        route_name: item.route_name,
+        reason: 'Ruta vacia de fecha anterior cancelada automaticamente',
+      });
+    }
+  }
+
+  const earlier = openRoutes.filter(item => {
+    if (item.route_id === excludeRouteId) return false;
+    if (item.status === 'CANCELADA' || item.status === 'FINALIZADA') return false;
+    const activeCount = item.routePackages ? item.routePackages.length : 0;
+    if (activeCount === 0) return false; // Rutas vacías no deben bloquear al conductor
+    return historicalStart ? routeDay(item.start_date) < day : routeDay(item.start_date) !== day;
+  });
+
   if (earlier.length) {
     throw Object.assign(new Error('El conductor tiene rutas abiertas de otra fecha. Debe cerrarlas antes de recibir una ruta de un nuevo día.'), {
       status: 409, details: { code: 'PREVIOUS_DAY_ROUTES_OPEN', open_route_ids: earlier.map(item => item.route_id) },
@@ -1269,12 +1297,15 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
       return res.status(200).json(route);
     }
 
-    // A pending route can be canceled without losing its transfer history,
-    // but only after every active package has been moved out of it.
-    if (newStatus === 'CANCELADA' && route.status === 'PENDIENTE') {
-      if (route.routePackages.length > 0) {
+    // A route without active packages can be canceled whether PENDIENTE or EN_PROGRESO
+    if (newStatus === 'CANCELADA') {
+      if (route.status !== 'PENDIENTE' && route.status !== 'EN_PROGRESO') {
         await t.rollback();
-        return res.status(409).json({ error: 'Solo se puede cancelar una ruta pendiente sin paquetes activos. Transfiere o quita los paquetes primero.' });
+        return res.status(409).json({ error: `No se puede cancelar una ruta en estado ${route.status}` });
+      }
+      if (route.routePackages && route.routePackages.length > 0) {
+        await t.rollback();
+        return res.status(409).json({ error: 'Solo se puede cancelar una ruta sin paquetes activos. Transfiere o quita los paquetes primero.' });
       }
       route.status = 'CANCELADA';
       route.end_date = new Date();
@@ -1283,7 +1314,7 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
       await logAudit(req.user.user_id, 'UPDATE_ROUTE', {
         route_id: route.route_id,
         route_name: route.route_name,
-        old_status: 'PENDIENTE',
+        old_status: route.status,
         new_status: 'CANCELADA',
       });
       return res.status(200).json(route);
@@ -1331,7 +1362,32 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
       );
     }
     // --- LÓGICA PARA FINALIZAR RUTA ---
-    else if (newStatus === 'FINALIZADA' && route.status === 'EN_PROGRESO') {
+    else if (newStatus === 'FINALIZADA') {
+      if (route.status !== 'EN_PROGRESO' && route.status !== 'PENDIENTE') {
+        await t.rollback();
+        return res.status(409).json({ error: `Transición de estado no válida de ${route.status} a ${newStatus}` });
+      }
+
+      // Si la ruta está PENDIENTE pero no tiene paquetes activos, permitir finalizarla directamente
+      if (route.status === 'PENDIENTE' && (!route.routePackages || route.routePackages.length === 0)) {
+        route.status = 'FINALIZADA';
+        route.end_date = new Date();
+        await route.save({ transaction: t });
+        await t.commit();
+        await logAudit(req.user.user_id, 'UPDATE_ROUTE', {
+          route_id: route.route_id,
+          route_name: route.route_name,
+          old_status: 'PENDIENTE',
+          new_status: 'FINALIZADA',
+        });
+        return res.status(200).json(route);
+      }
+
+      if (route.status === 'PENDIENTE') {
+        await t.rollback();
+        return res.status(409).json({ error: 'Solo se puede finalizar una ruta pendiente si está vacía. Si tiene paquetes, debes iniciar el reparto primero.' });
+      }
+
       const packageIds = route.routePackages.map(rp => rp.package_id);
       const packages = await Package.findAll({ where: { package_id: { [Op.in]: packageIds } }, transaction: t, lock: t.LOCK.UPDATE });
 
@@ -1478,15 +1534,16 @@ router.delete('/:id', authenticateToken, roleValidator(['ADMIN']), async (req, r
       return res.status(404).json({ error: 'Ruta no encontrada' });
     }
 
-    if (route.status === 'EN_PROGRESO' || route.routePackages.some((item) => item.released_at)) {
+    const activePackages = route.routePackages ? route.routePackages.filter((item) => !item.released_at) : [];
+    if (activePackages.length > 0 && route.status === 'EN_PROGRESO') {
       await t.rollback();
-      return res.status(409).json({ error: 'Esta ruta tiene actividad registrada. Debes finalizarla para conservar el historial.' });
+      return res.status(409).json({ error: 'Esta ruta tiene paquetes activos en reparto. Debes finalizarla o transferir los paquetes primero.' });
     }
 
-    // Solo impedir eliminar si ya está finalizada
-    if (route.status === 'FINALIZADA') {
+    // Solo impedir eliminar si ya está finalizada con paquetes entregados
+    if (route.status === 'FINALIZADA' && activePackages.length > 0) {
       await t.rollback();
-      return res.status(409).json({ error: 'No se puede eliminar una ruta que ya ha sido finalizada' });
+      return res.status(409).json({ error: 'No se puede eliminar una ruta que ya ha sido finalizada con paquetes.' });
     }
 
     const packageIds = route.routePackages.map(rp => rp.package_id);
