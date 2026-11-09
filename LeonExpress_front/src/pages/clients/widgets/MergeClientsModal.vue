@@ -8,7 +8,8 @@
   >
     <div class="flex flex-col gap-4 py-1">
       <VaAlert color="warning" dense>
-        Esta acción unifica dos clientes en uno solo. Todos los paquetes, colectas, tiendas de Mercado Libre y usuarios del cliente origen se transferirán al cliente principal, y el cliente origen quedará desactivado.
+        Esta acción unifica dos clientes en uno solo. Todos los paquetes, colectas, tiendas de Mercado Libre y usuarios
+        del cliente origen se transferirán al cliente principal, y el cliente origen quedará desactivado.
       </VaAlert>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -25,9 +26,7 @@
             :disabled="isMerging"
             @update:modelValue="onClientsChange"
           />
-          <span class="text-xs text-secondary mt-1 block">
-            Este cliente será vaciado y desactivado.
-          </span>
+          <span class="text-xs text-secondary mt-1 block"> Este cliente será vaciado y desactivado. </span>
         </div>
 
         <div>
@@ -43,9 +42,7 @@
             :disabled="isMerging || !sourceClientId"
             @update:modelValue="onClientsChange"
           />
-          <span class="text-xs text-secondary mt-1 block">
-            Este cliente absorberá todos los registros.
-          </span>
+          <span class="text-xs text-secondary mt-1 block"> Este cliente absorberá todos los registros. </span>
         </div>
       </div>
 
@@ -55,13 +52,8 @@
         <span class="text-sm text-secondary">Calculando registros a transferir...</span>
       </div>
 
-      <div
-        v-else-if="previewData"
-        class="border rounded-lg p-3 bg-gray-50 flex flex-col gap-2"
-      >
-        <div class="text-sm font-bold text-gray-700 border-b pb-1">
-          Resumen de la transferencia:
-        </div>
+      <div v-else-if="previewData" class="border rounded-lg p-3 bg-gray-50 flex flex-col gap-2">
+        <div class="text-sm font-bold text-gray-700 border-b pb-1">Resumen de la transferencia:</div>
 
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
           <div class="bg-white p-2 rounded border">
@@ -100,9 +92,7 @@
       </div>
 
       <div class="flex justify-end gap-2 pt-2 border-t">
-        <VaButton preset="secondary" :disabled="isMerging" @click="isOpen = false">
-          Cancelar
-        </VaButton>
+        <VaButton preset="secondary" :disabled="isMerging" @click="isOpen = false"> Cancelar </VaButton>
         <VaButton
           color="warning"
           :loading="isMerging"
@@ -117,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useModal, useToast } from 'vuestic-ui'
 import api from '../../../services/api'
 import { Client } from '../types'
