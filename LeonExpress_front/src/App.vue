@@ -9,18 +9,19 @@ const isUpdating = ref(false)
 
 const { needRefresh, updateServiceWorker } = useRegisterSW({
   immediate: true,
+  onNeedRefresh() {
+    console.log('[PWA] Nueva versión disponible, actualizando...')
+    updateServiceWorker(true)
+  },
   onRegisteredSW(swScriptUrl, registration) {
     if (registration) {
-      // Verificar actualizaciones cada 60 minutos o al volver a primer plano tras un tiempo prolongado
+      registration.update()
       setInterval(() => {
         registration.update()
-      }, 60 * 60 * 1000)
+      }, 2 * 60 * 1000)
 
-      let lastCheck = Date.now()
       document.addEventListener('visibilitychange', () => {
-        const now = Date.now()
-        if (document.visibilityState === 'visible' && now - lastCheck > 60 * 60 * 1000) {
-          lastCheck = now
+        if (document.visibilityState === 'visible') {
           registration.update()
         }
       })

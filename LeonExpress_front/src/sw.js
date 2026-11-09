@@ -7,10 +7,14 @@ import { ExpirationPlugin } from 'workbox-expiration'
 // Versión del Service Worker - cada build genera un nuevo Service Worker
 // Workbox automáticamente genera un hash único para cada archivo en el manifest
 // Esto garantiza que cada build sea único y fuerce la actualización
-const SW_VERSION = 'v1.0.0'
-const CACHE_NAME = 'leon-express-cache-v1'
+const SW_VERSION = 'v1.0.4'
+const CACHE_NAME = 'leon-express-cache-v2'
 
 console.log('[SW] Service Worker iniciado - Versión:', SW_VERSION)
+
+// Forzar activación inmediata de nueva versión
+self.skipWaiting()
+clientsClaim()
 
 // Escuchar mensaje para saltar espera de forma controlada cuando el usuario lo confirme
 self.addEventListener('message', (event) => {

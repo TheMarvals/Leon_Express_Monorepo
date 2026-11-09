@@ -2,6 +2,7 @@
   <VaModal
     v-model="isOpen"
     title="Invitar Nuevo Cliente (Enlace Privado)"
+    close-button
     hide-default-actions
     size="medium"
     @close="handleClose"
@@ -12,13 +13,14 @@
         copiar el enlace directo para WhatsApp.
       </p>
 
-      <form class="space-y-3" @submit.prevent="handleCreateInvite">
+      <div class="space-y-3">
         <VaInput
           v-model="clientName"
           :rules="rules.clientName"
           label="Nombre de la Empresa o Cliente *"
           placeholder="Ej: Tienda ABC SpA"
           class="w-full"
+          clearable
         />
 
         <VaInput
@@ -27,6 +29,7 @@
           label="Correo Electrónico del Cliente *"
           placeholder="contacto@tiendaabc.cl"
           class="w-full"
+          clearable
         />
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -47,17 +50,17 @@
         </div>
 
         <div class="flex justify-end gap-2 pt-4 border-t border-gray-100">
-          <VaButton type="button" preset="secondary" @click="handleClose">Cancelar</VaButton>
+          <VaButton preset="secondary" @click="handleClose">Cancelar</VaButton>
           <VaButton
-            type="submit"
             color="#03323a"
             class="font-bold"
             :loading="isSubmitting"
+            @click="handleCreateInvite"
           >
             Generar y Enviar Invitación
           </VaButton>
         </div>
-      </form>
+      </div>
     </div>
 
     <!-- Éxito: Enlace generado -->
