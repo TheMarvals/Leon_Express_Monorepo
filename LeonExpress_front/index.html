@@ -19,6 +19,26 @@
       /* Set vuestic higher priority over tailwind normalize css */
       @layer tailwind.base, vuestic;
     </style>
+    <script>
+      // Desregistrar Service Worker antiguo (/sw.js) atrapado en CDN
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (registrations) {
+          for (var i = 0; i < registrations.length; i++) {
+            var reg = registrations[i];
+            var swUrl = (reg.active && reg.active.scriptURL) || (reg.installing && reg.installing.scriptURL) || (reg.waiting && reg.waiting.scriptURL) || '';
+            if (swUrl.endsWith('/sw.js')) {
+              reg.unregister().then(function () {
+                if ('caches' in window) {
+                  caches.keys().then(function (names) {
+                    names.forEach(function (n) { caches.delete(n); });
+                  });
+                }
+              });
+            }
+          }
+        });
+      }
+    </script>
   </head>
 
   <body>

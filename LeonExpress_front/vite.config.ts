@@ -36,7 +36,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       strategies: 'injectManifest',
       srcDir: 'src',
-      filename: 'sw.js',
+      filename: 'sw-v2.js',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'site.webmanifest'],
       // Control de registro manual/prompt para evitar recargas automáticas durante el uso
       injectRegister: 'auto',
