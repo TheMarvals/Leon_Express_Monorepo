@@ -1546,26 +1546,32 @@ router.delete('/:id', authenticateToken, roleValidator(['ADMIN']), async (req, r
       return res.status(409).json({ error: 'No se puede eliminar una ruta que ya ha sido finalizada con paquetes.' });
     }
 
-    const packageIds = route.routePackages.map(rp => rp.package_id);
+    // 1. Desasociar SOLO paquetes actualmente activos en esta ruta (sin released_at).
+    // Paquetes transferidos a otra ruta (con released_at) o ya entregados NO deben modificarse.
+    const activePackageIds = activePackages.map(rp => rp.package_id);
 
-    // 1. Desasociar paquetes y determinar el nuevo estado correcto de cada uno
-    const packagesToUpdate = await Package.findAll({
-      where: { package_id: { [Op.in]: packageIds } },
-      include: [{ model: Pickup, as: 'pickup' }],
-      transaction: t
-    });
+    if (activePackageIds.length > 0) {
+      const packagesToUpdate = await Package.findAll({
+        where: {
+          package_id: { [Op.in]: activePackageIds },
+          status: { [Op.notIn]: ['ENTREGADO'] }
+        },
+        include: [{ model: Pickup, as: 'pickup' }],
+        transaction: t
+      });
 
-    for (const pkg of packagesToUpdate) {
-      let nextStatus = 'RECOLECTADO_EN_ORIGEN';
-      if (pkg.pending_return_user_id) {
-        nextStatus = 'INCIDENCIA_ENTREGA';
-      } else if (pkg.received_at_warehouse_datetime) {
-        nextStatus = 'RECIBIDO_EN_ALMACEN';
-      } else if (pkg.pickup && pkg.pickup.status === 'VERIFICADO_EN_ALMACEN') {
-        nextStatus = 'RECIBIDO_EN_ALMACEN';
+      for (const pkg of packagesToUpdate) {
+        let nextStatus = 'RECOLECTADO_EN_ORIGEN';
+        if (pkg.pending_return_user_id) {
+          nextStatus = 'INCIDENCIA_ENTREGA';
+        } else if (pkg.received_at_warehouse_datetime) {
+          nextStatus = 'RECIBIDO_EN_ALMACEN';
+        } else if (pkg.pickup && pkg.pickup.status === 'VERIFICADO_EN_ALMACEN') {
+          nextStatus = 'RECIBIDO_EN_ALMACEN';
+        }
+        
+        await pkg.update({ status: nextStatus }, { transaction: t });
       }
-      
-      await pkg.update({ status: nextStatus }, { transaction: t });
     }
 
     // 2. Eliminar la ruta (las entradas en RoutePackage se eliminan por CASCADE según el modelo)
@@ -1576,7 +1582,7 @@ router.delete('/:id', authenticateToken, roleValidator(['ADMIN']), async (req, r
     await logAudit(req.user.user_id, 'DELETE_ROUTE', {
       route_id: routeId,
       route_name: route.route_name,
-      package_count: packageIds.length
+      package_count: activePackageIds.length
     });
 
     res.status(200).json({ message: 'Ruta eliminada exitosamente y paquetes liberados' });
