@@ -34,6 +34,7 @@ interface PackageFormData {
   cod_amount: number
   client_price: number
   delivery_cost: number
+  is_delivery_cost_manual?: boolean
   destination_address: string
   recipient_name: string
   recipient_phone: string
@@ -2493,12 +2494,18 @@ watch(
       external_tracking_code.value = pkgData.external_tracking_code || ''
       pickup_id.value = pkgData.pickup_id
       client_id.value = pkgData.client_id
-      loadClientPrice(pkgData.client_id)
-      loadPickupDriverCost(pkgData.pickup_id)
-      is_cod.value = pkgData.is_cod
+      if (pkgData.client_price !== undefined && pkgData.client_price !== null) {
+        client_price.value = pkgData.client_price
+      } else {
+        loadClientPrice(pkgData.client_id)
+      }
+      if (pkgData.delivery_cost !== undefined && pkgData.delivery_cost !== null) {
+        delivery_cost.value = pkgData.delivery_cost
+      } else {
+        loadPickupDriverCost(pkgData.pickup_id)
+      }
+      is_cod.value = Boolean(pkgData.is_cod)
       cod_amount.value = pkgData.cod_amount || 0
-      client_price.value = pkgData.client_price
-      delivery_cost.value = pkgData.delivery_cost
       destination_address.value = pkgData.destination_address
       recipient_name.value = pkgData.recipient_name
       recipient_phone.value = pkgData.recipient_phone || ''
@@ -2519,23 +2526,22 @@ watch(is_cod, (newValue) => {
 })
 // --- MANEJO DEL ENVÍO DEL FORMULARIO ---
 const handleSubmit = async () => {
-  console.log('Before loading:', {
-    clientPrice: client_price.value,
-    deliveryCost: delivery_cost.value,
-  })
-  await Promise.all([
-    loadClientPrice(props.clientId || client_id.value),
-    loadPickupDriverCost(props.pickupId || pickup_id.value),
-  ])
+  if (!props.pkg && (!client_price.value || !delivery_cost.value)) {
+    await Promise.all([
+      !client_price.value ? loadClientPrice(props.clientId || client_id.value) : Promise.resolve(),
+      !delivery_cost.value ? loadPickupDriverCost(props.pickupId || pickup_id.value) : Promise.resolve(),
+    ])
+  }
   const payload: PackageFormData = {
     tracking_code: tracking_code.value,
     external_tracking_code: external_tracking_code.value || null,
     pickup_id: props.pickupId || pickup_id.value,
     client_id: props.clientId || client_id.value,
-    is_cod: false, // Siempre false en esta etapa
-    cod_amount: 0,
-    client_price: client_price.value,
-    delivery_cost: delivery_cost.value,
+    is_cod: is_cod.value,
+    cod_amount: is_cod.value ? Number(cod_amount.value || 0) : 0,
+    client_price: Number(client_price.value || 0),
+    delivery_cost: Number(delivery_cost.value || 0),
+    is_delivery_cost_manual: true,
     destination_address: destination_address.value,
     recipient_name: recipient_name.value,
     recipient_phone: recipient_phone.value,
@@ -2643,11 +2649,38 @@ const handleSubmit = async () => {
         </li>
       </ul>
     </div>
-    <!-- <div class="flex flex-col gap-3">
-      <VaCheckbox v-model="is_cod" label="Pago contra entrega (COD)" />
-      <VaInput v-if="is_cod" v-model.number="cod_amount" label="Monto a cobrar ($)" type="number" step="0.01"
-        :rules="[validators.required, (v) => (v && v > 0) || 'El monto COD debe ser mayor a 0']" class="ml-6" />
-    </div> -->
+    <div v-if="!userStore.isClient" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <VaInput
+        v-model.number="client_price"
+        type="number"
+        min="0"
+        step="100"
+        label="Tarifa Cliente ($)"
+        placeholder="Tarifa acordada con el cliente"
+      />
+      <VaInput
+        v-model.number="delivery_cost"
+        type="number"
+        min="0"
+        step="100"
+        label="Costo Chofer / Entrega ($)"
+        placeholder="Monto a pagar al conductor"
+      />
+    </div>
+
+    <div class="flex flex-col gap-3 p-3 bg-gray-50 rounded-lg border">
+      <VaCheckbox v-model="is_cod" label="Pago contra entrega (COD / Monto a cobrar)" />
+      <VaInput
+        v-if="is_cod"
+        v-model.number="cod_amount"
+        label="Monto a cobrar en destino ($) *"
+        type="number"
+        min="0"
+        step="100"
+        :rules="[validators.required, (v) => (v && v > 0) || 'El monto COD debe ser mayor a 0']"
+        class="ml-6"
+      />
+    </div>
     <VaDateInput v-model="scanned_at_origin_datetime" label="Fecha de Escaneo" with-time />
     <div v-if="!userStore.isClient" class="camera-container mt-4 border-t pt-4">
       <div v-if="isCameraActive" class="video-wrapper">

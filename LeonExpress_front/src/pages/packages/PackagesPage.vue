@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useToast } from 'vuestic-ui'
 import api from '../../services/api'
 import PackagesTable from './widgets/PackagesTable.vue'
@@ -9,9 +9,73 @@ import ChangeManagementModal from './widgets/ChangeManagementModal.vue'
 import { Package } from './types'
 import { usePackages } from './composables/usePackages'
 import { useUserStore } from '../../stores/user-store'
+import { getAvailableComunas, detectComunaFromAddressSync } from '../../data/comunas'
 
 const userStore = useUserStore()
 const { packages, isLoading, filters, sorting, pagination, remove, add, update, fetch } = usePackages()
+
+const clientsList = ref<{ text: string; value: string }[]>([])
+const comunasOptions = ref<string[]>([])
+
+const loadClients = async () => {
+  if (userStore.isClient) return
+  try {
+    const res = await api.getClients({ perPage: 300, isActive: 'all' })
+    const items = res.data?.clients || res.data || []
+    clientsList.value = items.map((c: any) => ({
+      text: c.client_name,
+      value: c.client_id,
+    }))
+  } catch (err) {
+    console.warn('Error al cargar lista de clientes:', err)
+  }
+}
+
+const loadComunas = async () => {
+  try {
+    const list = await getAvailableComunas()
+    comunasOptions.value = list
+  } catch {
+    comunasOptions.value = [
+      'Santiago',
+      'Las Condes',
+      'Providencia',
+      'Ñuñoa',
+      'La Reina',
+      'Vitacura',
+      'Lo Barnechea',
+      'Macul',
+      'Peñalolén',
+      'La Florida',
+      'Puente Alto',
+      'San Miguel',
+      'San Joaquín',
+      'Maipú',
+      'Pudahuel',
+      'Cerrillos',
+      'Estación Central',
+      'Quinta Normal',
+      'Recoleta',
+      'Independencia',
+    ]
+  }
+}
+
+onMounted(() => {
+  loadClients()
+  loadComunas()
+})
+
+const comunaStats = computed(() => {
+  const counts: Record<string, number> = {}
+  packages.value.forEach((pkg) => {
+    const comuna = detectComunaFromAddressSync(pkg.destination_address) || 'Otras / Sin Comuna'
+    counts[comuna] = (counts[comuna] || 0) + 1
+  })
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => ({ name, count }))
+})
 
 const showPendingChanges = computed({
   get: () => filters.value.changeFilter === 'pending_changes',
@@ -132,6 +196,27 @@ const statusOptions = [
             </template>
           </VaInput>
           <VaSelect
+            v-if="!userStore.isClient"
+            v-model="filters.clientId"
+            :options="clientsList"
+            value-by="value"
+            text-by="text"
+            placeholder="Todos los clientes"
+            searchable
+            clearable
+            style="min-width: 170px"
+            @update:modelValue="resetPagination"
+          />
+          <VaSelect
+            v-model="filters.comuna"
+            :options="comunasOptions"
+            placeholder="Todas las comunas"
+            searchable
+            clearable
+            style="min-width: 160px"
+            @update:modelValue="resetPagination"
+          />
+          <VaSelect
             v-model="filters.status"
             :options="statusOptions"
             value-by="value"
@@ -163,6 +248,32 @@ const statusOptions = [
         </div>
         <ManualPackageButton v-if="userStore.isClient" @created="onManualPackageCreated" />
         <VaButton v-else @click="showModal(null)">Crear Paquete</VaButton>
+      </div>
+
+      <!-- Resumen de cantidad esperada por comuna -->
+      <div v-if="comunaStats.length > 0" class="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1">
+            <VaIcon name="place" size="small" color="primary" /> Cantidad esperada por comuna ({{ comunaStats.length }} comunas):
+          </span>
+          <span
+            v-if="filters.comuna"
+            class="text-xs text-primary font-semibold cursor-pointer hover:underline"
+            @click="filters.comuna = undefined; resetPagination()"
+          >
+            Quitar filtro de comuna ({{ filters.comuna }})
+          </span>
+        </div>
+        <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+          <VaBadge
+            v-for="stat in comunaStats"
+            :key="stat.name"
+            :text="`${stat.name}: ${stat.count}`"
+            :color="filters.comuna === stat.name ? 'primary' : 'secondary'"
+            class="cursor-pointer hover:opacity-80 transition-opacity text-xs"
+            @click="filters.comuna = filters.comuna === stat.name ? undefined : stat.name; resetPagination()"
+          />
+        </div>
       </div>
 
       <div class="table-wrapper">

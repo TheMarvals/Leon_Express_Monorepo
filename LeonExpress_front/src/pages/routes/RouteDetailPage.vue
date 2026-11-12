@@ -744,17 +744,6 @@ const showApproveButton = computed(() => {
         >
           <p>La carga ha sido finalizada. Esperando aprobación del administrador.</p>
         </VaAlert>
-        <VaButton
-          v-if="canManageRoute && (routeData.status === 'EN_PROGRESO' || (routeData.status === 'PENDIENTE' && packagesInRoute.length === 0))"
-          size="large"
-          icon="fa4-check-circle"
-          color="success"
-          :loading="isUpdatingStatus"
-          class="route-action-button route-finish-button"
-          @click="showFinishModal = true"
-        >
-          Finalizar Ruta
-        </VaButton>
         <VaAlert v-if="routeData.status === 'EN_PROGRESO' && canManageRoute" color="info" class="route-alert">
           Puedes reasignar paquetes pendientes entre tus rutas. Para reasignar a otro conductor se requiere un administrador.
         </VaAlert>
@@ -776,33 +765,33 @@ const showApproveButton = computed(() => {
       </VaCardContent>
     </VaCard>
 
-    <VaCard class="mb-6">
-      <VaCardContent class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="md:col-span-3">
-          <p class="va-text-secondary">Nombre de la Ruta</p>
-          <p class="va-h6">{{ routeData.route_name || 'Sin nombre asignado' }}</p>
-        </div>
-        <div>
-          <p class="va-text-secondary">Conductor</p>
-          <p class="va-h6">{{ routeData.user?.full_name || routeData.user?.fullname || 'Sin nombre' }}</p>
-        </div>
-        <div>
-          <p class="va-text-secondary">Vehículo</p>
-          <p class="va-h6">{{ routeData.vehicle?.license_plate }}</p>
-        </div>
-        <div>
-          <p class="va-text-secondary">Estado</p>
-          <VaBadge :text="routeData.status.replace(/_/g, ' ')" size="large" />
-        </div>
-        <div v-if="loadingStatus !== 'NOT_STARTED'">
-          <p class="va-text-secondary">Estado de Carga</p>
-          <VaBadge
-            :text="loadingStatus.replace(/_/g, ' ')"
-            :color="
-              loadingStatus === 'APPROVED' ? 'success' : loadingStatus === 'LOADING_COMPLETED' ? 'warning' : 'info'
-            "
-            size="large"
-          />
+    <!-- Información de la ruta simplificada y compacta -->
+    <VaCard class="mb-4">
+      <VaCardContent class="py-2.5 px-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <div>
+            <span class="text-xs text-secondary block">Ruta</span>
+            <strong class="text-base text-gray-800">{{ routeData.route_name || 'Sin nombre' }}</strong>
+          </div>
+          <div>
+            <span class="text-xs text-secondary block">Conductor</span>
+            <span class="font-medium text-gray-700">{{ routeData.user?.full_name || routeData.user?.fullname || 'Sin asignar' }}</span>
+          </div>
+          <div>
+            <span class="text-xs text-secondary block">Vehículo</span>
+            <span class="font-medium text-gray-700">{{ routeData.vehicle?.license_plate || 'N/A' }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <VaBadge :text="routeData.status.replace(/_/g, ' ')" :color="statusColors[routeData.status] || 'secondary'" size="small" />
+            <VaBadge
+              v-if="loadingStatus !== 'NOT_STARTED'"
+              :text="loadingStatus.replace(/_/g, ' ')"
+              :color="
+                loadingStatus === 'APPROVED' ? 'success' : loadingStatus === 'LOADING_COMPLETED' ? 'warning' : 'info'
+              "
+              size="small"
+            />
+          </div>
         </div>
       </VaCardContent>
     </VaCard>
@@ -968,14 +957,32 @@ const showApproveButton = computed(() => {
                 </div>
               </template>
               <template #cell(destination_address)="{ rowData }">
-                <RouterLink
-                  :to="{ name: 'package-details', params: { id: rowData.package_id } }"
-                  class="text-sm hover:underline text-primary"
-                  :title="rowData.destination_address"
-                  @click.stop
-                >
-                  {{ rowData.destination_address || 'Sin dirección' }}
-                </RouterLink>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <RouterLink
+                    :to="{ name: 'package-details', params: { id: rowData.package_id } }"
+                    class="text-sm font-semibold hover:underline text-primary"
+                    :title="rowData.destination_address"
+                    @click.stop
+                  >
+                    {{ rowData.destination_address || 'Sin dirección' }}
+                  </RouterLink>
+                  <RouterLink
+                    :to="{ name: 'package-details', params: { id: rowData.package_id } }"
+                    class="inline-flex"
+                    @click.stop
+                  >
+                    <VaButton preset="primary" size="small" icon="fa4-eye" title="Ver detalles del paquete" class="p-0.5" />
+                  </RouterLink>
+                  <VaBadge
+                    :text="
+                      rowData.status === 'DEVUELTO_A_CLIENTE'
+                        ? 'DEVUELTO AL CLIENTE'
+                        : rowData.status.replace(/_/g, ' ')
+                    "
+                    :color="statusColors[rowData.status] || 'secondary'"
+                    size="small"
+                  />
+                </div>
               </template>
               <template #cell(status)="{ rowData }">
                 <div class="flex flex-col gap-1 items-start">
@@ -1007,6 +1014,32 @@ const showApproveButton = computed(() => {
                 </div>
               </template>
             </VaDataTable>
+          </div>
+
+          <!-- Botón de Finalizar Ruta al final del listado de paradas -->
+          <div
+            v-if="canManageRoute && (routeData.status === 'EN_PROGRESO' || (routeData.status === 'PENDIENTE' && packagesInRoute.length === 0))"
+            class="mt-6 pt-4 border-t flex flex-col sm:flex-row justify-between items-center gap-3 bg-gray-50 p-4 rounded-xl"
+          >
+            <div class="text-xs text-gray-600">
+              <span v-if="!canFinishRoute && packagesInRoute.length > 0" class="text-amber-700 font-semibold flex items-center gap-1">
+                <VaIcon name="warning" size="small" /> Transfiere los paquetes pendientes o confirma su recepción en bodega antes de finalizar.
+              </span>
+              <span v-else class="text-green-700 font-semibold flex items-center gap-1">
+                <VaIcon name="check_circle" size="small" /> Todos los paquetes han sido gestionados. Puedes cerrar la ruta.
+              </span>
+            </div>
+            <VaButton
+              size="medium"
+              icon="fa4-check-circle"
+              color="success"
+              :disabled="!canFinishRoute && packagesInRoute.length > 0"
+              :loading="isUpdatingStatus"
+              class="w-full sm:w-auto font-bold shadow-sm"
+              @click="showFinishModal = true"
+            >
+              Finalizar Ruta
+            </VaButton>
           </div>
         </VaCardContent>
       </VaCard>
@@ -1069,14 +1102,32 @@ const showApproveButton = computed(() => {
                 </div>
               </template>
               <template #cell(destination_address)="{ rowData }">
-                <RouterLink
-                  :to="{ name: 'package-details', params: { id: rowData.package_id } }"
-                  class="text-sm hover:underline text-primary"
-                  :title="rowData.destination_address"
-                  @click.stop
-                >
-                  {{ rowData.destination_address || 'Sin dirección' }}
-                </RouterLink>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <RouterLink
+                    :to="{ name: 'package-details', params: { id: rowData.package_id } }"
+                    class="text-sm font-semibold hover:underline text-primary"
+                    :title="rowData.destination_address"
+                    @click.stop
+                  >
+                    {{ rowData.destination_address || 'Sin dirección' }}
+                  </RouterLink>
+                  <RouterLink
+                    :to="{ name: 'package-details', params: { id: rowData.package_id } }"
+                    class="inline-flex"
+                    @click.stop
+                  >
+                    <VaButton preset="primary" size="small" icon="fa4-eye" title="Ver detalles del paquete" class="p-0.5" />
+                  </RouterLink>
+                  <VaBadge
+                    :text="
+                      rowData.status === 'DEVUELTO_A_CLIENTE'
+                        ? 'DEVUELTO AL CLIENTE'
+                        : rowData.status.replace(/_/g, ' ')
+                    "
+                    :color="statusColors[rowData.status] || 'secondary'"
+                    size="small"
+                  />
+                </div>
               </template>
               <template #cell(status)="{ rowData }">
                 <div class="flex flex-col gap-1 items-start">
@@ -1130,6 +1181,32 @@ const showApproveButton = computed(() => {
                 </VaButton>
               </template>
             </VaDataTable>
+          </div>
+
+          <!-- Botón de Finalizar Ruta al final del listado de paradas -->
+          <div
+            v-if="canManageRoute && (routeData.status === 'EN_PROGRESO' || (routeData.status === 'PENDIENTE' && packagesInRoute.length === 0))"
+            class="mt-6 pt-4 border-t flex flex-col sm:flex-row justify-between items-center gap-3 bg-gray-50 p-4 rounded-xl"
+          >
+            <div class="text-xs text-gray-600">
+              <span v-if="!canFinishRoute && packagesInRoute.length > 0" class="text-amber-700 font-semibold flex items-center gap-1">
+                <VaIcon name="warning" size="small" /> Transfiere los paquetes pendientes o confirma su recepción en bodega antes de finalizar.
+              </span>
+              <span v-else class="text-green-700 font-semibold flex items-center gap-1">
+                <VaIcon name="check_circle" size="small" /> Todos los paquetes han sido gestionados. Puedes cerrar la ruta.
+              </span>
+            </div>
+            <VaButton
+              size="medium"
+              icon="fa4-check-circle"
+              color="success"
+              :disabled="!canFinishRoute && packagesInRoute.length > 0"
+              :loading="isUpdatingStatus"
+              class="w-full sm:w-auto font-bold shadow-sm"
+              @click="showFinishModal = true"
+            >
+              Finalizar Ruta
+            </VaButton>
           </div>
         </VaCardContent>
       </VaCard>

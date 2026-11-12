@@ -125,6 +125,30 @@
       </VaButton>
     </VaAlert>
 
+    <!-- BANNER DE CAMBIOS REGRESADOS PENDIENTES DE CONFIRMAR -->
+    <VaAlert
+      v-if="pendingChangePackages.length > 0"
+      color="info"
+      icon="sync_alt"
+      class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm"
+    >
+      <div>
+        <strong>Cambios regresados pendientes de acuse:</strong>
+        <span class="ml-1">
+          Tienes {{ pendingChangePackages.length }} producto(s) de cambio recibido(s) en bodega/retornado(s) pendiente(s) de confirmar recepción en tu tienda.
+        </span>
+      </div>
+      <VaButton
+        color="info"
+        preset="primary"
+        size="small"
+        class="whitespace-nowrap font-bold"
+        @click="openBatchConfirmChangeModal"
+      >
+        Confirmar recepción de cambios ({{ pendingChangePackages.length }})
+      </VaButton>
+    </VaAlert>
+
     <!-- LISTADO DE ENVÍOS -->
     <VaCard>
       <VaCardTitle class="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -200,6 +224,27 @@
               >
                 Confirmar recibido
               </VaButton>
+              <!-- Confirmación de cambios regresados -->
+              <div v-if="(row || rowData)?.is_change" class="mt-1">
+                <VaBadge
+                  v-if="(row || rowData)?.client_change_confirmed_at"
+                  text="CAMBIO RECIBIDO EN TIENDA"
+                  color="success"
+                  class="text-[10px]"
+                />
+                <template v-else-if="(row || rowData)?.change_received">
+                  <VaBadge text="CAMBIO POR CONFIRMAR" color="warning" class="text-[10px]" />
+                  <VaButton
+                    preset="plain"
+                    size="small"
+                    color="info"
+                    class="text-xs p-0 font-bold underline block mt-0.5"
+                    @click="openSingleConfirmChangeModal(row || rowData)"
+                  >
+                    Confirmar cambio recibido
+                  </VaButton>
+                </template>
+              </div>
             </div>
           </template>
 
@@ -257,6 +302,45 @@
           </VaButton>
           <VaButton color="success" :loading="isSubmittingReturnConfirm" @click="submitReturnConfirmation">
             Confirmar recibido
+          </VaButton>
+        </div>
+      </template>
+    </VaModal>
+
+    <!-- MODAL CONFIRMAR RECEPCIÓN DE CAMBIO -->
+    <VaModal
+      v-model="showConfirmChangeModal"
+      :title="isBatchConfirmChange ? 'Confirmar recepción de cambios regresados' : 'Confirmar recepción de producto de cambio'"
+      size="small"
+      hide-default-actions
+      :no-dismiss="isSubmittingChangeConfirm"
+    >
+      <div class="space-y-3">
+        <VaAlert color="info" icon="info" class="mb-3">
+          <span v-if="isBatchConfirmChange">
+            Estás confirmando que has recibido físicamente en tu tienda <strong>{{ pendingChangePackages.length }}</strong> producto(s) de cambio regresado(s).
+          </span>
+          <span v-else>
+            Estás confirmando la recepción física del producto de cambio del envío <strong>{{ targetChangePackage?.tracking_code }}</strong> en tu tienda.
+          </span>
+        </VaAlert>
+        <VaInput
+          v-model="confirmChangeNotes"
+          label="Observaciones (opcional)"
+          placeholder="Ej.: Producto de cambio recibido conforme en bodega de la tienda"
+          type="textarea"
+          autosize
+          :max-length="500"
+          :disabled="isSubmittingChangeConfirm"
+        />
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-2 w-full mt-4">
+          <VaButton preset="secondary" :disabled="isSubmittingChangeConfirm" @click="showConfirmChangeModal = false">
+            Cancelar
+          </VaButton>
+          <VaButton color="success" :loading="isSubmittingChangeConfirm" @click="submitChangeConfirmation">
+            Confirmar cambio recibido
           </VaButton>
         </div>
       </template>
@@ -328,12 +412,67 @@ const pendingReturnPackages = computed(() =>
   packages.value.filter((p) => p.status === 'DEVUELTO_A_CLIENTE' && !p.client_return_confirmed_at),
 )
 
+const pendingChangePackages = computed(() =>
+  packages.value.filter((p) => p.is_change && p.change_received && !p.client_change_confirmed_at),
+)
+
 // Estado y confirmación de devoluciones por el cliente
 const showConfirmReturnModal = ref(false)
 const isBatchConfirm = ref(false)
 const targetPackage = ref<any>(null)
 const confirmNotes = ref('')
 const isSubmittingReturnConfirm = ref(false)
+
+// Estado y confirmación de cambios por el cliente
+const showConfirmChangeModal = ref(false)
+const isBatchConfirmChange = ref(false)
+const targetChangePackage = ref<any>(null)
+const confirmChangeNotes = ref('')
+const isSubmittingChangeConfirm = ref(false)
+
+const openSingleConfirmChangeModal = (pkg: any) => {
+  targetChangePackage.value = pkg
+  isBatchConfirmChange.value = false
+  confirmChangeNotes.value = ''
+  showConfirmChangeModal.value = true
+}
+
+const openBatchConfirmChangeModal = () => {
+  targetChangePackage.value = null
+  isBatchConfirmChange.value = true
+  confirmChangeNotes.value = ''
+  showConfirmChangeModal.value = true
+}
+
+const submitChangeConfirmation = async () => {
+  isSubmittingChangeConfirm.value = true
+  try {
+    if (isBatchConfirmChange.value) {
+      const ids = pendingChangePackages.value.map((p) => p.package_id)
+      await api.batchConfirmChangesByClient(ids, confirmChangeNotes.value)
+      notify({
+        message: `${ids.length} cambio(s) confirmados exitosamente.`,
+        color: 'success',
+      })
+    } else if (targetChangePackage.value) {
+      await api.confirmChangeByClient(targetChangePackage.value.package_id, confirmChangeNotes.value)
+      notify({
+        message: `Cambio del paquete ${targetChangePackage.value.tracking_code} confirmado exitosamente.`,
+        color: 'success',
+      })
+    }
+    showConfirmChangeModal.value = false
+    await loadData()
+  } catch (err: any) {
+    notify({
+      message: err.response?.data?.error || 'Error al confirmar la recepción del cambio.',
+      color: 'danger',
+      duration: 5000,
+    })
+  } finally {
+    isSubmittingChangeConfirm.value = false
+  }
+}
 
 const openSingleConfirmModal = (pkg: any) => {
   targetPackage.value = pkg

@@ -460,6 +460,14 @@ const api = {
     return axiosInstance.get('/change-management/pending-changes')
   },
 
+  confirmChangeByClient(packageId: string, notes?: string) {
+    return axiosInstance.put(`/change-management/${packageId}/confirm-change-client`, { notes })
+  },
+
+  batchConfirmChangesByClient(packageIds: string[], notes?: string) {
+    return axiosInstance.post('/change-management/batch-confirm-client', { package_ids: packageIds, notes })
+  },
+
   receivePackageAtWarehouse: (packageId: string) => axiosInstance.put(`/packages/${packageId}/receive-at-warehouse`),
   loadMyPendingPackages: (routeId: string) => axiosInstance.post(`/routes/${routeId}/load-my-pending-packages`),
 }

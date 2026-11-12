@@ -4,6 +4,7 @@ import { Package } from '../types'
 import { PropType, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useUserStore } from '../../../stores/user-store'
+import { detectComunaFromAddressSync } from '../../../data/comunas'
 import ClientPackageActions from './ClientPackageActions.vue'
 
 const userStore = useUserStore()
@@ -15,6 +16,7 @@ const columns = computed(() => {
     cols.push({ label: 'CLIENTE', key: 'client', sortable: true })
   }
   cols.push(
+    { label: 'COMUNA', key: 'comuna', sortable: false },
     { label: 'DESTINATARIO', key: 'recipient_name', sortable: true },
     { label: 'ESTADO', key: 'status', sortable: true },
     { label: 'ACCIONES', key: 'actions', align: 'right' },
@@ -107,6 +109,11 @@ const getPackageStatusColor = (status: string, row?: Package) => {
     </template>
     <template #cell(client)="{ rowData }">
       <span>{{ rowData.client?.client_name || 'N/A' }}</span>
+    </template>
+    <template #cell(comuna)="{ rowData }">
+      <span class="text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-800">
+        {{ detectComunaFromAddressSync(rowData.destination_address) || 'Sin comuna' }}
+      </span>
     </template>
     <template #cell(status)="{ value, rowData }">
       <div class="flex flex-col gap-1">

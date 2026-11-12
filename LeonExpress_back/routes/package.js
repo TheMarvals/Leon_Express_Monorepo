@@ -396,7 +396,7 @@ const validateVerification = [
 router.get("/", authenticateToken, async (req, res) => {
   try {
     // --- INICIO DE LA CORRECCIÓN ---
-    let { page = 1, pageSize = 10, search = "", status, pickupStatus, userId, isChange, changeReceived, startDate, endDate } = req.query;
+    let { page = 1, pageSize = 10, search = "", status, pickupStatus, userId, isChange, changeReceived, startDate, endDate, clientId, comuna } = req.query;
 
     console.log('DEBUG - User role:', req.user.role);
     console.log('DEBUG - userId en query:', userId);
@@ -415,6 +415,16 @@ router.get("/", authenticateToken, async (req, res) => {
     const dateRange = parseDateRange(startDate, endDate);
     if (dateRange) {
       whereClause.created_at = dateRange;
+    }
+
+    // Filtro por cliente (Admin/Staff)
+    if (clientId && req.user.role !== 'CLIENT') {
+      whereClause.client_id = clientId;
+    }
+
+    // Filtro por comuna en la dirección
+    if (comuna && comuna.trim()) {
+      whereClause.destination_address = { [Op.like]: `%${comuna.trim()}%` };
     }
 
     if (search) {

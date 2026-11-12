@@ -48,6 +48,31 @@
       </div>
       <!-- ===== MODO ESCÁNER QR ===== -->
       <template v-if="!photoModeActive && !uploadComplete">
+        <!-- Opciones de Escaneo Avanzadas -->
+        <div class="bg-white rounded-2xl p-3 border border-gray-150 shadow-sm mb-4 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <VaIcon name="storefront" size="1.1rem" color="primary" />
+              <span class="text-xs font-semibold text-gray-700">Múltiples sellers</span>
+            </div>
+            <VaSwitch v-model="allowMultiSeller" size="small" />
+          </div>
+          <p class="text-[11px] text-gray-500 pl-6">
+            Permite escanear paquetes de cualquier cliente/tienda en esta misma recolección.
+          </p>
+
+          <div class="flex items-center justify-between pt-2 border-t border-gray-100">
+            <div class="flex items-center gap-2">
+              <VaIcon name="warehouse" size="1.1rem" color="primary" />
+              <span class="text-xs font-semibold text-gray-700">Saltar verificación en almacén</span>
+            </div>
+            <VaSwitch v-model="skipWarehouseVerification" size="small" />
+          </div>
+          <p class="text-[11px] text-gray-500 pl-6">
+            Pasa los paquetes directo a "Recibido en Almacén" para asignarlos a ruta de inmediato sin esperar el cierre de la colecta.
+          </p>
+        </div>
+
         <!-- Panel de Control del Escáner (cuando la cámara no está activa) -->
         <div
           v-if="!isQRCameraActive"
@@ -491,6 +516,10 @@ const pickup = ref<Pickup | null>(null)
 const isLoading = ref(true)
 const error = ref('')
 
+// Opciones de recolección
+const allowMultiSeller = ref(false)
+const skipWarehouseVerification = ref(false)
+
 // ─── Scanner QR ────────────────────────────────────────────
 const qrScannerRef = ref<InstanceType<typeof RoutePackageScanner> | null>(null)
 let pendingRawQRData: string | null = null
@@ -685,6 +714,8 @@ async function handleQRScanned(code: string) {
       pickup_id: pickupId,
       ml_code: cleanCode,
       raw_qr_data: rawData,
+      multi_client: allowMultiSeller.value,
+      skip_warehouse_verification: skipWarehouseVerification.value,
     })
     if (
       !confirmedML.value.some(

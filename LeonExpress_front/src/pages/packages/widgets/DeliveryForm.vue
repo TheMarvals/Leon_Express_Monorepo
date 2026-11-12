@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useForm, useToast } from 'vuestic-ui'
 import { validators } from '../../../services/utils'
 import { Package } from '../types'
@@ -35,6 +35,94 @@ const payment_type = ref('EFECTIVO')
 const collected_amount = ref<number | undefined>(props.pkg.cod_amount || 0)
 const showChangeDeliveryConfirm = ref(false)
 const pendingDeliveryData = ref<FormData | null>(null)
+
+// --- Persistencia de Borrador Local (Offline / Falla de señal) ---
+const draftStorageKey = computed(() => `delivery_draft_${props.pkg.package_id}`)
+const hasRestoredDraft = ref(false)
+
+const saveDraft = () => {
+  try {
+    const draft = {
+      status_at_delivery: status_at_delivery.value,
+      receiver_name: receiver_name.value,
+      receiver_rut: receiver_rut.value,
+      observation: observation.value,
+      payment_type: payment_type.value,
+      collected_amount: collected_amount.value,
+      capturedImages: capturedImages.value,
+      timestamp: Date.now(),
+    }
+    if (
+      status_at_delivery.value ||
+      receiver_name.value ||
+      receiver_rut.value ||
+      observation.value ||
+      capturedImages.value.length > 0
+    ) {
+      localStorage.setItem(draftStorageKey.value, JSON.stringify(draft))
+    }
+  } catch (err) {
+    console.warn('No se pudo guardar borrador en localStorage:', err)
+  }
+}
+
+const clearDraft = () => {
+  try {
+    localStorage.removeItem(draftStorageKey.value)
+    hasRestoredDraft.value = false
+    status_at_delivery.value = ''
+    receiver_name.value = ''
+    receiver_rut.value = ''
+    observation.value = ''
+    payment_type.value = 'EFECTIVO'
+    collected_amount.value = props.pkg.cod_amount || 0
+    capturedImages.value = []
+    photoFiles.value = []
+    notify({ message: 'Borrador descartado.', color: 'info' })
+  } catch (err) {}
+}
+
+const restoreDraft = () => {
+  try {
+    const raw = localStorage.getItem(draftStorageKey.value)
+    if (!raw) return
+    const draft = JSON.parse(raw)
+    if (draft.status_at_delivery) status_at_delivery.value = draft.status_at_delivery
+    if (draft.receiver_name) receiver_name.value = draft.receiver_name
+    if (draft.receiver_rut) receiver_rut.value = draft.receiver_rut
+    if (draft.observation) observation.value = draft.observation
+    if (draft.payment_type) payment_type.value = draft.payment_type
+    if (draft.collected_amount !== undefined) collected_amount.value = draft.collected_amount
+    if (Array.isArray(draft.capturedImages) && draft.capturedImages.length > 0) {
+      capturedImages.value = draft.capturedImages
+      photoFiles.value = []
+      draft.capturedImages.forEach((dataUrl: string, index: number) => {
+        fetch(dataUrl)
+          .then((res) => res.blob())
+          .then((blob) => {
+            const file = new File([blob], `restored_photo_${index + 1}.jpg`, { type: 'image/jpeg' })
+            photoFiles.value.push(file)
+          })
+          .catch((e) => console.warn('Error al restaurar foto de borrador:', e))
+      })
+    }
+    hasRestoredDraft.value = true
+  } catch (err) {
+    console.warn('Error al leer borrador local:', err)
+  }
+}
+
+watch(
+  [status_at_delivery, receiver_name, receiver_rut, observation, payment_type, collected_amount, capturedImages],
+  () => {
+    saveDraft()
+  },
+  { deep: true },
+)
+
+onMounted(() => {
+  restoreDraft()
+})
 
 // --- Estado de la Cámara y Fotos ---
 const isCameraOpen = ref(false)
@@ -379,6 +467,17 @@ onUnmounted(closeCamera)
 
 <template>
   <VaForm ref="delivery-form" class="flex flex-col gap-4">
+    <VaAlert v-if="hasRestoredDraft" color="info" icon="restore" class="mb-1">
+      <div class="flex items-center justify-between gap-2 w-full">
+        <span class="text-xs">
+          <strong>Borrador recuperado:</strong> Se recuperaron los datos y fotos previas por si perdiste señal.
+        </span>
+        <VaButton preset="plain" size="small" color="danger" class="text-xs p-0 underline font-bold" @click="clearDraft">
+          Descartar
+        </VaButton>
+      </div>
+    </VaAlert>
+
     <VaSelect
       v-model="status_at_delivery"
       label="Resultado de la Entrega *"

@@ -55,7 +55,40 @@ const formatDate = (dateString: string | Date) => {
 <template>
   <VaDataTable :columns="columns" :items="routes" :loading="loading" :per-page="100" sticky-header>
     <template #cell(user)="{ rowData }">
-      <span>{{ rowData.user?.full_name || 'N/A' }}</span>
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-bold text-gray-800">{{ rowData.user?.full_name || 'N/A' }}</span>
+        <!-- Ojito continuo al lado del nombre del conductor -->
+        <RouterLink :to="{ name: 'route-details', params: { id: rowData.route_id } }" class="inline-flex">
+          <VaButton preset="primary" size="small" icon="fa4-eye" title="Ver detalles de la ruta" />
+        </RouterLink>
+        <!-- Estado de la ruta -->
+        <VaBadge
+          :text="rowData.status.replace(/_/g, ' ')"
+          :color="statusColors[rowData.status] || 'secondary'"
+          size="small"
+        />
+        <!-- Recordatorio si no tiene carga -->
+        <VaBadge
+          v-if="!rowData.packages_count || rowData.packages_count === 0"
+          text="Sin carga"
+          color="warning"
+          size="small"
+        />
+        <VaBadge
+          v-else
+          :text="`${rowData.packages_count} paq.`"
+          color="info"
+          size="small"
+        />
+        <!-- Recordatorio de incidencias pendientes de actualizar -->
+        <VaBadge
+          v-if="(rowData.pending_returns_count || 0) > 0 || (rowData.incidents_count || 0) > 0"
+          :text="`${(rowData.pending_returns_count || 0) + (rowData.incidents_count || 0)} inc.`"
+          color="danger"
+          size="small"
+          title="Paquetes con incidencias o pendientes de actualizar"
+        />
+      </div>
     </template>
     <template #cell(vehicle)="{ rowData }">
       <span>{{ rowData.vehicle?.license_plate || 'N/A' }}</span>

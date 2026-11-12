@@ -165,4 +165,113 @@ router.get(
     }
 );
 
+// PUT /change-management/:id/confirm-change-client - Acuse de recibo de cambio retornado a tienda
+router.put(
+    '/:id/confirm-change-client',
+    authenticateToken,
+    roleValidator(['CLIENT', 'ADMIN']),
+    async (req, res) => {
+        try {
+            const packageId = req.params.id;
+            const pkg = await Package.findByPk(packageId);
+            if (!pkg) {
+                return res.status(404).json({ error: 'Paquete no encontrado.' });
+            }
+
+            if (req.user.role === 'CLIENT' && String(pkg.client_id) !== String(req.user.client_id)) {
+                return res.status(403).json({ error: 'No tienes permiso para confirmar este cambio.' });
+            }
+
+            if (!pkg.is_change) {
+                return res.status(400).json({ error: 'Este paquete no está marcado como cambio.' });
+            }
+
+            if (!pkg.change_received) {
+                return res.status(400).json({ error: 'El producto de cambio aún no ha sido recibido físicamente por León Express.' });
+            }
+
+            if (pkg.client_change_confirmed_at) {
+                return res.status(409).json({ error: 'Este cambio ya fue confirmado previamente.' });
+            }
+
+            const notes = typeof req.body.notes === 'string' ? req.body.notes.trim().slice(0, 500) : null;
+            const now = new Date();
+            await pkg.update({
+                client_change_confirmed_at: now,
+                client_change_confirmed_by: req.user.user_id,
+                client_change_notes: notes,
+            });
+
+            await logAudit(req.user.user_id, 'CLIENT_CONFIRM_CHANGE_RECEIVED', {
+                package_id: packageId,
+                tracking_code: pkg.tracking_code,
+                client_id: pkg.client_id,
+                notes: notes || null,
+            });
+
+            res.json({ message: 'Cambio confirmado exitosamente.', package: pkg });
+        } catch (error) {
+            console.error('Error al confirmar cambio por cliente:', error);
+            res.status(500).json({ error: 'Error interno del servidor.' });
+        }
+    }
+);
+
+// POST /change-management/batch-confirm-client - Confirmar múltiples cambios recibidos
+router.post(
+    '/batch-confirm-client',
+    authenticateToken,
+    roleValidator(['CLIENT', 'ADMIN']),
+    async (req, res) => {
+        try {
+            const { package_ids, notes } = req.body;
+            if (!Array.isArray(package_ids) || package_ids.length === 0) {
+                return res.status(400).json({ error: 'Debe proporcionar al menos un ID de paquete.' });
+            }
+
+            const whereClause = {
+                package_id: { [require('sequelize').Op.in]: package_ids },
+                is_change: true,
+                change_received: true,
+                client_change_confirmed_at: null,
+            };
+
+            if (req.user.role === 'CLIENT') {
+                whereClause.client_id = req.user.client_id;
+            }
+
+            const pkgs = await Package.findAll({ where: whereClause });
+            if (pkgs.length === 0) {
+                return res.status(404).json({ error: 'No se encontraron cambios pendientes de confirmar.' });
+            }
+
+            const now = new Date();
+            const trimmedNotes = typeof notes === 'string' ? notes.trim().slice(0, 500) : null;
+
+            await Package.update(
+                {
+                    client_change_confirmed_at: now,
+                    client_change_confirmed_by: req.user.user_id,
+                    client_change_notes: trimmedNotes,
+                },
+                { where: whereClause }
+            );
+
+            for (const pkg of pkgs) {
+                await logAudit(req.user.user_id, 'CLIENT_CONFIRM_CHANGE_RECEIVED', {
+                    package_id: pkg.package_id,
+                    tracking_code: pkg.tracking_code,
+                    client_id: pkg.client_id,
+                    notes: trimmedNotes || null,
+                });
+            }
+
+            res.json({ message: `${pkgs.length} cambio(s) confirmados exitosamente.`, confirmed_count: pkgs.length });
+        } catch (error) {
+            console.error('Error al confirmar cambios en lote:', error);
+            res.status(500).json({ error: 'Error interno del servidor.' });
+        }
+    }
+);
+
 module.exports = router;

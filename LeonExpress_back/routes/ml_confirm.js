@@ -43,6 +43,10 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
       if (req.user.role === 'DRIVER' && String(pickup.user_id) !== String(req.user.user_id)) {
         throw Object.assign(new Error('La recolección no está asignada a este conductor.'), { status: 403 });
       }
+      const isMultiClient = Boolean(req.body.multi_client);
+      const skipWarehouse = Boolean(req.body.skip_warehouse_verification);
+      const targetStatus = skipWarehouse ? 'RECIBIDO_EN_ALMACEN' : 'RECOLECTADO_EN_ORIGEN';
+
       // Recheck after locking: simultaneous scans must see the first committed package.
       let pkg = await Package.findOne({
         where: {
@@ -52,26 +56,29 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
         transaction
       });
 
-      // Si no está asignado a este pickup_id, buscar si es un paquete manual pendiente de este cliente
+      // Si no está asignado a este pickup_id, buscar si es un paquete manual pendiente de este cliente (o cualquier cliente si multi_client)
       if (!pkg) {
+        const clientFilter = isMultiClient ? {} : { client_id: pickup.client_id };
         pkg = await Package.findOne({
           where: {
-            client_id: pickup.client_id,
+            ...clientFilter,
             pickup_id: null,
             status: 'PENDIENTE_RECOLECCION',
             [Op.or]: [{ external_tracking_code: ml_code }, { tracking_code: ml_code }]
           },
           transaction
         });
-
       }
 
       // Buscar primero y bloquear después por PK, igual que la edición/eliminación
       // del cliente. Releer evita usar una instancia borrada mientras esperábamos.
       if (pkg) pkg = await Package.findByPk(pkg.package_id, { transaction, lock: transaction.LOCK.UPDATE });
       if (pkg) {
-        if (String(pkg.client_id) !== String(pickup.client_id) || (pkg.pickup_id && String(pkg.pickup_id) !== String(pickup_id))) {
-          throw Object.assign(new Error('El paquete ya no está disponible para esta recolección.'), { status: 409 });
+        if (!isMultiClient && String(pkg.client_id) !== String(pickup.client_id)) {
+          throw Object.assign(new Error('El paquete pertenece a otro cliente y el modo multi-seller no está activo.'), { status: 409 });
+        }
+        if (pkg.pickup_id && String(pkg.pickup_id) !== String(pickup_id)) {
+          throw Object.assign(new Error('El paquete ya está asignado a otra recolección.'), { status: 409 });
         }
         if (!pkg.pickup_id) {
           if (pkg.status !== 'PENDIENTE_RECOLECCION') {
@@ -82,11 +89,15 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
         if (pkg.status !== 'PENDIENTE_RECOLECCION') {
            return { pkg, alreadyConfirmed: true };
         }
-        // Confirmamos el paquete
-        await pkg.update({
-          status: 'RECOLECTADO_EN_ORIGEN',
+        // Confirmamos el paquete con el estado correspondiente
+        const updateData = {
+          status: targetStatus,
           scanned_at_origin_datetime: new Date()
-        }, { transaction });
+        };
+        if (skipWarehouse) {
+          updateData.received_at_warehouse_datetime = new Date();
+        }
+        await pkg.update(updateData, { transaction });
       } else {
         // --- FLUJO DINÁMICO: AUTO-IMPORTACIÓN ---
         if (!/^(4\d{10}|3\d{9,10}|2\d{11,15})$/.test(ml_code)) {
@@ -101,21 +112,24 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
         const { importable } = require('../utils/mlImportPolicy');
         const accessibleAccounts = await mlAccountAccess.getAccounts();
         const clientAccounts = accessibleAccounts.filter(a => String(a.client_id) === String(pickup.client_id));
-        if (!clientAccounts.length) throw Object.assign(new Error('El cliente no tiene una cuenta de Mercado Libre vinculada.'), { status: 403 });
+        const searchAccounts = isMultiClient ? (accessibleAccounts.length ? accessibleAccounts : clientAccounts) : clientAccounts;
+        if (!searchAccounts.length) throw Object.assign(new Error('No hay cuentas de Mercado Libre vinculadas disponibles.'), { status: 403 });
         let shipment;
         let forbidden = false;
-        for (const account of clientAccounts) {
+        let matchedAccount = null;
+        for (const account of searchAccounts) {
           try {
             shipment = await mlLive.detail(account, ml_code);
+            matchedAccount = account;
             break;
           } catch (error) {
             if ((error.response?.status || error.status) === 403) forbidden = true;
             if (![403, 404].includes(error.response?.status || error.status)) throw error;
           }
         }
-        if (!shipment && forbidden) throw Object.assign(new Error('El envío no pertenece a las cuentas de este cliente.'), { status: 403 });
+        if (!shipment && forbidden) throw Object.assign(new Error('El envío no pertenece a las cuentas disponibles.'), { status: 403 });
         if (!shipment || !importable(shipment)) {
-          throw Object.assign(new Error('El envío no está disponible para recolectar con las cuentas de este cliente.'), { status: 404, allowPhoto: true });
+          throw Object.assign(new Error('El envío no está disponible para recolectar con las cuentas disponibles.'), { status: 404, allowPhoto: true });
         }
 
         shipment = await require('../services/mlRecipientService').prepareShipment(shipment);
@@ -126,33 +140,37 @@ router.post('/packages/confirm-ml', authMiddleware, hasRole(['ADMIN', 'DRIVER'])
         const trackingCode = await generateUniqueTrackingCode();
 
         // Obtener precio del cliente
+        const targetClientId = matchedAccount?.client_id || pickup.client_id;
         const { ClientPricing } = require('../models');
         const pricing = await ClientPricing.findOne({
-          where: { client_id: pickup.client_id, valid_to: null }, transaction
+          where: { client_id: targetClientId, valid_to: null }, transaction
         });
         const clientPrice = pricing ? parseFloat(pricing.base_price) : 0.00;
 
-
         await require('../services/mlImportLedger').claim(shipment, newPackageId, transaction);
-        pkg = await Package.create({
+        const newPkgData = {
           package_id: newPackageId,
           tracking_code: trackingCode,
           pickup_id: pickup_id,
-          client_id: pickup.client_id,
+          client_id: targetClientId,
           recipient_name: shipment.recipient_name,
           recipient_phone: shipment.recipient_phone,
           destination_address: shipment.destination_address,
           external_tracking_code: shipment.ml_shipment_external_id,
-          status: 'RECOLECTADO_EN_ORIGEN',
+          status: targetStatus,
           client_price: clientPrice,
           delivery_cost: 0.00,
           is_cod: false,
           scanned_at_origin_datetime: new Date(),
           created_at: new Date(),
           updated_at: new Date()
-        }, { transaction });
+        };
+        if (skipWarehouse) {
+          newPkgData.received_at_warehouse_datetime = new Date();
+        }
+        pkg = await Package.create(newPkgData, { transaction });
 
-        console.log(`✅ [ML-CONFIRM] Paquete ${ml_code} auto-importado exitosamente al vuelo.`);
+        console.log(`✅ [ML-CONFIRM] Paquete ${ml_code} auto-importado exitosamente al vuelo (${targetStatus}).`);
       }
 
       return { pkg, alreadyConfirmed: false };

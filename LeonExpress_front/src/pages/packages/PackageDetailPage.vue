@@ -85,6 +85,17 @@ const showReturnToClientConfirm = ref(false)
 const isReturningToClient = ref(false)
 const returnToClientNotes = ref('')
 
+// Entregas/intentos visibles según el rol:
+// Para conductores, ocultar los movimientos e incidencias previas de otros conductores si el paquete fue transferido
+const visibleDeliveries = computed(() => {
+  if (!pkg.value?.deliveries) return []
+  if (userStore.isDriver) {
+    const currentUserId = userStore.user?.user_id
+    return pkg.value.deliveries.filter((d: any) => String(d.user_id) === String(currentUserId))
+  }
+  return pkg.value.deliveries
+})
+
 const canReturnToClient = computed(() => {
   if (!pkg.value || userStore.isClient) return false
 
@@ -431,6 +442,13 @@ const handleDeliverySave = async (formData: FormData) => {
     // El servidor guarda todas las fotos del FormData en la misma transacción que la entrega.
     notify({ message: 'Registro de entrega guardado con éxito.', color: 'success' })
 
+    // Limpiar borrador local al confirmarse la entrega exitosamente en el servidor
+    if (pkg.value?.package_id) {
+      try {
+        localStorage.removeItem(`delivery_draft_${pkg.value.package_id}`)
+      } catch (err) {}
+    }
+
     showCloseDeliveryConfirm.value = false
     doShowDeliveryModal.value = false
 
@@ -745,12 +763,12 @@ const printThermalLabel = () => {
       </VaCardTitle>
 
       <VaCardContent>
-        <div v-if="!pkg.deliveries || pkg.deliveries.length === 0" class="text-gray-500 italic">
+        <div v-if="visibleDeliveries.length === 0" class="text-gray-500 italic">
           Aún no se han registrado intentos de entrega para este paquete.
         </div>
 
         <div v-else class="space-y-3">
-          <div v-for="delivery in pkg.deliveries" :key="delivery.delivery_id" class="p-3 border rounded-lg bg-gray-50">
+          <div v-for="delivery in visibleDeliveries" :key="delivery.delivery_id" class="p-3 border rounded-lg bg-gray-50">
             <div class="flex justify-between items-start">
               <div>
                 <strong class="capitalize">

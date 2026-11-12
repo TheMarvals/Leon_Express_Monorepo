@@ -14,6 +14,8 @@ type Filters = {
   changeFilter: string | undefined
   startDate: Date | string | null | undefined
   endDate: Date | string | null | undefined
+  clientId: string | undefined
+  comuna: string | undefined
 }
 
 const makePaginationRef = () => ref<Pagination>({ page: 1, perPage: 50, total: 0 })
@@ -25,6 +27,8 @@ const makeFiltersRef = () =>
     changeFilter: undefined,
     startDate: undefined,
     endDate: undefined,
+    clientId: undefined,
+    comuna: undefined,
   })
 
 export const usePackages = (options?: {

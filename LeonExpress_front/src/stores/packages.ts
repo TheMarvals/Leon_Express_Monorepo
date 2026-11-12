@@ -26,6 +26,8 @@ export const usePackagesStore = defineStore('packages', {
           status: options.filters.status,
           startDate: options.filters.startDate,
           endDate: options.filters.endDate,
+          clientId: options.filters.clientId,
+          comuna: options.filters.comuna,
           // Mapear filtros personalizados a parámetros de API
           isChange: options.filters.changeFilter === 'pending_changes' ? true : undefined,
           changeReceived: options.filters.changeFilter === 'pending_changes' ? false : undefined,
