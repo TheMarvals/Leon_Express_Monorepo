@@ -47,7 +47,7 @@ export default defineConfig({
       },
       // Generar un hash único para cada build
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
+        globPatterns: ['**/*.{js,css,ico,png,svg,webp,woff,woff2}'],
         // Forzar regeneración del manifest en cada build
         maximumFileSizeToCacheInBytes: 5000000,
       },

@@ -27,7 +27,7 @@
           v-model="email"
           :rules="rules.email"
           label="Correo Electrónico del Cliente *"
-          placeholder="contacto@tiendaabc.cl"
+          placeholder="ejemplo: contacto@empresa.cl"
           class="w-full"
           clearable
         />
@@ -50,8 +50,9 @@
         </div>
 
         <div class="flex justify-end gap-2 pt-4 border-t border-gray-100">
-          <VaButton preset="secondary" @click="handleClose">Cancelar</VaButton>
+          <VaButton type="button" preset="secondary" @click="handleClose">Cancelar</VaButton>
           <VaButton
+            type="button"
             color="#03323a"
             class="font-bold"
             :loading="isSubmitting"
