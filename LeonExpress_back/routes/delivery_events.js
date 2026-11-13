@@ -429,7 +429,7 @@ const DELIVERY_STATUS = {
 router.post(
     '/packages/:id/deliveries',
     authenticateToken,
-    roleValidator(['DRIVER']), // <-- CORRECCIÓN 1: Middleware de rol añadido
+    roleValidator(['DRIVER', 'ADMIN']),
     upload.array('photos', 7), // Permitir hasta 7 fotos
     body('status_at_delivery').isIn(['ENTREGADO', 'NO_HAY_NADIE', 'DIRECCION_INCORRECTA', 'RECHAZADO_POR_CLIENTE', 'REPROGRAMADO_POR_CLIENTE', 'OTRA_INCIDENCIA']).withMessage('Estado de entrega inválido.'),
     body('receiver_name')
@@ -495,20 +495,31 @@ router.post(
                 return res.status(409).json({ error: `El paquete no puede ser procesado porque su estado actual es '${pkg.status}'. Debe estar en ruta o tener una incidencia previa.` });
             }
 
-            const routePackage = await RoutePackage.findOne({
+            let routePackage = await RoutePackage.findOne({
                 where: { package_id: packageId, released_at: null },
                 include: [{ model: Route, as: 'route', required: true }],
                 order: [['created_at', 'DESC']], transaction: t
             });
-            // Closing a route preserves custody of unsuccessful deliveries. A later
-            // attempt belongs to that assignment until a physical return or transfer.
+
+            // Si la ruta previa fue finalizada o el paquete liberado, buscar asignación más reciente
+            if (!routePackage) {
+                routePackage = await RoutePackage.findOne({
+                    where: { package_id: packageId },
+                    include: [{ model: Route, as: 'route', required: true }],
+                    order: [['created_at', 'DESC']], transaction: t
+                });
+            }
+
             const assignedRoute = routePackage?.route;
-            const retainedAfterClosing = assignedRoute?.status === 'FINALIZADA'
-                && pkg.pending_return_user_id === driverId
-                && ['INCIDENCIA_ENTREGA', 'REPROGRAMADO'].includes(pkg.status);
-            const canAttemptDelivery = assignedRoute?.user_id === driverId
+            const isAdmin = req.user.role === 'ADMIN';
+            const retainedAfterClosing = (assignedRoute?.status === 'FINALIZADA' || routePackage?.released_at !== null)
+                && (pkg.pending_return_user_id === driverId || assignedRoute?.user_id === driverId)
+                && ['INCIDENCIA_ENTREGA', 'REPROGRAMADO', 'EN_RUTA_ENTREGA', 'ASIGNADO_A_RUTA'].includes(pkg.status);
+            const isAuthorizedDriver = assignedRoute?.user_id === driverId
                 && (!pkg.pending_return_user_id || pkg.pending_return_user_id === driverId)
-                && (assignedRoute.status === 'EN_PROGRESO' || retainedAfterClosing);
+                && (assignedRoute?.status === 'EN_PROGRESO' || retainedAfterClosing);
+
+            const canAttemptDelivery = isAdmin || isAuthorizedDriver;
             if (!canAttemptDelivery) {
                 await t.rollback();
                 return res.status(403).json({ error: 'El paquete no está a tu cargo para registrar una entrega. Actualiza tus paquetes pendientes.' });
@@ -542,11 +553,12 @@ router.post(
             console.log(`  - gps_latitude: ${parsedLatitude} (${parsedLatitude !== null ? 'válido' : 'null'})`)
             console.log(`  - gps_longitude: ${parsedLongitude} (${parsedLongitude !== null ? 'válido' : 'null'})`)
 
+            const deliveryUserId = (isAdmin && assignedRoute?.user_id) ? assignedRoute.user_id : driverId;
             const deliveryPayload = {
                 delivery_id: uuidv4(),
                 package_id: packageId,
-                route_package_id: routePackage.route_package_id,
-                user_id: driverId,
+                route_package_id: routePackage ? routePackage.route_package_id : null,
+                user_id: deliveryUserId,
                 status_at_delivery: status_at_delivery,
                 observation: observation || null,
                 gps_latitude: parsedLatitude,
@@ -580,6 +592,7 @@ router.post(
             if (isSuccess) {
                 nextPackageStatus = 'ENTREGADO';
                 updateFields.pending_return_user_id = null; // Ya no está pendiente de devolución
+                updateFields.delivered_datetime = new Date();
             } else if (status_at_delivery === 'REPROGRAMADO_POR_CLIENTE') {
                 nextPackageStatus = 'REPROGRAMADO';
                 // Si falla pero el conductor se lo queda, mantenemos el pending_return_user_id si ya existía
@@ -670,7 +683,7 @@ router.post(
     }
 );
 // POST /deliveries/:id/photos - Subir una foto para una entrega
-router.post('/deliveries/:id/photos', authenticateToken, roleValidator(['DRIVER']), upload.single('delivery_photo'), async (req, res) => {
+router.post('/deliveries/:id/photos', authenticateToken, roleValidator(['DRIVER', 'ADMIN']), upload.single('delivery_photo'), async (req, res) => {
     console.log('Received FormData fields:', req.body);
     console.log('Received file:', req.file ? req.file : 'No file uploaded');
     if (!req.file) {

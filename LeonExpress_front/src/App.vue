@@ -7,6 +7,16 @@ import LoadingOverlay from '@/components/LoadingOverlay.vue'
 const updateAvailable = ref(false)
 const isUpdating = ref(false)
 
+let refreshing = false
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true
+      window.location.reload()
+    }
+  })
+}
+
 const { needRefresh, updateServiceWorker } = useRegisterSW({
   immediate: true,
   onNeedRefresh() {

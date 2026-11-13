@@ -208,6 +208,17 @@ const fetchData = async () => {
 
 onMounted(fetchData)
 
+watch(
+  () => route.params.id,
+  (newId) => {
+    if (newId) {
+      doShowDeliveryModal.value = false
+      showCloseDeliveryConfirm.value = false
+      fetchData()
+    }
+  },
+)
+
 const openMapModal = (delivery: Delivery) => {
   if (delivery.gps_latitude && delivery.gps_longitude) {
     const lat = delivery.gps_latitude
@@ -842,12 +853,6 @@ const printThermalLabel = () => {
     :max-width="'600px'"
     :no-outside-dismiss="true"
     :no-esc-dismiss="true"
-    :before-close="
-      () => {
-        showCloseDeliveryConfirm = true
-        return false
-      }
-    "
   >
     <template #header>
       <div class="flex items-center justify-between w-full">
@@ -856,7 +861,7 @@ const printThermalLabel = () => {
       </div>
     </template>
     <DeliveryForm
-      v-if="pkg"
+      v-if="pkg && doShowDeliveryModal"
       :pkg="pkg"
       :loading="isSavingDelivery"
       @close="showCloseDeliveryConfirm = true"

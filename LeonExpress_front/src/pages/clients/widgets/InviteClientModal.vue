@@ -1,10 +1,11 @@
 <template>
   <VaModal
-    v-model="isOpen"
+    :model-value="modelValue"
     title="Invitar Nuevo Cliente (Enlace Privado)"
     close-button
     hide-default-actions
     size="medium"
+    @update:model-value="handleModalValueUpdate"
     @close="handleClose"
   >
     <div v-if="!createdInvitation" class="space-y-4 py-2">
@@ -16,20 +17,24 @@
       <div class="space-y-3">
         <VaInput
           v-model="clientName"
-          :rules="rules.clientName"
           label="Nombre de la Empresa o Cliente *"
           placeholder="Ej: Tienda ABC SpA"
           class="w-full"
           clearable
+          :error="!!errors.clientName"
+          :error-messages="errors.clientName"
+          @update:model-value="errors.clientName = ''"
         />
 
         <VaInput
           v-model="email"
-          :rules="rules.email"
-          label="Correo Electrónico del Cliente *"
-          placeholder="ejemplo: contacto@empresa.cl"
+          label="Correo Electronico del Cliente *"
+          placeholder="contacto@tiendaabc.cl"
           class="w-full"
           clearable
+          :error="!!errors.email"
+          :error-messages="errors.email"
+          @update:model-value="errors.email = ''"
         />
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -38,10 +43,12 @@
             type="number"
             min="0"
             step="100"
-            :rules="rules.basePrice"
             label="Tarifa Base Acordada ($) *"
             placeholder="Ej: 2800"
             class="w-full"
+            :error="!!errors.basePrice"
+            :error-messages="errors.basePrice"
+            @update:model-value="errors.basePrice = ''"
           />
 
           <div class="flex items-center pt-5">
@@ -58,25 +65,24 @@
             :loading="isSubmitting"
             @click="handleCreateInvite"
           >
-            Generar y Enviar Invitación
+            Generar y Enviar Invitacion
           </VaButton>
         </div>
       </div>
     </div>
 
-    <!-- Éxito: Enlace generado -->
+    <!-- Exito: Enlace generado -->
     <div v-else class="space-y-4 py-2 text-center">
       <VaIcon name="check_circle" size="48px" color="success" class="mx-auto" />
-      <h3 class="text-lg font-bold text-gray-800">Invitación Creada con Éxito</h3>
+      <h3 class="text-lg font-bold text-gray-800">Invitacion Creada Exitosamente</h3>
       <p class="text-xs text-gray-500">
-        Se envió un correo de bienvenida automático a <strong>{{ createdInvitation.email }}</strong> con su tarifa de
-        <strong>${{ Number(createdInvitation.base_price).toLocaleString('es-CL') }}</strong
-        >.
+        Se envio un correo de bienvenida automatico a <strong>{{ createdInvitation.email }}</strong> con su tarifa de
+        <strong>${{ Number(createdInvitation.base_price).toLocaleString('es-CL') }}</strong>.
       </p>
 
       <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 text-left">
         <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-          Enlace privado de un solo uso (Válido por 7 días)
+          Enlace privado de un solo uso (Valido por 7 dias)
         </label>
         <div class="flex items-center gap-2">
           <input
@@ -95,14 +101,14 @@
         <VaButton type="button" color="#25D366" icon="share" class="font-bold text-white shadow-sm" @click="shareOnWhatsApp">
           Enviar por WhatsApp
         </VaButton>
-        <VaButton type="button" preset="secondary" @click="handleClose"> Finalizar </VaButton>
+        <VaButton type="button" preset="secondary" @click="handleClose">Finalizar</VaButton>
       </div>
     </div>
   </VaModal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { useToast } from 'vuestic-ui'
 import api from '../../../services/api'
 
@@ -115,11 +121,6 @@ const emit = defineEmits<{
   (e: 'created'): void
 }>()
 
-const isOpen = computed({
-  get: () => props.modelValue,
-  set: (val: boolean) => emit('update:modelValue', val),
-})
-
 const { init: notify } = useToast()
 
 const isSubmitting = ref(false)
@@ -131,16 +132,11 @@ const email = ref('')
 const basePrice = ref<number>(2800)
 const hasFreePickups = ref(false)
 
-const rules = {
-  clientName: [(v: string) => (!!v && v.trim().length > 0) || 'El nombre de la empresa o cliente es obligatorio'],
-  email: [
-    (v: string) => (!!v && v.trim().length > 0) || 'El correo electrónico es obligatorio',
-    (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v?.trim() || '') || 'Ingrese un correo electrónico válido',
-  ],
-  basePrice: [
-    (v: any) => (v !== null && v !== undefined && v !== '' && Number(v) > 0) || 'La tarifa debe ser mayor a 0',
-  ],
-}
+const errors = reactive({
+  clientName: '',
+  email: '',
+  basePrice: '',
+})
 
 const resetForm = () => {
   clientName.value = ''
@@ -150,11 +146,20 @@ const resetForm = () => {
   createdInvitation.value = null
   isSubmitting.value = false
   copied.value = false
+  errors.clientName = ''
+  errors.email = ''
+  errors.basePrice = ''
 }
 
 const handleClose = () => {
-  isOpen.value = false
+  emit('update:modelValue', false)
   resetForm()
+}
+
+const handleModalValueUpdate = (val: boolean) => {
+  if (!val) {
+    handleClose()
+  }
 }
 
 watch(
@@ -166,23 +171,41 @@ watch(
   },
 )
 
-const handleCreateInvite = async () => {
+const validate = (): boolean => {
+  let valid = true
+  errors.clientName = ''
+  errors.email = ''
+  errors.basePrice = ''
+
   const trimmedName = clientName.value?.trim() || ''
   const trimmedEmail = email.value?.trim() || ''
   const price = Number(basePrice.value)
 
   if (!trimmedName) {
-    notify({ message: 'El nombre de la empresa o cliente es obligatorio.', color: 'warning' })
-    return
+    errors.clientName = 'El nombre de la empresa o cliente es obligatorio'
+    valid = false
   }
-  if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-    notify({ message: 'Ingrese un correo electrónico válido.', color: 'warning' })
-    return
+  if (!trimmedEmail) {
+    errors.email = 'El correo electronico es obligatorio'
+    valid = false
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    errors.email = 'Ingrese un correo electronico valido'
+    valid = false
   }
   if (isNaN(price) || price <= 0) {
-    notify({ message: 'La tarifa debe ser mayor a 0.', color: 'warning' })
-    return
+    errors.basePrice = 'La tarifa debe ser mayor a 0'
+    valid = false
   }
+
+  return valid
+}
+
+const handleCreateInvite = async () => {
+  if (!validate()) return
+
+  const trimmedName = clientName.value.trim()
+  const trimmedEmail = email.value.trim()
+  const price = Number(basePrice.value)
 
   isSubmitting.value = true
   try {
@@ -195,13 +218,13 @@ const handleCreateInvite = async () => {
 
     createdInvitation.value = res.data?.invitation
     notify({
-      message: 'Invitación generada y enviada por correo exitosamente.',
+      message: 'Invitacion generada y enviada por correo exitosamente.',
       color: 'success',
     })
     emit('created')
   } catch (error: any) {
     notify({
-      message: error.response?.data?.error || 'Error al crear la invitación.',
+      message: error.response?.data?.error || 'Error al crear la invitacion.',
       color: 'danger',
     })
   } finally {
