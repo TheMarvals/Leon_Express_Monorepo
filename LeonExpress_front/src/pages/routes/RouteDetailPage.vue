@@ -454,10 +454,10 @@ const emptyRouteTableText = computed(() => {
 })
 
 const canFinishRoute = computed(() => {
-  if (!packagesInRoute.value || packagesInRoute.value.length === 0) {
-    return true
-  }
-  return packagesInRoute.value.every((pkg) => CLOSED_PACKAGE_STATUSES.includes(pkg.status))
+  // Siempre se puede finalizar una ruta EN_PROGRESO.
+  // Los paquetes EN_RUTA_ENTREGA / ASIGNADO_A_RUTA se convierten automáticamente
+  // a INCIDENCIA_ENTREGA con pending_return_user_id al finalizar en el backend.
+  return true
 })
 
 // --- Lógica de Acciones ---
@@ -747,10 +747,8 @@ const showApproveButton = computed(() => {
         <VaAlert v-if="routeData.status === 'EN_PROGRESO' && canManageRoute" color="info" class="route-alert">
           Puedes reasignar paquetes pendientes entre tus rutas. Para reasignar a otro conductor se requiere un administrador.
         </VaAlert>
-        <VaAlert v-if="routeData.status === 'EN_PROGRESO' && !canFinishRoute" color="warning" class="route-alert">
-          <p>
-            Transfiere los paquetes pendientes a otra ruta o registra su recepción física en bodega antes de finalizar.
-          </p>
+        <VaAlert v-if="routeData.status === 'EN_PROGRESO' && pendingPackages.length > 0" color="info" class="route-alert">
+          Hay {{ pendingPackages.length }} paquete(s) pendientes. Al finalizar la ruta se registran como incidencia a cargo del conductor.
         </VaAlert>
         <VaAlert v-if="routeData.status === 'FINALIZADA'" color="success" class="route-alert">
           <p>Esta ruta ha sido finalizada.</p>
@@ -803,15 +801,15 @@ const showApproveButton = computed(() => {
         {{ releasedPackages.filter((item) => item.release_reason === 'RECIBIDO_EN_ALMACEN').length }}. Pendientes sin
         gestionar: {{ pendingPackages.length }}.
       </p>
-      <VaAlert v-if="!canFinishRoute" color="warning" class="mb-3">
-        Transfiere los pendientes o confirma su recepción física en bodega para cerrar esta ruta.
+      <VaAlert v-if="pendingPackages.length > 0" color="warning" class="mb-3">
+        Hay {{ pendingPackages.length }} paquete(s) sin gestionar. Al finalizar, quedan registrados como incidencia a cargo del conductor para su devolución o reintento.
       </VaAlert>
       <p v-else class="mb-3">
-        Las incidencias pendientes de devolución seguirán a cargo del conductor hasta su recepción o reintento.
+        Todos los paquetes han sido gestionados. Las incidencias pendientes de devolución seguirán a cargo del conductor hasta su recepción o reintento.
       </p>
       <div class="flex gap-3">
         <VaButton preset="secondary" @click="showFinishModal = false">Volver</VaButton>
-        <VaButton :disabled="!canFinishRoute" :loading="isUpdatingStatus" @click="handleStatusUpdate('FINALIZADA')">
+        <VaButton :loading="isUpdatingStatus" @click="handleStatusUpdate('FINALIZADA')">
           Confirmar cierre
         </VaButton>
       </div>
@@ -1022,8 +1020,8 @@ const showApproveButton = computed(() => {
             class="mt-6 pt-4 border-t flex flex-col sm:flex-row justify-between items-center gap-3 bg-gray-50 p-4 rounded-xl"
           >
             <div class="text-xs text-gray-600">
-              <span v-if="!canFinishRoute && packagesInRoute.length > 0" class="text-amber-700 font-semibold flex items-center gap-1">
-                <VaIcon name="warning" size="small" /> Transfiere los paquetes pendientes o confirma su recepción en bodega antes de finalizar.
+              <span v-if="pendingPackages.length > 0" class="text-amber-700 font-semibold flex items-center gap-1">
+                <VaIcon name="warning" size="small" /> {{ pendingPackages.length }} paquete(s) sin gestionar quedarán como incidencia a cargo del conductor.
               </span>
               <span v-else class="text-green-700 font-semibold flex items-center gap-1">
                 <VaIcon name="check_circle" size="small" /> Todos los paquetes han sido gestionados. Puedes cerrar la ruta.
@@ -1033,7 +1031,6 @@ const showApproveButton = computed(() => {
               size="medium"
               icon="fa4-check-circle"
               color="success"
-              :disabled="!canFinishRoute && packagesInRoute.length > 0"
               :loading="isUpdatingStatus"
               class="w-full sm:w-auto font-bold shadow-sm"
               @click="showFinishModal = true"
@@ -1189,8 +1186,8 @@ const showApproveButton = computed(() => {
             class="mt-6 pt-4 border-t flex flex-col sm:flex-row justify-between items-center gap-3 bg-gray-50 p-4 rounded-xl"
           >
             <div class="text-xs text-gray-600">
-              <span v-if="!canFinishRoute && packagesInRoute.length > 0" class="text-amber-700 font-semibold flex items-center gap-1">
-                <VaIcon name="warning" size="small" /> Transfiere los paquetes pendientes o confirma su recepción en bodega antes de finalizar.
+              <span v-if="pendingPackages.length > 0" class="text-amber-700 font-semibold flex items-center gap-1">
+                <VaIcon name="warning" size="small" /> {{ pendingPackages.length }} paquete(s) sin gestionar quedarán como incidencia a cargo del conductor.
               </span>
               <span v-else class="text-green-700 font-semibold flex items-center gap-1">
                 <VaIcon name="check_circle" size="small" /> Todos los paquetes han sido gestionados. Puedes cerrar la ruta.
@@ -1200,7 +1197,6 @@ const showApproveButton = computed(() => {
               size="medium"
               icon="fa4-check-circle"
               color="success"
-              :disabled="!canFinishRoute && packagesInRoute.length > 0"
               :loading="isUpdatingStatus"
               class="w-full sm:w-auto font-bold shadow-sm"
               @click="showFinishModal = true"

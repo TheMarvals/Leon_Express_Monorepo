@@ -1392,50 +1392,52 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
       const packages = await Package.findAll({ where: { package_id: { [Op.in]: packageIds } }, transaction: t, lock: t.LOCK.UPDATE });
 
       // - ASIGNADO_A_RUTA: El paquete ya fue reasignado a otra ruta nueva
+      // Estados que se consideran "manejados" para finalizar la ruta.
+      // EN_RUTA_ENTREGA y ASIGNADO_A_RUTA se permiten: se convierten automáticamente
+      // a INCIDENCIA_ENTREGA con pending_return_user_id al finalizar la ruta.
       const finalStates = [
         'ENTREGADO',
         'INCIDENCIA_ENTREGA',
         'REPROGRAMADO',
         'DEVUELTO_ALMACEN',
         'DEVUELTO_A_CLIENTE',
-        'CANCELADO'
+        'CANCELADO',
+        'EN_RUTA_ENTREGA',   // Se convertirá a INCIDENCIA_ENTREGA abajo
+        'ASIGNADO_A_RUTA',   // Paquetes que aún no salieron pero la ruta se cierra
       ];
 
       const allPackagesHandled = packages.every(pkg => finalStates.includes(pkg.status));
 
       if (!allPackagesHandled) {
-        // Identificar cuáles paquetes están pendientes para dar mejor feedback
+        // Solo hay estados verdaderamente inesperados (no debería ocurrir en producción)
         const pendingPackages = packages.filter(pkg => !finalStates.includes(pkg.status));
         const pendingInfo = pendingPackages.map(pkg => `${pkg.tracking_code} (${pkg.status})`).join(', ');
 
         await t.rollback();
         return res.status(409).json({
-          error: 'No se puede finalizar la ruta. Aún hay paquetes sin gestionar.',
+          error: 'No se puede finalizar la ruta. Hay paquetes en un estado inesperado.',
           pending_packages: pendingInfo,
-          details: `Los siguientes paquetes aún no han sido procesados: ${pendingInfo}`
+          details: `Los siguientes paquetes no pueden procesarse automáticamente: ${pendingInfo}`
         });
       }
 
-      // --- MEJORA: Liberar paquetes no entregados para que vuelvan a estar disponibles ---
-      // Solo liberamos aquellos que están en tránsito o con incidencia,
-      // pero respetamos los que ya han sido asignados a una nueva ruta (ASIGNADO_A_RUTA)
-      // -----------------------------------------------------------------------------
-      // LÓGICA DE PAQUETES NO ENTREGADOS (PENDIENTES DE DEVOLUCIÓN FÍSICA)
-      // -----------------------------------------------------------------------------
-      // Buscamos los paquetes que no llegaron a un estado final satisfactorio
+      // --- LÓGICA DE PAQUETES NO ENTREGADOS (PENDIENTES DE DEVOLUCIÓN FÍSICA) ---
+      // Paquetes en tránsito (EN_RUTA_ENTREGA / ASIGNADO_A_RUTA) o con incidencia/reprogramado
+      // se marcan como INCIDENCIA_ENTREGA y quedan en custodia del conductor hasta que
+      // los devuelva físicamente o registre la entrega.
       const packagesToRelease = packages.filter(pkg =>
-        ['EN_RUTA_ENTREGA', 'INCIDENCIA_ENTREGA', 'REPROGRAMADO'].includes(pkg.status)
+        ['EN_RUTA_ENTREGA', 'ASIGNADO_A_RUTA', 'INCIDENCIA_ENTREGA', 'REPROGRAMADO'].includes(pkg.status)
       );
 
       if (packagesToRelease.length > 0) {
         const idsToRelease = packagesToRelease.map(p => p.package_id);
 
-        // Mantenemos su estado actual (o forzamos a INCIDENCIA_ENTREGA si estaba en ruta)
-        // pero marcamos quién debe devolverlo físicamente o re-intentar
+        // Paquetes en tránsito o sin gestionar se marcan como INCIDENCIA_ENTREGA
+        // y quedan a cargo del conductor (pending_return_user_id) para devolución o reintento
         await Package.update(
           {
-            // Si estaba 'EN_RUTA_ENTREGA', lo movemos a 'INCIDENCIA_ENTREGA' para que no quede en el limbo
-            status: sequelize.literal("CASE WHEN status = 'EN_RUTA_ENTREGA' THEN 'INCIDENCIA_ENTREGA' ELSE status END"),
+            // EN_RUTA_ENTREGA y ASIGNADO_A_RUTA pasan a INCIDENCIA_ENTREGA; los demás (REPROGRAMADO, etc.) se mantienen
+            status: sequelize.literal("CASE WHEN status IN ('EN_RUTA_ENTREGA', 'ASIGNADO_A_RUTA') THEN 'INCIDENCIA_ENTREGA' ELSE status END"),
             pending_return_user_id: route.user_id
           },
           {

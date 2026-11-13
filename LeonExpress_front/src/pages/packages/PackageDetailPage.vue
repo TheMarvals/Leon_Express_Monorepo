@@ -748,9 +748,9 @@ const printThermalLabel = () => {
             Devuelto al cliente
           </VaButton>
           <VaButton
-            :disabled="!['EN_RUTA_ENTREGA', 'REPROGRAMADO', 'INCIDENCIA_ENTREGA'].includes(pkg.status)"
+            :disabled="!['EN_RUTA_ENTREGA', 'REPROGRAMADO', 'INCIDENCIA_ENTREGA', 'ASIGNADO_A_RUTA'].includes(pkg.status)"
             :title="
-              !['EN_RUTA_ENTREGA', 'REPROGRAMADO', 'INCIDENCIA_ENTREGA'].includes(pkg.status)
+              !['EN_RUTA_ENTREGA', 'REPROGRAMADO', 'INCIDENCIA_ENTREGA', 'ASIGNADO_A_RUTA'].includes(pkg.status)
                 ? `No se puede registrar entrega. Estado actual: ${pkg.status}.`
                 : 'Registrar intento de entrega'
             "
