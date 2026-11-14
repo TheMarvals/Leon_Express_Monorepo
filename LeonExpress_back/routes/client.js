@@ -14,7 +14,6 @@ const { syncClientEmail } = require('../services/clientEmailService');
 const mlLiveShipments = require('../services/mlLiveShipments');
 const mlAccountAccess = require('../services/mlAccountAccessService');
 const { Op } = require("sequelize");
-const { isAfter } = require("date-fns");
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -54,7 +53,7 @@ const validatePricingPolicy = [
   body("valid_from").optional({ nullable: true, checkFalsy: true }).isISO8601().toDate().withMessage("Fecha de inicio inválida"),
   body("valid_to").optional({ nullable: true, checkFalsy: true }).isISO8601().toDate().withMessage("Fecha de fin inválida")
     .custom((value, { req }) => {
-      if (req.body.valid_from && value && isAfter(new Date(req.body.valid_from), new Date(value))) {
+      if (req.body.valid_from && value && new Date(req.body.valid_from) > new Date(value)) {
         throw new Error("La fecha de fin debe ser posterior o igual a la fecha de inicio");
       }
       return true;
