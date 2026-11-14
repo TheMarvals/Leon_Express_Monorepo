@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { Sequelize } = require('sequelize');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require("crypto");
 
 const sequelize = new Sequelize(
     process.env.DB_NAME,

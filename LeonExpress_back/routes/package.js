@@ -2,7 +2,7 @@
 
 const express = require("express");
 const { body, validationResult } = require("express-validator");
-const { v4: uuidv4 } = require("uuid");
+const { randomUUID: uuidv4 } = require("crypto");
 const { Package, PackageCost, Client, ClientPricing, VehicleType, Pickup, Delivery, DeliveryPhoto, User, Cancellation, Return, OcrProcessingQueue, Route, RoutePackage, sequelize } = require('../models');
 const authenticateToken = require("../middlewares/authenticateToken");
 const { Op } = require("sequelize");

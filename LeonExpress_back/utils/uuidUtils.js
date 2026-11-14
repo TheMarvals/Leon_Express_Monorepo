@@ -1,19 +1,13 @@
-let nanoid;
-let customAlphabet;
+const crypto = require('node:crypto');
 
-(async () => {
-  ({ customAlphabet } = await import('nanoid'));
-})();
-const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
 async function generateUniqueTrackingCode() {
-  // Espera que customAlphabet esté cargado
-  if (!customAlphabet) {
-    ({ customAlphabet } = await import('nanoid'));
+  let code = 'LE';
+  for (let i = 0; i < 8; i++) {
+    code += ALPHABET[crypto.randomInt(ALPHABET.length)];
   }
-  const nanoid = customAlphabet(alphabet, 8); // 8 caracteres
-  return `LE${nanoid()}`;
+  return code;
 }
-
 
 module.exports = { generateUniqueTrackingCode };

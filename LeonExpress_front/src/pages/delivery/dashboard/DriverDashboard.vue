@@ -2,13 +2,9 @@
 import { defineProps } from 'vue'
 import DriverStatsSection from './DriverStatsSection.vue'
 import RevenueUpdates from './cards/RevenueReport.vue'
-import ProjectTable from './cards/ProjectTable.vue'
-import RevenueByComuna from './cards/RegionRevenue.vue'
-import DataSection from './DataSection.vue'
 import YearlyBreakup from './cards/YearlyBreakup.vue'
 import MonthlyEarnings from './cards/MonthlyEarnings.vue'
 import DailyEarnings from './cards/DailyEarnings.vue'
-import RegionRevenue from './cards/RegionRevenue.vue'
 import Timeline from './cards/Timeline.vue'
 import PendingPickups from './cards/PendingPickups.vue'
 

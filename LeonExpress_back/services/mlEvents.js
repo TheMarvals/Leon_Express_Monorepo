@@ -2,7 +2,7 @@
 
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { v4: uuid } = require('uuid');
+const { randomUUID: uuid } = require("crypto");
 const models = require('../models');
 const access = require('./mlAccountAccessService');
 const live = require('./mlLiveShipments');

@@ -3,7 +3,7 @@ const router = express.Router();
 const authenticateToken = require('../middlewares/authenticateToken');
 const roleValidator = require('../middlewares/roleValidator');
 const { Package, OcrProcessingQueue, Pickup } = require('../models');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require("crypto");
 
 /**
  * Genera un tracking code único

@@ -1,7 +1,7 @@
 'use strict';
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('node:crypto');
 const { Warehouse } = require('../models');
 const { logAudit } = require('../utils/audit');
 const authenticateToken = require('../middlewares/authenticateToken');
@@ -149,7 +149,7 @@ router.post('/', validateWarehouse, async (req, res) => {
     try {
         const { warehouse_name, address } = req.body;
         const newWarehouse = await Warehouse.create({ 
-            warehouse_id: uuidv4(), 
+            warehouse_id: crypto.randomUUID(), 
             warehouse_name, 
             address 
         });

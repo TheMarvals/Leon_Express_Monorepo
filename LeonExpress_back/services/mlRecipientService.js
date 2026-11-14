@@ -29,7 +29,7 @@ async function applyContact(models, packageId, clientId, externalId, contact, { 
     if (!fields.length || dryRun) return fields;
     const before = Object.fromEntries(fields.map(key => [key, pkg[key]]));
     await pkg.update(patch, { transaction });
-    await AuditLog.create({ log_id: require('uuid').v4(), user_id: null, action: 'ML_RECIPIENT_RECOVERED', target_table: 'packages', target_id: pkg.package_id, details: JSON.stringify({ source: 'mercadolibre', before, after: patch }) }, { transaction });
+    await AuditLog.create({ log_id: require("crypto").randomUUID(), user_id: null, action: 'ML_RECIPIENT_RECOVERED', target_table: 'packages', target_id: pkg.package_id, details: JSON.stringify({ source: 'mercadolibre', before, after: patch }) }, { transaction });
     return fields;
   });
 }

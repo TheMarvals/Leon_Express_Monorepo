@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const { sequelize } = require('../models');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require("crypto");
 
 /**
  * Servicio de automatización de facturación y pagos

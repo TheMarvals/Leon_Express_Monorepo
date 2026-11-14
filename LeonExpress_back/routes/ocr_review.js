@@ -5,7 +5,7 @@ const { OcrProcessingQueue, Package, Pickup, Client, User } = require('../models
 const { Op } = require('sequelize');
 const learningEngine = require('../utils/ocrLearningEngine');
 const { withPickupPackageLock } = require('../utils/pickupPackageLock');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require("crypto");
 
 /**
  * Middleware para verificar que el usuario sea ADMIN

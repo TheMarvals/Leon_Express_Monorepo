@@ -5,7 +5,7 @@ const axios = require('axios');
 const FormData = require('form-data');
 const { extractData, extractDataWithLearning, shouldAutoApprove } = require('./smartOcrParser');
 const { decodeQRFromImage, extractTrackingCodeFromQR } = require('./qrDecoder');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require("crypto");
 const { withPickupPackageLock } = require('./pickupPackageLock');
 const { Package, Pickup, Client, OcrProcessingQueue: OcrProcessingQueueModel } = require('../models');
 
@@ -199,7 +199,7 @@ class OcrProcessingQueue {
 
           // Registrar en BD como needs_review para que aparezca en el panel de revisión manual
           try {
-            const { v4: uuidv4 } = require('uuid');
+            const { randomUUID: uuidv4 } = require("crypto");
 const { withPickupPackageLock } = require('./pickupPackageLock');
             await OcrProcessingQueueModel.create({
               id: uuidv4(),

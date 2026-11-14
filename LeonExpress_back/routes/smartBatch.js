@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const ocrQueue = require('../utils/ocrProcessingQueue');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require("crypto");
 const authenticateToken = require('../middlewares/authenticateToken');
 const roleValidator = require('../middlewares/roleValidator');
 

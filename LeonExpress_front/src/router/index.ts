@@ -200,37 +200,10 @@ const routes: Array<RouteRecordRaw> = [
       // --- FIN: MÓDULO DE ADMINISTRACIÓN FINANCIERA (BILLING) ---
 
       {
-        name: 'projects',
-        path: '/projects',
-        component: () => import('../pages/projects/ProjectsPage.vue'),
-      },
-      {
         name: 'mercadolibre',
         path: '/mercadolibre',
         component: () => import('../pages/mercadolibre/MercadoLibrePage.vue'),
         meta: { roles: ['ADMIN', 'CLIENT'] },
-      },
-      {
-        name: 'payments',
-        path: '/payments',
-        component: RouteViewComponent,
-        children: [
-          {
-            name: 'payment-methods',
-            path: 'payment-methods',
-            component: () => import('../pages/payments/PaymentsPage.vue'),
-          },
-          {
-            name: 'pricing-plans',
-            path: 'pricing-plans',
-            component: () => import('../pages/pricing-plans/PricingPlans.vue'),
-          },
-        ],
-      },
-      {
-        name: 'faq',
-        path: '/faq',
-        component: () => import('../pages/faq/FaqPage.vue'),
       },
     ],
   },

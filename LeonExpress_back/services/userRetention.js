@@ -1,6 +1,6 @@
 'use strict';
 const { Op, QueryTypes } = require('sequelize');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require("crypto");
 const cron = require('node-cron');
 const { User, AuditLog, sequelize } = require('../models');
 

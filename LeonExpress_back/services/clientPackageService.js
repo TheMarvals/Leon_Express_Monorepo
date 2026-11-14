@@ -1,5 +1,5 @@
 'use strict';
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require("crypto");
 const { validateLabelNotes } = require('../utils/labelNotes');
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const EDITABLE_FIELDS = ['recipient_name', 'recipient_phone', 'destination_address', 'is_cod', 'cod_amount', 'is_change'];
