@@ -67,21 +67,23 @@ const fetchRevenues = async () => {
   const monthly: Record<string, { earning: number; expenses: number }> = {}
   months.forEach((m) => (monthly[m] = { earning: 0, expenses: 0 }))
 
-  invoiceData.invoices.forEach((f: any) => {
+  invoiceData?.invoices?.forEach((f: any) => {
+    if (!f.invoice_date) return
     // Evitar problema de timezone agregando hora intermedia
     const dateStr = f.invoice_date.length === 10 ? `${f.invoice_date}T12:00:00` : f.invoice_date
     const date = new Date(dateStr)
 
     if (date.getFullYear() === currentYear) {
       const month = months[date.getMonth()]
-      monthly[month].earning += Number(f.total_amount)
+      monthly[month].earning += Number(f.total_amount || 0)
     }
   })
 
-  payoutData.payouts?.forEach((p: any) => {
+  payoutData?.payouts?.forEach((p: any) => {
     // Priorizar payout_date (fecha de corte) sobre created_at
     const rawDate = p.payout_date || p.paid_at || p.created_at
-    const dateStr = rawDate && rawDate.length === 10 ? `${rawDate}T12:00:00` : rawDate
+    if (!rawDate) return
+    const dateStr = rawDate.length === 10 ? `${rawDate}T12:00:00` : rawDate
     const date = new Date(dateStr)
 
     if (date.getFullYear() === currentYear) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../../services/api'
 import { Package, Delivery, DeliveryPhoto } from './types' // ✅ Asegúrate de importar DeliveryPhoto
@@ -870,7 +870,7 @@ const printThermalLabel = () => {
   </VaModal>
 
   <!-- Modal de confirmación para cerrar el formulario de entrega -->
-  <VaModal v-model="showCloseDeliveryConfirm" size="small" :max-width="420" hide-default-actions close-button>
+  <VaModal v-model="showCloseDeliveryConfirm" size="small" :max-width="'420px'" hide-default-actions close-button>
     <template #header>
       <div class="flex items-center gap-2">
         <VaIcon name="warning" color="warning" size="24px" />
@@ -954,7 +954,7 @@ const printThermalLabel = () => {
     </template>
   </VaModal>
 
-  <VaModal v-model="doShowMapModal" size="large" close-button hide-default-actions :max-width="800">
+  <VaModal v-model="doShowMapModal" size="large" close-button hide-default-actions :max-width="'800px'">
     <template #header>
       <h1 class="va-h5 flex items-center gap-2">
         <VaIcon name="location_on" color="primary" />
@@ -968,7 +968,7 @@ const printThermalLabel = () => {
         width="100%"
         height="100%"
         style="border: 0"
-        allowfullscreen=""
+        allowfullscreen
         loading="lazy"
         referrerpolicy="no-referrer-when-downgrade"
       ></iframe>

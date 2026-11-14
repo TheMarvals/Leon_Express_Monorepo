@@ -158,17 +158,17 @@ const printVoucher = () => {
               <span class="text-xs">{{ formatDate(value || '') }}</span>
             </template>
 
-            <template #cell(address)="{ row }">
-              <template v-if="row.rowData.package_id">
+            <template #cell(address)="{ rowData, row }">
+              <template v-if="(rowData || row?.rowData)?.package_id">
                 <RouterLink
-                  :to="{ name: 'package-details', params: { id: row.rowData.package_id } }"
+                  :to="{ name: 'package-details', params: { id: (rowData || row?.rowData).package_id } }"
                   class="text-primary hover:text-primary-dark underline hide-on-print"
                 >
-                  {{ row.rowData.address }}
+                  {{ (rowData || row?.rowData).address }}
                 </RouterLink>
-                <span class="show-on-print-only">{{ row.rowData.address }}</span>
+                <span class="show-on-print-only">{{ (rowData || row?.rowData).address }}</span>
               </template>
-              <span v-else>{{ row.rowData.address }}</span>
+              <span v-else>{{ (rowData || row?.rowData)?.address || '-' }}</span>
             </template>
 
             <template #cell(amount)="{ value }">{{ formatCurrency(Number(value)) }}</template>
@@ -187,6 +187,13 @@ const printVoucher = () => {
       <div class="text-center border-t border-black pt-2 w-48">Firma Leon Express</div>
       <div class="text-center border-t border-black pt-2 w-48">Firma Conductor</div>
     </div>
+  </div>
+
+  <div v-else class="text-center py-12">
+    <VaAlert color="danger" class="max-w-md mx-auto mb-4">
+      No se pudo cargar la información de la liquidación.
+    </VaAlert>
+    <VaButton preset="secondary" @click="$router.back()"> Volver </VaButton>
   </div>
 
   <DriverPaymentModal

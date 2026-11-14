@@ -305,14 +305,14 @@
       <div v-else-if="periodDetails">
         <VaTabs v-model="activeDetailTab" class="mb-4">
           <template #tabs>
-            <VaTab name="invoices">Facturas de Clientes ({{ periodDetails.invoices.length }})</VaTab>
-            <VaTab name="payouts">Pagos a Conductores ({{ periodDetails.payouts.length }})</VaTab>
+            <VaTab name="invoices">Facturas de Clientes ({{ (periodDetails.invoices || []).length }})</VaTab>
+            <VaTab name="payouts">Pagos a Conductores ({{ (periodDetails.payouts || []).length }})</VaTab>
           </template>
         </VaTabs>
 
         <div v-if="activeDetailTab === 'invoices'" class="detail-content">
           <VaDataTable
-            :items="periodDetails.invoices"
+            :items="periodDetails.invoices || []"
             :columns="invoiceColumns"
             no-data-html="No hay facturas generadas en este período"
             sticky-header
@@ -331,7 +331,7 @@
 
         <div v-if="activeDetailTab === 'payouts'" class="detail-content">
           <VaDataTable
-            :items="periodDetails.payouts"
+            :items="periodDetails.payouts || []"
             :columns="payoutColumns"
             no-data-html="No hay pagos generados en este período"
             sticky-header

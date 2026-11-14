@@ -177,9 +177,13 @@ const getPackageStatusColor = (status: string, row?: Package) => {
           title="Imprimir Etiqueta (100x150mm)"
           @click="printThermalLabel(rowData as Package)"
         />
-        <RouterLink :to="{ name: 'package-details', params: { id: rowData.package_id } }">
-          <VaButton preset="primary" size="small" icon="fa4-eye" title="Ver detalles" />
-        </RouterLink>
+        <VaButton
+          preset="primary"
+          size="small"
+          icon="fa4-eye"
+          title="Ver detalles"
+          :to="{ name: 'package-details', params: { id: rowData.package_id } }"
+        />
         <VaButton
           v-if="!userStore.isClient"
           preset="primary"
