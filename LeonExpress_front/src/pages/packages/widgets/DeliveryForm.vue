@@ -36,6 +36,34 @@ const collected_amount = ref<number | undefined>(props.pkg.cod_amount || 0)
 const showChangeDeliveryConfirm = ref(false)
 const pendingDeliveryData = ref<FormData | null>(null)
 
+// --- Estado de la Cámara y Fotos ---
+const isCameraOpen = ref(false)
+const capturedImages = ref<string[]>([])
+const photoFiles = ref<File[]>([])
+const videoPlayer = ref<HTMLVideoElement | null>(null)
+let stream: MediaStream | null = null
+
+const isFlashOn = ref(false)
+const hasFlash = ref(false)
+
+const dataUrlToFile = (dataUrl: string, filename: string): File | null => {
+  try {
+    const [header, base64] = dataUrl.split(',')
+    if (!base64) return null
+    const mimeMatch = header.match(/:(.*?);/)
+    const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg'
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    return new File([bytes], filename, { type: mime })
+  } catch (e) {
+    console.warn('Error al convertir imagen:', e)
+    return null
+  }
+}
+
 // --- Persistencia de Borrador Local (Offline / Falla de señal) ---
 const draftStorageKey = computed(() => `delivery_draft_${props.pkg.package_id}`)
 const hasRestoredDraft = ref(false)
@@ -94,17 +122,13 @@ const restoreDraft = () => {
     if (draft.payment_type) payment_type.value = draft.payment_type
     if (draft.collected_amount !== undefined) collected_amount.value = draft.collected_amount
     if (Array.isArray(draft.capturedImages) && draft.capturedImages.length > 0) {
-      capturedImages.value = draft.capturedImages
-      photoFiles.value = []
+      const validPhotos: { dataUrl: string; file: File }[] = []
       draft.capturedImages.forEach((dataUrl: string, index: number) => {
-        fetch(dataUrl)
-          .then((res) => res.blob())
-          .then((blob) => {
-            const file = new File([blob], `restored_photo_${index + 1}.jpg`, { type: 'image/jpeg' })
-            photoFiles.value.push(file)
-          })
-          .catch((e) => console.warn('Error al restaurar foto de borrador:', e))
+        const file = dataUrlToFile(dataUrl, `restored_photo_${index + 1}.jpg`)
+        if (file) validPhotos.push({ dataUrl, file })
       })
+      capturedImages.value = validPhotos.map((p) => p.dataUrl)
+      photoFiles.value = validPhotos.map((p) => p.file)
     }
     hasRestoredDraft.value = true
   } catch (err) {
@@ -123,16 +147,6 @@ watch(
 onMounted(() => {
   restoreDraft()
 })
-
-// --- Estado de la Cámara y Fotos ---
-const isCameraOpen = ref(false)
-const capturedImages = ref<string[]>([])
-const photoFiles = ref<File[]>([])
-const videoPlayer = ref<HTMLVideoElement | null>(null)
-let stream: MediaStream | null = null
-
-const isFlashOn = ref(false)
-const hasFlash = ref(false)
 
 // --- Validación de RUT (Módulo 11 Chileno) ---
 const receiver_rut_computed = computed({
@@ -298,18 +312,11 @@ const takePhoto = () => {
 
   // Calidad 0.7 para reducir peso significativamente
   const imageData = canvas.toDataURL('image/jpeg', 0.7)
-  capturedImages.value.push(imageData)
-
-  canvas.toBlob(
-    (blob) => {
-      if (blob) {
-        const photoFile = new File([blob], `entrega-${Date.now()}.jpg`, { type: 'image/jpeg' })
-        photoFiles.value.push(photoFile)
-      }
-    },
-    'image/jpeg',
-    0.7,
-  )
+  const photoFile = dataUrlToFile(imageData, `entrega-${Date.now()}.jpg`)
+  if (photoFile) {
+    capturedImages.value.push(imageData)
+    photoFiles.value.push(photoFile)
+  }
 
   closeCamera()
 }
@@ -377,18 +384,11 @@ const compressUploadedFile = (file: File) => {
       ctx?.drawImage(img, 0, 0, width, height)
 
       const compressedData = canvas.toDataURL('image/jpeg', 0.7)
-      capturedImages.value.push(compressedData)
-
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            const compressedFile = new File([blob], file.name || `subido-${Date.now()}.jpg`, { type: 'image/jpeg' })
-            photoFiles.value.push(compressedFile)
-          }
-        },
-        'image/jpeg',
-        0.7,
-      )
+      const compressedFile = dataUrlToFile(compressedData, file.name || `subido-${Date.now()}.jpg`)
+      if (compressedFile) {
+        capturedImages.value.push(compressedData)
+        photoFiles.value.push(compressedFile)
+      }
     }
     img.src = e.target?.result as string
   }
