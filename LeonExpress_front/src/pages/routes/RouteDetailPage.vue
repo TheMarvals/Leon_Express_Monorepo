@@ -24,6 +24,11 @@ const selectedPending = ref<Package[]>([])
 const targetRouteId = ref('')
 const isTransferring = ref(false)
 const showFinishModal = ref(false)
+const confirmUnhandledClose = ref(false)
+const openFinishModal = () => {
+  confirmUnhandledClose.value = false
+  showFinishModal.value = true
+}
 const scrollToSection = (id: string) =>
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 const availablePackages = ref<Package[]>([])
@@ -453,11 +458,28 @@ const emptyRouteTableText = computed(() => {
   return 'Aún no hay paquetes en esta ruta'
 })
 
+const routeDayChile = (val?: string | Date | null) =>
+  new Date(val || new Date()).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' })
+
+const isPastRoute = computed(() => {
+  if (!routeData.value?.start_date) return false
+  return routeDayChile(routeData.value.start_date) < routeDayChile(new Date())
+})
+
 const canFinishRoute = computed(() => {
-  // Siempre se puede finalizar una ruta EN_PROGRESO.
-  // Los paquetes EN_RUTA_ENTREGA / ASIGNADO_A_RUTA se convierten automáticamente
-  // a INCIDENCIA_ENTREGA con pending_return_user_id al finalizar en el backend.
-  return true
+  if (pendingPackages.value.length === 0) return true
+  // Con paquetes abiertos sin gestionar, solo ADMIN o rutas rezagadas de días anteriores pueden cerrarse
+  return userStore.isAdmin || isPastRoute.value
+})
+
+const canDeleteCurrentRoute = computed(() => {
+  if (!userStore.isAdmin || !routeData.value) return false
+  if (Number(routeData.value.deliveries_count || 0) > 0) return false
+  if (packagesInRoute.value.some((p) => p.status === 'ENTREGADO')) return false
+  const hasAnyPkgHistory = packagesInRoute.value.length > 0 || releasedPackages.value.length > 0
+  if (routeData.value.status === 'FINALIZADA' && hasAnyPkgHistory) return false
+  if (routeData.value.status === 'EN_PROGRESO' && packagesInRoute.value.length > 0) return false
+  return routeData.value.status === 'PENDIENTE' || !hasAnyPkgHistory
 })
 
 // --- Lógica de Acciones ---
@@ -720,7 +742,7 @@ const showApproveButton = computed(() => {
           Cancelar Ruta Vacía
         </VaButton>
         <VaButton
-          v-if="isAdmin && (routeData.status === 'PENDIENTE' || packagesInRoute.length === 0)"
+          v-if="canDeleteCurrentRoute"
           size="large"
           icon="fa4-trash"
           color="danger"
@@ -801,15 +823,28 @@ const showApproveButton = computed(() => {
         {{ releasedPackages.filter((item) => item.release_reason === 'RECIBIDO_EN_ALMACEN').length }}. Pendientes sin
         gestionar: {{ pendingPackages.length }}.
       </p>
-      <VaAlert v-if="pendingPackages.length > 0" color="warning" class="mb-3">
-        Hay {{ pendingPackages.length }} paquete(s) sin gestionar. Al finalizar, quedan registrados como incidencia a cargo del conductor para su devolución o reintento.
-      </VaAlert>
+      <template v-if="pendingPackages.length > 0">
+        <VaAlert color="danger" icon="warning" class="mb-3">
+          <strong>Atención:</strong> Hay {{ pendingPackages.length }} paquete(s) abiertos sin intento de entrega registrado.
+          Al finalizar la ruta, todos pasarán a <strong>INCIDENCIA ENTREGA</strong> a cargo del conductor.
+        </VaAlert>
+        <VaCheckbox
+          v-model="confirmUnhandledClose"
+          class="mb-4 font-medium"
+          :label="`Confirmo cerrar toda la ruta y marcar los ${pendingPackages.length} paquete(s) abiertos como incidencia`"
+        />
+      </template>
       <p v-else class="mb-3">
         Todos los paquetes han sido gestionados. Las incidencias pendientes de devolución seguirán a cargo del conductor hasta su recepción o reintento.
       </p>
-      <div class="flex gap-3">
+      <div class="flex gap-3 justify-end">
         <VaButton preset="secondary" @click="showFinishModal = false">Volver</VaButton>
-        <VaButton :loading="isUpdatingStatus" @click="handleStatusUpdate('FINALIZADA')">
+        <VaButton
+          :color="pendingPackages.length > 0 ? 'warning' : 'primary'"
+          :disabled="pendingPackages.length > 0 && !confirmUnhandledClose"
+          :loading="isUpdatingStatus"
+          @click="handleStatusUpdate('FINALIZADA')"
+        >
           Confirmar cierre
         </VaButton>
       </div>
@@ -1020,7 +1055,10 @@ const showApproveButton = computed(() => {
             class="mt-6 pt-4 border-t flex flex-col sm:flex-row justify-between items-center gap-3 bg-gray-50 p-4 rounded-xl"
           >
             <div class="text-xs text-gray-600">
-              <span v-if="pendingPackages.length > 0" class="text-amber-700 font-semibold flex items-center gap-1">
+              <span v-if="pendingPackages.length > 0 && !canFinishRoute" class="text-red-700 font-semibold flex items-center gap-1">
+                <VaIcon name="warning" size="small" /> Aún tienes {{ pendingPackages.length }} paquete(s) en reparto sin gestionar. Registra cada entrega o incidencia para cerrar la ruta.
+              </span>
+              <span v-else-if="pendingPackages.length > 0" class="text-amber-700 font-semibold flex items-center gap-1">
                 <VaIcon name="warning" size="small" /> {{ pendingPackages.length }} paquete(s) sin gestionar quedarán como incidencia a cargo del conductor.
               </span>
               <span v-else class="text-green-700 font-semibold flex items-center gap-1">
@@ -1029,13 +1067,14 @@ const showApproveButton = computed(() => {
             </div>
             <VaButton
               size="medium"
-              icon="fa4-check-circle"
-              color="success"
+              :icon="pendingPackages.length > 0 ? 'warning' : 'fa4-check-circle'"
+              :color="pendingPackages.length > 0 ? 'warning' : 'success'"
+              :disabled="!canFinishRoute"
               :loading="isUpdatingStatus"
               class="w-full sm:w-auto font-bold shadow-sm"
-              @click="showFinishModal = true"
+              @click="openFinishModal"
             >
-              Finalizar Ruta
+              {{ pendingPackages.length > 0 && canFinishRoute ? `Finalizar con ${pendingPackages.length} pendiente(s)` : 'Finalizar Ruta' }}
             </VaButton>
           </div>
         </VaCardContent>
@@ -1186,7 +1225,10 @@ const showApproveButton = computed(() => {
             class="mt-6 pt-4 border-t flex flex-col sm:flex-row justify-between items-center gap-3 bg-gray-50 p-4 rounded-xl"
           >
             <div class="text-xs text-gray-600">
-              <span v-if="pendingPackages.length > 0" class="text-amber-700 font-semibold flex items-center gap-1">
+              <span v-if="pendingPackages.length > 0 && !canFinishRoute" class="text-red-700 font-semibold flex items-center gap-1">
+                <VaIcon name="warning" size="small" /> Aún tienes {{ pendingPackages.length }} paquete(s) en reparto sin gestionar. Registra cada entrega o incidencia para cerrar la ruta.
+              </span>
+              <span v-else-if="pendingPackages.length > 0" class="text-amber-700 font-semibold flex items-center gap-1">
                 <VaIcon name="warning" size="small" /> {{ pendingPackages.length }} paquete(s) sin gestionar quedarán como incidencia a cargo del conductor.
               </span>
               <span v-else class="text-green-700 font-semibold flex items-center gap-1">
@@ -1195,13 +1237,14 @@ const showApproveButton = computed(() => {
             </div>
             <VaButton
               size="medium"
-              icon="fa4-check-circle"
-              color="success"
+              :icon="pendingPackages.length > 0 ? 'warning' : 'fa4-check-circle'"
+              :color="pendingPackages.length > 0 ? 'warning' : 'success'"
+              :disabled="!canFinishRoute"
               :loading="isUpdatingStatus"
               class="w-full sm:w-auto font-bold shadow-sm"
-              @click="showFinishModal = true"
+              @click="openFinishModal"
             >
-              Finalizar Ruta
+              {{ pendingPackages.length > 0 && canFinishRoute ? `Finalizar con ${pendingPackages.length} pendiente(s)` : 'Finalizar Ruta' }}
             </VaButton>
           </div>
         </VaCardContent>

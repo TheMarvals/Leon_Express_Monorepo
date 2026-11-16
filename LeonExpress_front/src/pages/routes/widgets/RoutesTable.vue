@@ -29,6 +29,14 @@ const isDriver = computed(() => userStore.isDriver)
 
 const { confirm } = useModal()
 
+const canDeleteRoute = (route: Route) => {
+  if (Number(route.deliveries_count || 0) > 0) return false
+  const totalPkgs = Number(route.total_packages_count ?? route.packages_count ?? 0)
+  if (route.status === 'FINALIZADA' && totalPkgs > 0) return false
+  if (route.status === 'EN_PROGRESO' && Number(route.packages_count || 0) > 0) return false
+  return true
+}
+
 const onRouteDelete = async (route: Route) => {
   const agreed = await confirm({
     title: 'Eliminar Ruta',
@@ -117,7 +125,7 @@ const formatDate = (dateString: string | Date) => {
           <VaButton preset="primary" size="small" icon="fa4-eye" aria-label="Ver detalles" />
         </RouterLink>
         <VaButton
-          v-if="!isDriver"
+          v-if="!isDriver && rowData.status === 'PENDIENTE'"
           preset="primary"
           size="small"
           icon="fa4-edit"
@@ -125,7 +133,7 @@ const formatDate = (dateString: string | Date) => {
           @click="$emit('edit-route', rowData as Route)"
         />
         <VaButton
-          v-if="!isDriver"
+          v-if="!isDriver && canDeleteRoute(rowData as Route)"
           preset="primary"
           size="small"
           icon="fa4-trash"

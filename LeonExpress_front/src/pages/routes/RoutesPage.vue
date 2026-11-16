@@ -41,7 +41,7 @@ const onRouteDelete = async (route: Route) => {
     await remove(route)
     notify({ message: `Ruta eliminada`, color: 'success' })
   } catch (e: any) {
-    notify({ message: e.message || 'Error al eliminar', color: 'danger' })
+    notify({ message: e.response?.data?.error || e.message || 'Error al eliminar', color: 'danger' })
   }
 }
 </script>

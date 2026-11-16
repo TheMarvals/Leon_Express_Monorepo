@@ -3,7 +3,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { randomUUID: uuidv4 } = require("crypto");
-const { Route, User, Vehicle, Warehouse, Package, RoutePackage, Pickup, VehicleType, sequelize } = require('../models');
+const { Route, User, Vehicle, Warehouse, Package, RoutePackage, Pickup, VehicleType, Delivery, sequelize } = require('../models');
 const authenticateToken = require('../middlewares/authenticateToken');
 const roleValidator = require('../middlewares/roleValidator');
 const { Op } = require('sequelize');
@@ -366,6 +366,10 @@ router.get('/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Solo puedes consultar rutas a tu cargo.' });
     }
     const data = route.toJSON();
+    const allRpIds = (data.routePackages || []).map((item) => item.route_package_id).filter(Boolean);
+    data.deliveries_count = allRpIds.length && Delivery?.count
+      ? await Delivery.count({ where: { route_package_id: { [Op.in]: allRpIds } } })
+      : 0;
     data.routePackages = data.routePackages.map((item) => {
       if (!item.released_at || !item.package) return item;
       return { ...item, package: { ...item.package, status: item.status_at_release,
@@ -434,6 +438,32 @@ router.get('/', authenticateToken, async (req, res) => {
       ],
       attributes: {
         include: [
+          [
+            sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM route_packages AS rp
+              WHERE rp.route_id = Route.route_id
+              AND rp.released_at IS NULL
+            )`),
+            'packages_count'
+          ],
+          [
+            sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM route_packages AS rp
+              WHERE rp.route_id = Route.route_id
+            )`),
+            'total_packages_count'
+          ],
+          [
+            sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM deliveries AS d
+              JOIN route_packages AS rp ON d.route_package_id = rp.route_package_id
+              WHERE rp.route_id = Route.route_id
+            )`),
+            'deliveries_count'
+          ],
           [
             sequelize.literal(`(
               SELECT COUNT(*)
@@ -1421,6 +1451,21 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
         });
       }
 
+      // Impedir que un conductor cierre una ruta del mismo día si aún tiene paquetes abiertos sin gestionar.
+      // (Se permite para ADMIN o para rutas rezagadas de días anteriores).
+      const unhandledPackages = packages.filter(pkg =>
+        ['EN_RUTA_ENTREGA', 'ASIGNADO_A_RUTA'].includes(pkg.status)
+      );
+      const isPastRoute = routeDay(route.start_date || route.created_at || new Date()) < routeDay(new Date());
+
+      if (unhandledPackages.length > 0 && req.user.role === 'DRIVER' && !isPastRoute) {
+        await t.rollback();
+        return res.status(409).json({
+          error: `No puedes finalizar la ruta mientras tengas ${unhandledPackages.length} paquete(s) abiertos sin gestionar.`,
+          details: `Registra la entrega o incidencia de cada paquete antes de finalizar tu ruta del día (${unhandledPackages.length} pendiente(s)).`
+        });
+      }
+
       // --- LÓGICA DE PAQUETES NO ENTREGADOS (PENDIENTES DE DEVOLUCIÓN FÍSICA) ---
       // Paquetes en tránsito (EN_RUTA_ENTREGA / ASIGNADO_A_RUTA) o con incidencia/reprogramado
       // se marcan como INCIDENCIA_ENTREGA y quedan en custodia del conductor hasta que
@@ -1536,14 +1581,28 @@ router.delete('/:id', authenticateToken, roleValidator(['ADMIN']), async (req, r
       return res.status(404).json({ error: 'Ruta no encontrada' });
     }
 
-    const activePackages = route.routePackages ? route.routePackages.filter((item) => !item.released_at) : [];
+    const allRoutePackages = route.routePackages || [];
+    const activePackages = allRoutePackages.filter((item) => !item.released_at);
+    const allRoutePackageIds = allRoutePackages.map((item) => item.route_package_id).filter(Boolean);
+
+    if (allRoutePackageIds.length > 0) {
+      const deliveriesOnRoute = Delivery?.count
+        ? await Delivery.count({ where: { route_package_id: { [Op.in]: allRoutePackageIds } }, transaction: t })
+        : (await Delivery.findAll({ where: { route_package_id: { [Op.in]: allRoutePackageIds } }, transaction: t })).length;
+
+      if (deliveriesOnRoute > 0) {
+        await t.rollback();
+        return res.status(409).json({ error: 'No se puede eliminar esta ruta porque ya tiene registros de entrega o incidencias asociadas.' });
+      }
+    }
+
     if (activePackages.length > 0 && route.status === 'EN_PROGRESO') {
       await t.rollback();
       return res.status(409).json({ error: 'Esta ruta tiene paquetes activos en reparto. Debes finalizarla o transferir los paquetes primero.' });
     }
 
-    // Solo impedir eliminar si ya está finalizada con paquetes entregados
-    if (route.status === 'FINALIZADA' && activePackages.length > 0) {
+    // Impedir eliminar si ya está finalizada y tuvo paquetes asignados
+    if (route.status === 'FINALIZADA' && allRoutePackages.length > 0) {
       await t.rollback();
       return res.status(409).json({ error: 'No se puede eliminar una ruta que ya ha sido finalizada con paquetes.' });
     }

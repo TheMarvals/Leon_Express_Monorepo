@@ -474,6 +474,50 @@ const handleDeliverySave = async (formData: FormData) => {
   } catch (e: any) {
     console.error('❌ Error al guardar la entrega:', e)
 
+    const requestedStatus = formData.get('status_at_delivery')
+    const prevDeliveriesCount = pkg.value?.deliveries?.length || 0
+
+    // Caso 1: El servidor indica 409 ALREADY_DELIVERED (el intento anterior sí se guardó y cayó la red al responder)
+    if (e.response?.status === 409 && e.response?.data?.already_delivered && requestedStatus === 'ENTREGADO') {
+      if (pkg.value?.package_id) {
+        try {
+          localStorage.removeItem(`delivery_draft_${pkg.value.package_id}`)
+        } catch (err) {}
+      }
+      showCloseDeliveryConfirm.value = false
+      doShowDeliveryModal.value = false
+      notify({ message: 'La entrega ya había quedado registrada con éxito.', color: 'success' })
+      if (e.response.data.route_id) {
+        router.push({ name: 'route-details', params: { id: e.response.data.route_id } })
+      } else {
+        fetchData()
+      }
+      return
+    }
+
+    // Caso 2: Corte de señal al recibir respuesta (!e.response) — verificar en servidor si ya quedó guardada
+    if (!e.response && pkg.value?.package_id) {
+      try {
+        const { data: latestPkg } = await api.getPackageById(pkg.value.package_id)
+        const wasSaved =
+          (requestedStatus === 'ENTREGADO' && latestPkg?.status === 'ENTREGADO') ||
+          (requestedStatus !== 'ENTREGADO' && (latestPkg?.deliveries?.length || 0) > prevDeliveriesCount)
+
+        if (wasSaved) {
+          try {
+            localStorage.removeItem(`delivery_draft_${pkg.value.package_id}`)
+          } catch (err) {}
+          pkg.value = latestPkg
+          showCloseDeliveryConfirm.value = false
+          doShowDeliveryModal.value = false
+          notify({ message: 'Registro de entrega guardado con éxito.', color: 'success' })
+          return
+        }
+      } catch (verifyErr) {
+        console.warn('No se pudo verificar estado tras corte de red:', verifyErr)
+      }
+    }
+
     const data = e.response?.data
     const validationMessages = Array.isArray(data?.errors)
       ? data.errors.map((error: { msg?: unknown }) => error?.msg).filter((msg: unknown) => typeof msg === 'string')

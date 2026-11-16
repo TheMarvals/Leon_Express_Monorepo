@@ -30,4 +30,8 @@ export interface Route {
     transferred_to_route_id?: string | null
   }[]
   pending_returns_count?: number
+  packages_count?: number
+  total_packages_count?: number
+  deliveries_count?: number
+  incidents_count?: number
 }

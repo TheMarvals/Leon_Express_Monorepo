@@ -488,13 +488,6 @@ router.post(
                 await t.rollback();
                 return res.status(404).json({ error: 'Paquete no encontrado.' });
             }
-            // Validar que el paquete esté en un estado que permita registrar una entrega
-            const validSourceStatuses = ['EN_RUTA_ENTREGA', 'REPROGRAMADO', 'INCIDENCIA_ENTREGA', 'ASIGNADO_A_RUTA'];
-            if (!validSourceStatuses.includes(pkg.status)) {
-                await t.rollback();
-                return res.status(409).json({ error: `El paquete no puede ser procesado porque su estado actual es '${pkg.status}'. Debe estar en ruta o tener una incidencia previa.` });
-            }
-
             let routePackage = await RoutePackage.findOne({
                 where: { package_id: packageId, released_at: null },
                 include: [{ model: Route, as: 'route', required: true }],
@@ -510,6 +503,23 @@ router.post(
                 });
             }
 
+            if (pkg.status === 'ENTREGADO' || await Delivery.findOne({ where: { package_id: packageId, status_at_delivery: 'ENTREGADO' }, transaction: t })) {
+                await t.rollback();
+                return res.status(409).json({
+                    error: 'Este paquete ya tiene una entrega registrada.',
+                    code: 'ALREADY_DELIVERED',
+                    already_delivered: true,
+                    route_id: routePackage?.route_id || null,
+                });
+            }
+
+            // Validar que el paquete esté en un estado que permita registrar una entrega
+            const validSourceStatuses = ['EN_RUTA_ENTREGA', 'REPROGRAMADO', 'INCIDENCIA_ENTREGA', 'ASIGNADO_A_RUTA'];
+            if (!validSourceStatuses.includes(pkg.status)) {
+                await t.rollback();
+                return res.status(409).json({ error: `El paquete no puede ser procesado porque su estado actual es '${pkg.status}'. Debe estar en ruta o tener una incidencia previa.` });
+            }
+
             const assignedRoute = routePackage?.route;
             const isAdmin = req.user.role === 'ADMIN';
             const retainedAfterClosing = (assignedRoute?.status === 'FINALIZADA' || routePackage?.released_at !== null)
@@ -523,10 +533,6 @@ router.post(
             if (!canAttemptDelivery) {
                 await t.rollback();
                 return res.status(403).json({ error: 'El paquete no está a tu cargo para registrar una entrega. Actualiza tus paquetes pendientes.' });
-            }
-            if (await Delivery.findOne({ where: { package_id: packageId, status_at_delivery: 'ENTREGADO' }, transaction: t })) {
-                await t.rollback();
-                return res.status(409).json({ error: 'Este paquete ya tiene una entrega registrada.' });
             }
 
             // Convertir coordenadas a números si vienen como strings
