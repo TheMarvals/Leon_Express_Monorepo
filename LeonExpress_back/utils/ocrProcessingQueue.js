@@ -474,7 +474,8 @@ const { withPickupPackageLock } = require('./pickupPackageLock');
       const enrichedExtractedData = {
         ...extracted.data,
         client_price: batchClientPrice,
-        delivery_cost: batchDeliveryCost
+        delivery_cost: batchDeliveryCost,
+        skip_warehouse_verification: Boolean(item.metadata?.skip_warehouse_verification)
       };
 
       console.log(`📦 [ENRICHED DATA] Final extracted_data:`, JSON.stringify(enrichedExtractedData, null, 2));
@@ -876,12 +877,13 @@ const { withPickupPackageLock } = require('./pickupPackageLock');
 
         pickup_id: pickup_id,
         client_id: pickup.client_id,
-        status: 'RECOLECTADO_EN_ORIGEN',
+        status: extractedData.skip_warehouse_verification ? 'RECIBIDO_EN_ALMACEN' : 'RECOLECTADO_EN_ORIGEN',
         is_cod: extractedData.is_cod || false,
         cod_amount: extractedData.cod_amount || 0,
         client_price: extractedData.client_price || 0,
         delivery_cost: extractedData.delivery_cost || 0,
         scanned_at_origin_datetime: new Date(),
+        ...(extractedData.skip_warehouse_verification ? { received_at_warehouse_datetime: new Date() } : {}),
         destination_address: extractedData.destination_address || '',
         recipient_name: extractedData.recipient_name || '',
         recipient_phone: extractedData.recipient_phone || '',

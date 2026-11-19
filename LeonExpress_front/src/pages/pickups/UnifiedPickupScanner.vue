@@ -442,13 +442,24 @@
               <strong>{{ uploadedPhotoCount }}</strong> foto(s) enviadas a procesar.
             </template>
           </p>
-          <button
-            class="w-full max-w-xs flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3.5 px-6 rounded-2xl shadow-lg transition-all duration-150 active:scale-[0.98]"
-            @click="goBack"
-          >
-            <VaIcon name="arrow_back" size="1.1rem" />
-            <span>Volver a la recolección</span>
-          </button>
+          <div class="flex flex-col gap-3 w-full max-w-xs">
+            <button
+              v-if="uploadedPhotoCount === 0 && pickup?.status === 'RECOLECCION_FINALIZADA_DRIVER'"
+              :disabled="isMarkingWarehouse"
+              class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-lg transition-all duration-150 active:scale-[0.98] disabled:opacity-50"
+              @click="markDeliveredAtWarehouse"
+            >
+              <VaIcon name="warehouse" size="1.1rem" />
+              <span>{{ isMarkingWarehouse ? 'Actualizando...' : 'Marcar como Entregado en Almacén' }}</span>
+            </button>
+            <button
+              class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3.5 px-6 rounded-2xl shadow-lg transition-all duration-150 active:scale-[0.98]"
+              @click="goBack"
+            >
+              <VaIcon name="arrow_back" size="1.1rem" />
+              <span>Volver a la recolección</span>
+            </button>
+          </div>
         </div>
       </template>
     </div>
@@ -593,6 +604,7 @@ const capturedPhotos = ref<string[]>([])
 const uploadedPhotoCount = ref(0)
 const isProcessing = ref(false)
 const isUploading = ref(false)
+const isMarkingWarehouse = ref(false)
 const uploadProgress = ref(0)
 const uploadComplete = ref(false)
 const showExitConfirmation = ref(false)
@@ -902,6 +914,7 @@ async function finishCollection() {
         images: [...capturedPhotos.value],
         clientPrice: clientPrice.value,
         deliveryCost: deliveryCost.value,
+        skipWarehouseVerification: skipWarehouseVerification.value,
         onProgress: (sent, total) => {
           uploadProgress.value = Math.round((sent / total) * 100)
           capturedPhotos.value.splice(0, sent - uploadedPhotos)
@@ -927,8 +940,49 @@ async function finishCollection() {
     }
   }
 
+  // Si solo se escanearon códigos QR (sin fotos OCR en segundo plano), cerrar automáticamente la etapa del conductor
+  if (
+    uploadedPhotoCount.value === 0 &&
+    confirmedML.value.length > 0 &&
+    pickup.value &&
+    ['ASIGNADO_A_RECOLECTOR', 'EN_PROCESO_RECOLECCION'].includes(pickup.value.status)
+  ) {
+    try {
+      const { data: updatedPickup } = await api.updatePickupStatus(pickupId, 'RECOLECCION_FINALIZADA_DRIVER')
+      pickup.value = { ...pickup.value, status: updatedPickup.status || 'RECOLECCION_FINALIZADA_DRIVER' }
+    } catch (e: any) {
+      console.warn('No se pudo actualizar estado a RECOLECCION_FINALIZADA_DRIVER automáticamente:', e)
+    }
+  }
+
   uploadComplete.value = true
   stopPhotoCamera()
+}
+
+async function markDeliveredAtWarehouse() {
+  if (isMarkingWarehouse.value) return
+  isMarkingWarehouse.value = true
+  try {
+    const { data: updatedPickup } = await api.updatePickupStatus(pickupId, 'ENTREGADO_EN_ALMACEN')
+    if (pickup.value) pickup.value.status = updatedPickup.status
+    notify({
+      message:
+        updatedPickup.status === 'VERIFICADO_EN_ALMACEN'
+          ? 'Recolección entregada y verificada automáticamente en almacén.'
+          : 'Recolección marcada como entregada en almacén.',
+      color: 'success',
+      duration: 4000,
+    })
+    goBack()
+  } catch (e: any) {
+    notify({
+      message: e?.response?.data?.message || e?.response?.data?.error || 'Error al actualizar el estado.',
+      color: 'danger',
+      duration: 5000,
+    })
+  } finally {
+    isMarkingWarehouse.value = false
+  }
 }
 
 // ─── Navigation ────────────────────────────────────────────

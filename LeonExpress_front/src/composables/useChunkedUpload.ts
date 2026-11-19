@@ -60,6 +60,7 @@ export interface BatchChunkOptions {
   images: string[] // Array de base64 strings
   clientPrice?: number
   deliveryCost?: number
+  skipWarehouseVerification?: boolean
   /** Imágenes por chunk (default: 10) */
   chunkSize?: number
   /** Máximo de reintentos por chunk (default: 3) */
@@ -83,6 +84,7 @@ export async function uploadBatchChunked(opts: BatchChunkOptions): Promise<Batch
     images,
     clientPrice = 0,
     deliveryCost = 0,
+    skipWarehouseVerification = false,
     chunkSize = 3, // Reducido de 10 a 3 para evitar errores 413 de Cloudflare/Nginx
     retries = 3,
     onProgress,
@@ -115,6 +117,7 @@ export async function uploadBatchChunked(opts: BatchChunkOptions): Promise<Batch
       images: chunk,
       client_price: clientPrice,
       delivery_cost: deliveryCost,
+      metadata: { skip_warehouse_verification: skipWarehouseVerification },
       idempotency_key: idempotencyKey,
     }
 

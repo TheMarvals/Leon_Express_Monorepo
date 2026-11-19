@@ -408,8 +408,9 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
             'VERIFICADO_EN_ALMACEN'
         ];
 
+        let packageCount = 0;
         if (statusesRequiringPackages.includes(newStatus)) {
-            const packageCount = await Package.count({
+            packageCount = await Package.count({
                 where: { pickup_id: pickupId },
                 transaction: t
             });
@@ -421,30 +422,30 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
         }
 
         // --- VALIDACIÓN DE INTEGRIDAD DE PAQUETES (CANDADO) ---
-        // Si hay paquetes que ya avanzaron en el flujo (asignados, en ruta, entregados...), 
-        // BLOQUEAMOS retroceder el estado de la recolección.
-        const advancedPackagesCount = await Package.count({
-            where: {
-                pickup_id: pickupId,
-                status: {
-                    [Op.in]: [
-                        'ASIGNADO_A_RUTA',
-                        'EN_TRANSITO',
-                        'EN_RUTA',
-                        'ENTREGADO',
-                        'REPROGRAMADO',
-                        'INCIDENCIA_ENTREGA',
-                        'DEVUELTO_ALMACEN'
-                    ]
-                }
-            },
-            transaction: t
-        });
+        // Si la recolección YA estaba VERIFICADO_EN_ALMACEN y tiene paquetes que avanzaron en ruta,
+        // bloqueamos retrocederla. (Pero permitimos avanzar recolecciones abiertas donde se usó
+        // "Saltar verificación en almacén").
+        if (pickup.status === 'VERIFICADO_EN_ALMACEN' && newStatus !== 'VERIFICADO_EN_ALMACEN') {
+            const advancedPackagesCount = await Package.count({
+                where: {
+                    pickup_id: pickupId,
+                    status: {
+                        [Op.in]: [
+                            'ASIGNADO_A_RUTA',
+                            'EN_RUTA_ENTREGA',
+                            'EN_TRANSITO',
+                            'EN_RUTA',
+                            'ENTREGADO',
+                            'REPROGRAMADO',
+                            'INCIDENCIA_ENTREGA',
+                            'DEVUELTO_ALMACEN'
+                        ]
+                    }
+                },
+                transaction: t
+            });
 
-        if (advancedPackagesCount > 0) {
-            // Solo permitimos cambiar a VERIFICADO_EN_ALMACEN (por si se necesita corregir inconsistencia actual)
-            // Pero prohibimos volver a estados anteriores como RECOLECCION_FINALIZADA.
-            if (newStatus !== 'VERIFICADO_EN_ALMACEN') {
+            if (advancedPackagesCount > 0) {
                 await t.rollback();
                 return res.status(409).json({
                     error: 'Bloqueo por integridad',
@@ -454,15 +455,46 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
         }
         // -----------------------------------------------------
 
+        // Si se marca como ENTREGADO_EN_ALMACEN pero TODOS sus paquetes ya están en RECIBIDO_EN_ALMACEN
+        // (o estados posteriores por haber usado "Saltar verificación en almacén") y no hay OCR pendiente,
+        // auto-completar directamente a VERIFICADO_EN_ALMACEN sin requerir verificación manual en bodega.
+        let effectiveStatus = newStatus;
+        if (newStatus === 'ENTREGADO_EN_ALMACEN' && packageCount > 0) {
+            const [unverifiedPkgCount, pendingOcrCount] = await Promise.all([
+                Package.count({
+                    where: {
+                        pickup_id: pickupId,
+                        status: { [Op.in]: ['PENDIENTE_RECOLECCION', 'RECOLECTADO_EN_ORIGEN'] }
+                    },
+                    transaction: t
+                }),
+                OcrProcessingQueue.count({
+                    where: {
+                        pickup_id: pickupId,
+                        [Op.or]: [
+                            { status: ['queued', 'processing', 'needs_review'] },
+                            { status: 'error', reviewed_by: { [Op.is]: null } }
+                        ]
+                    },
+                    transaction: t
+                })
+            ]);
+
+            if (unverifiedPkgCount === 0 && pendingOcrCount === 0) {
+                effectiveStatus = 'VERIFICADO_EN_ALMACEN';
+                console.log(`✅ [AUTO-VERIFY] Pickup ${pickupId} pasado automáticamente a VERIFICADO_EN_ALMACEN (todos los paquetes ya recibidos en almacén).`);
+            }
+        }
+
         // 1. Actualiza el estado de la recolección
         const oldStatus = pickup.status;
-        pickup.status = newStatus;
+        pickup.status = effectiveStatus;
         // Si la recolección se completa, registra la fecha
-        if (newStatus === 'RECOLECCION_FINALIZADA_DRIVER') {
-            pickup.pickup_completed_by_driver_at = new Date();
+        if (newStatus === 'RECOLECCION_FINALIZADA_DRIVER' || (!pickup.pickup_completed_by_driver_at && ['ENTREGADO_EN_ALMACEN', 'VERIFICADO_EN_ALMACEN'].includes(effectiveStatus))) {
+            pickup.pickup_completed_by_driver_at = pickup.pickup_completed_by_driver_at || new Date();
         }
         // Si se verifica en almacén, registra la fecha
-        if (newStatus === 'VERIFICADO_EN_ALMACEN') {
+        if (effectiveStatus === 'VERIFICADO_EN_ALMACEN') {
             pickup.verified_at_warehouse_at = new Date();
         }
         await pickup.save({ transaction: t });
@@ -471,25 +503,34 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
         await logAudit(req.user.user_id, 'UPDATE_PICKUP', {
             pickup_id: pickup.pickup_id,
             old_status: oldStatus,
-            new_status: newStatus,
+            new_status: effectiveStatus,
+            requested_status: newStatus,
+            auto_verified: effectiveStatus !== newStatus,
             action_type: 'status_change'
         });
 
         // 2. LÓGICA ADICIONAL: Si se verifica en almacén...
-        if (newStatus === 'VERIFICADO_EN_ALMACEN') {
-            // ...actualiza todos los paquetes de esa recolección.
+        if (effectiveStatus === 'VERIFICADO_EN_ALMACEN') {
+            // Solo pasar a RECIBIDO_EN_ALMACEN los paquetes que sigan en origen/pendientes,
+            // sin sobreescribir paquetes que ya fueron asignados a ruta o entregados.
             const [updatedCount] = await Package.update(
-                { status: 'RECIBIDO_EN_ALMACEN' }, // Nuevo estado para los paquetes
-                { where: { pickup_id: pickupId }, transaction: t }
+                { status: 'RECIBIDO_EN_ALMACEN', received_at_warehouse_datetime: new Date() },
+                {
+                    where: {
+                        pickup_id: pickupId,
+                        status: { [Op.in]: ['PENDIENTE_RECOLECCION', 'RECOLECTADO_EN_ORIGEN'] }
+                    },
+                    transaction: t
+                }
             );
             console.log(`Actualizados ${updatedCount} paquetes a RECIBIDO_EN_ALMACEN.`);
         }
 
         const client = await Client.findByPk(pickup.client_id, { transaction: t });
         const driver = await User.findByPk(pickup.user_id, { transaction: t });
-        const baseLink = `/pickups/details/${pickup.pickup_id}`;
+        const baseLink = `/pickups/${pickup.pickup_id}`;
 
-        if (newStatus === 'EN_PROCESO_RECOLECCION') {
+        if (effectiveStatus === 'EN_PROCESO_RECOLECCION') {
             queueNotificationForRole('ADMIN', {
                 title: 'Recolección iniciada',
                 message: `El driver ${driver ? driver.full_name : 'asignado'} inició la recolección del cliente ${client ? client.client_name : ''}.`,
@@ -497,7 +538,7 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
             }, { transaction: t });
         }
 
-        if (newStatus === 'CANCELADO') {
+        if (effectiveStatus === 'CANCELADO') {
             queueNotification({
                 userId: pickup.user_id,
                 title: 'Recolección cancelada',
@@ -506,7 +547,7 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
             }, { transaction: t });
         }
 
-        if (newStatus === 'ENTREGADO_EN_ALMACEN') {
+        if (effectiveStatus === 'ENTREGADO_EN_ALMACEN') {
             queueNotificationForRole('WAREHOUSE_STAFF', {
                 title: 'Recolección entregada en almacén',
                 message: `La recolección del cliente ${client ? client.client_name : ''} ya está en el almacén y espera verificación.`,
@@ -514,7 +555,7 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
             }, { transaction: t });
         }
 
-        if (newStatus === 'VERIFICADO_EN_ALMACEN') {
+        if (effectiveStatus === 'VERIFICADO_EN_ALMACEN') {
             queueNotification({
                 userId: pickup.user_id,
                 title: 'Recolección verificada en almacén',
@@ -523,7 +564,7 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
             }, { transaction: t });
         }
 
-        if (newStatus === 'RECOLECCION_FINALIZADA_DRIVER') {
+        if (effectiveStatus === 'RECOLECCION_FINALIZADA_DRIVER') {
             queueNotificationForRole('ADMIN', {
                 title: 'Recolección finalizada',
                 message: `El driver ${driver ? driver.full_name : 'asignado'} completó la recolección del cliente ${client ? client.client_name : ''}.`,

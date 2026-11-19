@@ -2,6 +2,7 @@
 import { defineVaDataTableColumns, useColors } from 'vuestic-ui'
 import { Pickup } from '../types'
 import { PropType, computed } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { useUserStore } from '@/stores/user-store'
 
@@ -16,6 +17,14 @@ defineEmits<{
 }>()
 
 const { getColor } = useColors()
+const router = useRouter()
+
+const goToPickupDetails = (event: any) => {
+  const id = event?.item?.pickup_id
+  if (id) {
+    router.push({ name: 'pickup-details', params: { id } })
+  }
+}
 
 const userStore = useUserStore()
 const canEdit = computed(() => userStore.isAdmin || userStore.isWarehouseStaff)
@@ -59,8 +68,23 @@ const formatDate = (dateString: string) => new Date(dateString).toLocaleString('
     :loading="loading"
     :per-page="100"
     no-data-html="No hay colectas para mostrar."
+    hoverable
+    class="cursor-pointer"
     sticky-header
+    @row:click="goToPickupDetails"
   >
+    <template #[`cell(client.client_name)`]="{ rowData }">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-gray-800">{{ rowData.client?.client_name || 'N/A' }}</span>
+        <RouterLink
+          :to="{ name: 'pickup-details', params: { id: rowData.pickup_id } }"
+          class="inline-flex"
+          @click.stop
+        >
+          <VaButton preset="primary" size="small" icon="fa4-eye" title="Ver recolección" />
+        </RouterLink>
+      </div>
+    </template>
     <template #[`cell(user.full_name)`]="{ rowData }">
       {{ rowData.user?.full_name || 'Pendiente de asignación' }}
     </template>
@@ -77,7 +101,7 @@ const formatDate = (dateString: string) => new Date(dateString).toLocaleString('
     </template>
 
     <template #cell(actions)="{ rowData }">
-      <div class="flex gap-2 justify-end">
+      <div class="flex gap-2 justify-end" @click.stop>
         <RouterLink :to="{ name: 'pickup-details', params: { id: rowData.pickup_id } }">
           <VaButton preset="primary" size="small" icon="fa4-eye" aria-label="Ver detalles" />
         </RouterLink>
@@ -87,7 +111,7 @@ const formatDate = (dateString: string) => new Date(dateString).toLocaleString('
           size="small"
           icon="fa4-edit"
           aria-label="Editar recolección"
-          @click="$emit('edit-pickup', rowData as Pickup)"
+          @click.stop="$emit('edit-pickup', rowData as Pickup)"
         />
         <VaButton
           v-if="isAdmin"
@@ -95,7 +119,7 @@ const formatDate = (dateString: string) => new Date(dateString).toLocaleString('
           color="danger"
           size="small"
           icon="fa4-trash"
-          @click="$emit('delete-pickup', rowData as Pickup)"
+          @click.stop="$emit('delete-pickup', rowData as Pickup)"
         />
       </div>
     </template>

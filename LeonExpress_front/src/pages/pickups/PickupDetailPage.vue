@@ -144,6 +144,17 @@ const fetchPickupDetails = async (silent = false) => {
 
 onMounted(fetchPickupDetails)
 
+watch(
+  () => route.params.id,
+  (newId) => {
+    if (newId) {
+      stopPolling()
+      dismissedOcrModal.value = false
+      fetchPickupDetails()
+    }
+  },
+)
+
 // 3. Añade las funciones para abrir el modal y guardar los cambios
 
 const openVerificationModal = (pkg: any) => {
@@ -193,11 +204,16 @@ const handleVerificationSave = async (payload: any) => {
 const updateStatus = async (newStatus: string) => {
   if (!pickup.value) return
   try {
-    await api.updatePickupStatus(pickup.value.pickup_id, newStatus)
-    notify({ message: `Estado actualizado correctamente`, color: 'success' })
+    const { data } = await api.updatePickupStatus(pickup.value.pickup_id, newStatus)
+    if (newStatus === 'ENTREGADO_EN_ALMACEN' && data?.status === 'VERIFICADO_EN_ALMACEN') {
+      notify({ message: 'Recolección entregada y verificada automáticamente en almacén', color: 'success' })
+    } else {
+      notify({ message: 'Estado actualizado correctamente', color: 'success' })
+    }
     await fetchPickupDetails()
-  } catch (error) {
-    notify({ message: 'Error al actualizar el estado', color: 'danger' })
+  } catch (error: any) {
+    const msg = error?.response?.data?.message || error?.response?.data?.error || 'Error al actualizar el estado'
+    notify({ message: msg, color: 'danger', duration: 5000 })
   }
 }
 </script>
@@ -227,15 +243,15 @@ const updateStatus = async (newStatus: string) => {
       </VaCardContent>
     </VaCard>
 
-    <div class="flex gap-2 mt-4 mb-6">
+    <div class="flex flex-wrap gap-2 mt-4 mb-6">
       <VaButton
-        v-if="userStore.isDriver && pickup.status === 'ASIGNADO_A_RECOLECTOR'"
+        v-if="(userStore.isDriver || userStore.isAdmin || userStore.isWarehouseStaff) && pickup.status === 'ASIGNADO_A_RECOLECTOR'"
         @click="updateStatus('EN_PROCESO_RECOLECCION')"
       >
         Iniciar Recolección
       </VaButton>
-      <template v-if="userStore.isDriver && pickup.status === 'EN_PROCESO_RECOLECCION'">
-        <RouterLink :to="{ name: 'pickup-scan-packages', params: { id: pickup.pickup_id } }">
+      <template v-if="(userStore.isDriver || userStore.isAdmin || userStore.isWarehouseStaff) && pickup.status === 'EN_PROCESO_RECOLECCION'">
+        <RouterLink v-if="userStore.isDriver || userStore.isAdmin" :to="{ name: 'pickup-scan-packages', params: { id: pickup.pickup_id } }">
           <VaButton icon="fa4-camera" color="primary" size="large">Escanear Paquetes</VaButton>
         </RouterLink>
         <VaButton color="warning" @click="updateStatus('RECOLECCION_FINALIZADA_DRIVER')">
@@ -243,7 +259,7 @@ const updateStatus = async (newStatus: string) => {
         </VaButton>
       </template>
       <VaButton
-        v-if="userStore.isDriver && pickup.status === 'RECOLECCION_FINALIZADA_DRIVER'"
+        v-if="(userStore.isDriver || userStore.isAdmin || userStore.isWarehouseStaff) && pickup.status === 'RECOLECCION_FINALIZADA_DRIVER'"
         :disabled="(pickup.ocrStats?.queued ?? 0) > 0 || (pickup.ocrStats?.processing ?? 0) > 0"
         @click="updateStatus('ENTREGADO_EN_ALMACEN')"
       >
@@ -254,8 +270,13 @@ const updateStatus = async (newStatus: string) => {
         }}
       </VaButton>
       <VaButton
-        v-if="(userStore.isAdmin || userStore.isWarehouseStaff) && pickup.status === 'ENTREGADO_EN_ALMACEN'"
+        v-if="
+          (userStore.isAdmin || userStore.isWarehouseStaff) &&
+          ['EN_PROCESO_RECOLECCION', 'RECOLECCION_FINALIZADA_DRIVER', 'ENTREGADO_EN_ALMACEN'].includes(pickup.status) &&
+          (pickup.packages?.length ?? 0) > 0
+        "
         color="success"
+        :disabled="(pickup.ocrStats?.queued ?? 0) > 0 || (pickup.ocrStats?.processing ?? 0) > 0"
         @click="updateStatus('VERIFICADO_EN_ALMACEN')"
       >
         Verificar en Almacén

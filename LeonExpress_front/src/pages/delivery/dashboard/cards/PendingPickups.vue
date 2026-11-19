@@ -46,8 +46,8 @@ onMounted(async () => {
   try {
     const { data } = await api.getPickups({
       userId: props.userId,
-      status: 'ASIGNADO_A_RECOLECTOR',
-      perPage: 10,
+      status: 'ASIGNADO_A_RECOLECTOR,EN_PROCESO_RECOLECCION,RECOLECCION_FINALIZADA_DRIVER',
+      perPage: 15,
       sortBy: 'pickup_scheduled_date',
       sortOrder: 'ASC',
     })
