@@ -145,7 +145,8 @@ router.get(
             const pendingChanges = await Package.findAll({
                 where: {
                     is_change: true,
-                    change_received: false
+                    change_received: false,
+                    status: { [require('sequelize').Op.notIn]: ['CANCELADO', 'DEVUELTO_A_CLIENTE'] }
                 },
                 include: [
                     { model: User, as: 'changeReceivedByUser', attributes: ['user_id', 'full_name'] }

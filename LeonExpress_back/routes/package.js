@@ -451,7 +451,12 @@ router.get("/", authenticateToken, async (req, res) => {
 
     // Filtro por estado de recepción de cambios
     if (changeReceived !== undefined) {
-      whereClause.change_received = changeReceived === 'true' || changeReceived === true;
+      const isChangeReceived = changeReceived === 'true' || changeReceived === true;
+      whereClause.change_received = isChangeReceived;
+      // Si se buscan cambios pendientes de recibir y no se filtró por status, excluir paquetes cancelados/devueltos
+      if (!isChangeReceived && !status) {
+        whereClause.status = { [Op.notIn]: ['CANCELADO', 'DEVUELTO_A_CLIENTE'] };
+      }
     }
 
     // Filtro por estado de la recolección (Pickup)
@@ -867,6 +872,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       include: [
         { model: Client, as: 'client', attributes: ['client_id', 'client_name'] },
         { model: PackageCost, as: 'packageCosts' },
+        { model: Cancellation, as: 'cancellation' },
         { model: User, as: 'returnConfirmedByUser', attributes: ['user_id', 'full_name'] }
       ]
     });
@@ -1362,6 +1368,99 @@ router.put('/:id/receive-at-warehouse', authenticateToken, roleValidator(['ADMIN
     if (t) await t.rollback();
     console.error('Error al confirmar recepción:', error);
     res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+});
+
+// PUT /api/packages/:id/cancel - Cancelar un paquete en bodega/origen sin asignarlo a ruta (Admin / Bodega)
+router.put('/:id/cancel', authenticateToken, roleValidator(['ADMIN', 'WAREHOUSE_STAFF']), async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const packageId = req.params.id;
+    const validReasons = ['SOLICITUD_CLIENTE', 'FALTA_STOCK', 'ERROR_SISTEMA', 'OTRO'];
+    const reason = validReasons.includes(req.body?.reason) ? req.body.reason : 'SOLICITUD_CLIENTE';
+    const notes = typeof req.body?.notes === 'string' ? req.body.notes.trim().slice(0, 500) : null;
+
+    const pkg = await Package.findByPk(packageId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!pkg) {
+      await t.rollback();
+      return res.status(404).json({ error: 'Paquete no encontrado.' });
+    }
+
+    if (['ASIGNADO_A_RUTA', 'EN_RUTA_ENTREGA', 'EN_RUTA_DEVOLUCION'].includes(pkg.status)) {
+      await t.rollback();
+      return res.status(409).json({
+        error: 'El paquete está asignado a una ruta activa. Quítalo de la ruta o recíbelo en almacén antes de cancelarlo.'
+      });
+    }
+
+    const cancellableStatuses = [
+      'PENDIENTE_RECOLECCION',
+      'RECOLECTADO_EN_ORIGEN',
+      'RECIBIDO_EN_ALMACEN',
+      'INCIDENCIA_ENTREGA',
+      'REPROGRAMADO',
+      'DEVUELTO_ALMACEN'
+    ];
+    if (!cancellableStatuses.includes(pkg.status)) {
+      await t.rollback();
+      return res.status(409).json({
+        error: `No se puede cancelar un paquete en estado '${pkg.status.replace(/_/g, ' ')}'.`
+      });
+    }
+
+    const oldStatus = pkg.status;
+    const now = new Date();
+
+    // Liberar cualquier vínculo residual con rutas cerradas
+    await RoutePackage.update(
+      {
+        released_at: now,
+        release_reason: 'CANCELADO',
+        released_by_user_id: req.user.user_id,
+        status_at_release: oldStatus
+      },
+      { where: { package_id: packageId, released_at: null }, transaction: t }
+    );
+
+    const existingCancellation = await Cancellation.findOne({ where: { package_id: packageId }, transaction: t });
+    if (existingCancellation) {
+      await existingCancellation.update({ reason, notes }, { transaction: t });
+    } else {
+      await Cancellation.create(
+        {
+          cancellation_id: uuidv4(),
+          package_id: packageId,
+          reason,
+          refund_amount: 0,
+          notes
+        },
+        { transaction: t }
+      );
+    }
+
+    await pkg.update(
+      {
+        status: 'CANCELADO',
+        pending_return_user_id: null
+      },
+      { transaction: t }
+    );
+
+    await t.commit();
+
+    await logAudit(req.user.user_id, 'CANCEL_PACKAGE', {
+      package_id: packageId,
+      tracking_code: pkg.tracking_code,
+      old_status: oldStatus,
+      reason,
+      notes
+    });
+
+    res.json({ message: 'Paquete marcado como cancelado exitosamente.', package: pkg });
+  } catch (error) {
+    if (t && !t.finished) await t.rollback();
+    console.error('Error al cancelar paquete:', error);
+    res.status(500).json({ error: 'Error interno del servidor al cancelar el paquete.' });
   }
 });
 

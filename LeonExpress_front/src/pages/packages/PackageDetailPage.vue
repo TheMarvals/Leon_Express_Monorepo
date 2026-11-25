@@ -129,6 +129,60 @@ const canReturnToClient = computed(() => {
   return false
 })
 
+const showCancelPackageModal = ref(false)
+const isCancellingPackage = ref(false)
+const cancelReason = ref('SOLICITUD_CLIENTE')
+const cancelNotes = ref('')
+
+const cancelReasonOptions = [
+  { text: 'Solicitud / rechazo del cliente', value: 'SOLICITUD_CLIENTE' },
+  { text: 'Falta de stock', value: 'FALTA_STOCK' },
+  { text: 'Error del sistema', value: 'ERROR_SISTEMA' },
+  { text: 'Otro motivo', value: 'OTRO' },
+]
+
+const cancelReasonLabels: Record<string, string> = {
+  SOLICITUD_CLIENTE: 'Solicitud / rechazo del cliente',
+  FALTA_STOCK: 'Falta de stock',
+  ERROR_SISTEMA: 'Error del sistema',
+  OTRO: 'Otro motivo',
+}
+
+const canCancelPackage = computed(() => {
+  if (!pkg.value || (!userStore.isAdmin && !userStore.isWarehouseStaff)) return false
+  return [
+    'PENDIENTE_RECOLECCION',
+    'RECOLECTADO_EN_ORIGEN',
+    'RECIBIDO_EN_ALMACEN',
+    'INCIDENCIA_ENTREGA',
+    'REPROGRAMADO',
+    'DEVUELTO_ALMACEN',
+  ].includes(pkg.value.status)
+})
+
+const confirmCancelPackage = async () => {
+  if (!pkg.value || isCancellingPackage.value) return
+  isCancellingPackage.value = true
+  try {
+    await api.cancelPackage(pkg.value.package_id, {
+      reason: (cancelReason.value as any)?.value || cancelReason.value,
+      notes: cancelNotes.value,
+    })
+    notify({ message: 'Paquete marcado como cancelado exitosamente.', color: 'success' })
+    showCancelPackageModal.value = false
+    cancelNotes.value = ''
+    await fetchData()
+  } catch (error: any) {
+    notify({
+      message: error.response?.data?.error || 'No se pudo cancelar el paquete.',
+      color: 'danger',
+      duration: 5000,
+    })
+  } finally {
+    isCancellingPackage.value = false
+  }
+}
+
 const handleCloseDeliveryConfirm = () => {
   showCloseDeliveryConfirm.value = false
   doShowDeliveryModal.value = false
@@ -680,6 +734,26 @@ const printThermalLabel = () => {
       </VaButton>
     </VaAlert>
 
+    <VaAlert
+      v-if="pkg.status === 'CANCELADO'"
+      color="secondary"
+      icon="block"
+      class="mb-6 shadow-sm"
+    >
+      <div class="flex flex-col gap-1">
+        <h4 class="font-bold text-base">Paquete cancelado</h4>
+        <p v-if="(pkg as any).cancellation?.reason" class="text-sm">
+          Motivo: <strong>{{ cancelReasonLabels[(pkg as any).cancellation.reason] || (pkg as any).cancellation.reason }}</strong>
+        </p>
+        <p v-if="(pkg as any).cancellation?.notes" class="text-sm italic">
+          Observaciones: "{{ (pkg as any).cancellation.notes }}"
+        </p>
+        <p class="text-xs text-gray-600 mt-1">
+          Este paquete no genera pago a transportista ni cobro de envío. Cuando entregues físicamente el producto de vuelta a la tienda, usa el botón <strong>Devuelto al cliente</strong>.
+        </p>
+      </div>
+    </VaAlert>
+
     <VaCard class="mb-6">
       <VaCardTitle>Detalles del Envío</VaCardTitle>
       <VaCardContent class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -794,6 +868,15 @@ const printThermalLabel = () => {
       <VaCardTitle class="flex justify-between items-center">
         <span>Gestión de Entregas</span>
         <div v-if="!userStore.isClient" class="flex flex-wrap justify-end gap-2">
+          <VaButton
+            v-if="canCancelPackage"
+            color="danger"
+            preset="secondary"
+            icon="fa4-ban"
+            @click="showCancelPackageModal = true"
+          >
+            Cancelar Paquete
+          </VaButton>
           <VaButton
             v-if="canReturnToClient"
             color="warning"
@@ -929,6 +1012,50 @@ const printThermalLabel = () => {
       <VaButton preset="secondary" @click="showCloseDeliveryConfirm = false"> Volver al formulario </VaButton>
       <VaButton color="danger" @click="handleCloseDeliveryConfirm"> Cerrar sin guardar </VaButton>
     </div>
+  </VaModal>
+
+  <VaModal
+    v-model="showCancelPackageModal"
+    title="Cancelar paquete"
+    size="small"
+    hide-default-actions
+    :no-dismiss="isCancellingPackage"
+  >
+    <VaAlert color="danger" icon="warning" class="mb-4">
+      <div>
+        El paquete <strong>{{ pkg?.tracking_code }}</strong> pasará a estado <strong>CANCELADO</strong> sin necesidad de asignarlo a una ruta (no genera pago a transportista ni cobro de envío).
+      </div>
+    </VaAlert>
+    <div class="flex flex-col gap-3">
+      <VaSelect
+        v-model="cancelReason"
+        label="Motivo de cancelación *"
+        :options="cancelReasonOptions"
+        text-by="text"
+        value-by="value"
+        :disabled="isCancellingPackage"
+      />
+      <VaInput
+        v-model="cancelNotes"
+        label="Observación (opcional)"
+        placeholder="Ej.: Cliente rechazó el cambio antes de salir de bodega"
+        type="textarea"
+        autosize
+        :max-length="500"
+        :disabled="isCancellingPackage"
+      />
+    </div>
+
+    <template #footer>
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 w-full">
+        <VaButton preset="secondary" :disabled="isCancellingPackage" @click="showCancelPackageModal = false">
+          Volver
+        </VaButton>
+        <VaButton color="danger" :loading="isCancellingPackage" @click="confirmCancelPackage">
+          Confirmar cancelación
+        </VaButton>
+      </div>
+    </template>
   </VaModal>
 
   <VaModal

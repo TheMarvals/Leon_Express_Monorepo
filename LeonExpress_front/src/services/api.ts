@@ -280,6 +280,8 @@ const api = {
       timeout: 60000,
     })
   },
+  cancelPackage: (packageId: string, data: { reason?: string; notes?: string }) =>
+    axiosInstance.put(`/packages/${packageId}/cancel`, data),
   returnPackageToClient: (packageId: string, notes?: string) =>
     axiosInstance.put(`/packages/${packageId}/return-to-client`, { notes }),
   confirmReturnByClient: (packageId: string, notes?: string) =>
